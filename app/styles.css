@@ -807,6 +807,168 @@ mark {
   background: #f3f6f2;
 }
 
+.secondary-button:hover {
+  border-color: var(--line-strong);
+  background: #f3f6f2;
+}
+
+.secondary-button.active {
+  background: #e8f0ea;
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.hymn-audio-dock {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #fbfdf9 0%, #f4f7f2 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.hymn-audio-dock.practice-mode {
+  border-color: #b9d4c3;
+  background: linear-gradient(180deg, #f3faf5 0%, #eaf4ee 100%);
+}
+
+.hymn-audio-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.hymn-audio-head strong {
+  display: block;
+  font-size: 15px;
+}
+
+.hymn-audio-head .muted {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+.hymn-audio-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.hymn-audio-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.audio-transport-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--green);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.audio-transport-button:hover {
+  border-color: var(--green);
+  background: #eef6f0;
+}
+
+.hymn-audio-progress {
+  display: flex;
+  flex: 1 1 180px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.hymn-audio-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #dde5dc;
+  overflow: hidden;
+}
+
+.hymn-audio-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2f6b4f, #4f8f6d);
+  transition: width 0.15s linear;
+}
+
+.hymn-audio-slider,
+.hymn-audio-tempo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.hymn-audio-slider input[type="range"],
+.hymn-audio-practice select {
+  accent-color: var(--green);
+}
+
+.hymn-audio-tempo span {
+  min-width: 48px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.hymn-audio-practice {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.hymn-audio-practice label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+}
+
+.practice-loop-toggle input {
+  margin: 0;
+}
+
+.hymn-audio-hint,
+.hymn-audio-empty {
+  margin: 0;
+  font-size: 13px;
+}
+
+.hymn-audio-modal .import-zone {
+  margin-top: 12px;
+}
+
+.hymn-audio-dropzone {
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .hymn-audio-controls {
+    align-items: stretch;
+  }
+
+  .hymn-audio-progress {
+    flex-basis: 100%;
+  }
+}
+
 .danger-button {
   background: var(--wine);
   color: #ffffff;

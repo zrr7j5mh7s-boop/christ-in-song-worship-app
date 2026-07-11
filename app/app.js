@@ -105,6 +105,7 @@
     timerEndsAt: Number(loadValue("timerEndsAt", 0)) || 0,
     emergencyMode: "",
     showAddContent: false,
+    practiceMode: false,
   };
 
   let favorites = new Set(loadJson("favorites", []));
@@ -113,6 +114,10 @@
   let templateEditorDraft = null;
   let songTagMap = {};
   let autoBackupList = [];
+  let hymnAudioPlayer = null;
+  let loadedAudioSongKey = "";
+  let songAudioMeta = null;
+  let audioDockState = { currentTime: 0 };
   let worshipPlan = normalizeWorshipPlan(loadJson("worshipPlan", null));
   let songService = normalizeSongService(loadJson("songService", null));
   state.activeSlot = Math.min(state.activeSlot, worshipPlan.length - 1);
@@ -137,6 +142,148 @@
     if (window.CISSearchEngine) {
       window.CISSearchEngine.rebuildIndex(data.languagePacks);
     }
+  }
+
+  function setupHymnAudio() {
+    if (!window.CISHymnAudioUI || !window.CISHymnAudioPlayer || !window.CISSongAudioStore) return;
+    hymnAudioPlayer = window.CISHymnAudioPlayer.createPlayer();
+    hymnAudioPlayer.onStateChange = (playerState) => {
+      audioDockState = { ...playerState, currentTime: audioDockState.currentTime || 0 };
+      paintAudioDock();
+    };
+    hymnAudioPlayer.onTimeUpdate = (currentTime) => {
+      audioDockState.currentTime = currentTime;
+      paintAudioDock(false);
+    };
+    hymnAudioPlayer.onSectionChange = (section) => {
+      if (!section) return;
+      state.slideIndex = section.startSlide;
+      paintAudioDock(false);
+      if (state.view === "song") {
+        const activeChip = document.querySelector(`.slide-chip[data-slide="${section.startSlide}"]`);
+        document.querySelectorAll(".slide-chip.active").forEach((chip) => chip.classList.remove("active"));
+        if (activeChip) activeChip.classList.add("active");
+        const stageLabel = document.querySelector(".stage-label");
+        const lyricBody = document.querySelector(".lyric-body");
+        const song = selectedSong();
+        const slide = song && song.slides[section.startSlide];
+        if (stageLabel && slide) stageLabel.textContent = slide.label;
+        if (lyricBody && slide) lyricBody.innerHTML = lyricHtml(slide.body);
+      }
+    };
+    window.CISHymnAudioUI.configure({
+      escapeHtml,
+      modalRoot: els.modalRoot,
+      getHandlers: () => hymnAudioHandlers(),
+      onUploadFile: (file) => handleHymnAudioUpload(file),
+    });
+  }
+
+  function hymnAudioHandlers() {
+    return {
+      togglePlay: () => hymnAudioPlayer && hymnAudioPlayer.togglePlay(),
+      nextVerse: () => {
+        if (!hymnAudioPlayer) return;
+        const section = hymnAudioPlayer.nextVerse();
+        if (section) {
+          state.slideIndex = section.startSlide;
+          render();
+        }
+      },
+      setVolume: (value) => hymnAudioPlayer && hymnAudioPlayer.setVolume(value),
+      stepTempo: (delta) => hymnAudioPlayer && hymnAudioPlayer.stepTempo(delta),
+      setPracticeLoop: (enabled) => hymnAudioPlayer && hymnAudioPlayer.setPracticeLoop(enabled),
+      setLoopSection: (index) => hymnAudioPlayer && hymnAudioPlayer.setLoopSection(index),
+      openUpload: () => {
+        const song = selectedSong();
+        if (!song || !window.CISHymnAudioUI) return;
+        window.CISHymnAudioUI.openUploadModal(`Hymn ${song.number} · ${song.title}`, songAudioMeta);
+      },
+      removeAudio: () => removeHymnAudio(),
+    };
+  }
+
+  async function ensureSongAudioLoaded(song, key) {
+    if (!hymnAudioPlayer || !window.CISSongAudioStore) return;
+    if (loadedAudioSongKey === key && songAudioMeta) return;
+    hymnAudioPlayer.stop();
+    songAudioMeta = null;
+    loadedAudioSongKey = key;
+    audioDockState = { currentTime: 0 };
+    const meta = await window.CISSongAudioStore.getAudioMeta(key);
+    if (!meta) return;
+    const blob = await window.CISSongAudioStore.getAudioBlob(key);
+    if (!blob) return;
+    songAudioMeta = meta;
+    await hymnAudioPlayer.load({ blob, meta, song });
+    audioDockState = { ...hymnAudioPlayer.getState(), currentTime: 0 };
+  }
+
+  function paintAudioDock(rebind = true) {
+    const root = document.getElementById("hymnAudioDock");
+    if (!root || !window.CISHymnAudioUI || !hymnAudioPlayer) return;
+    const song = selectedSong();
+    const statePayload = {
+      ...hymnAudioPlayer.getState(),
+      currentTime: audioDockState.currentTime || 0,
+    };
+    if (rebind) {
+      window.CISHymnAudioUI.updateDock(root, statePayload, song, songAudioMeta, state.practiceMode);
+    } else {
+      const progress = statePayload.duration
+        ? Math.min(100, ((statePayload.currentTime || 0) / statePayload.duration) * 100)
+        : 0;
+      const progressBar = root.querySelector(".hymn-audio-progress-bar");
+      const progressText = root.querySelector(".hymn-audio-progress .muted");
+      const transport = root.querySelector(".audio-transport-button");
+      if (progressBar) progressBar.style.width = `${progress}%`;
+      if (progressText && window.CISHymnAudioUI.formatTime) {
+        progressText.textContent = `${window.CISHymnAudioUI.formatTime(statePayload.currentTime || 0)} / ${window.CISHymnAudioUI.formatTime(statePayload.duration || 0)}`;
+      }
+      if (transport) {
+        transport.textContent = statePayload.playing ? "❚❚" : "▶";
+        transport.setAttribute("aria-label", statePayload.playing ? "Pause" : "Play");
+      }
+    }
+  }
+
+  async function bindHymnAudio() {
+    if (state.view !== "song" || !hymnAudioPlayer) return;
+    const song = selectedSong();
+    if (!song) return;
+    await ensureSongAudioLoaded(song, songKey(song));
+    paintAudioDock(true);
+  }
+
+  async function handleHymnAudioUpload(file) {
+    const song = selectedSong();
+    if (!song || !window.CISSongAudioStore || !hymnAudioPlayer) return;
+    try {
+      const key = songKey(song);
+      songAudioMeta = await window.CISSongAudioStore.saveAudio(key, file);
+      const blob = await window.CISSongAudioStore.getAudioBlob(key);
+      await hymnAudioPlayer.load({ blob, meta: songAudioMeta, song });
+      loadedAudioSongKey = key;
+      audioDockState = { ...hymnAudioPlayer.getState(), currentTime: 0 };
+      if (window.CISHymnAudioUI) window.CISHymnAudioUI.closeUploadModal();
+      paintAudioDock(true);
+      setNotice(`Audio saved for Hymn ${song.number}.`);
+    } catch (error) {
+      setNotice(error && error.message ? error.message : "Audio upload failed.");
+    }
+  }
+
+  async function removeHymnAudio() {
+    const song = selectedSong();
+    if (!song || !window.CISSongAudioStore || !hymnAudioPlayer) return;
+    const key = songKey(song);
+    await window.CISSongAudioStore.deleteAudio(key);
+    hymnAudioPlayer.stop();
+    songAudioMeta = null;
+    loadedAudioSongKey = "";
+    audioDockState = { currentTime: 0 };
+    paintAudioDock(true);
+    setNotice(`Audio removed from Hymn ${song.number}.`);
   }
 
   function setupSearchEngine() {
@@ -1034,11 +1181,13 @@
     renderNav();
     renderLanguageSwitcher();
     els.title.textContent = viewTitle();
+    if (state.view !== "song" && hymnAudioPlayer) hymnAudioPlayer.pause();
     els.content.innerHTML = `${renderNotice()}${renderView()}`;
     renderPresenterAV();
     renderEmergencyOverlay();
     if (state.view === "builder") bindBuilderInteractions();
     bindGlobalSearch();
+    bindHymnAudio();
     bindBackupSettings();
     document.body.classList.add("app-ready");
   }
@@ -1286,11 +1435,13 @@
               </div>
             </div>
             <div class="song-actions">
+              <button class="secondary-button ${state.practiceMode ? "active" : ""}" type="button" data-command="toggle-practice-mode">${state.practiceMode ? "Close Practice" : "Practice"}</button>
               <button class="secondary-button" type="button" data-command="toggle-favorite">${isFavorite ? "★ Saved" : "☆ Save"}</button>
               <button class="secondary-button" type="button" data-command="open-slot-picker">Add to Set</button>
               <button class="action-button" type="button" data-command="present-song">Present</button>
             </div>
           </div>
+          <div id="hymnAudioDock"></div>
           <div class="button-row">
             <button class="secondary-button" type="button" data-command="set-display" data-mode="slides">Slides</button>
             <button class="secondary-button" type="button" data-command="set-display" data-mode="sections">Sections</button>
@@ -3046,6 +3197,11 @@
       render();
       return;
     }
+    if (command === "toggle-practice-mode") {
+      state.practiceMode = !state.practiceMode;
+      render();
+      return;
+    }
     if (command === "toggle-favorite") return toggleFavorite();
     if (command === "open-slot-picker") return openSlotPicker();
     if (command === "toggle-add-content") {
@@ -3340,6 +3496,7 @@
   setupBackupRestore();
   setupBulletinExport();
   setupSearchEngine();
+  setupHymnAudio();
 
   Promise.all([loadImportedLanguagePacks(), loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(() => {
     render();
