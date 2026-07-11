@@ -28,10 +28,11 @@ environment variables.
 ### Wiring it up
 
 This project already has:
+- `appId` `com.vachinoda.christinsong` in `package.json`.
 - `"hardenedRuntime": true` and `build/entitlements.mac.plist` in
   `package.json` / `build/` (hardened runtime is required for notarization).
 - `scripts/notarize.js` wired as the `afterSign` hook, so notarization
-  happens automatically as part of `npm run dist:mac` / `npm run release`
+  happens automatically as part of `npm run dist:mac` / `npm run release:mac`
   — *if* the right environment variables are present.
 
 Set these before building:
