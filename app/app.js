@@ -7,10 +7,10 @@
   const desktopBridge = electronBridge || legacyDesktopBridge;
   const baseData = window.CIS_DATA || { meta: {}, languagePacks: [] };
   const extraPacks = window.CIS_EXTRA_LANGUAGE_PACKS || [];
-  let importedPacks = loadJson("importedLanguagePacks", []);
+  let importedPacks = [];
   const data = {
     meta: baseData.meta || {},
-    languagePacks: mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]),
+    languagePacks: [],
   };
   const rangeSize = 50;
   const defaultSlots = [
@@ -148,9 +148,13 @@
     title: document.getElementById("pageTitle"),
     languageSwitcher: document.getElementById("languageSwitcher"),
     modalRoot: document.getElementById("modalRoot"),
+    presenterControlRoot: document.getElementById("presenterControlRoot"),
+    presenterOutputRoot: document.getElementById("presenterOutputRoot"),
     presenterOverlay: document.getElementById("presenterOverlay"),
     emergencyOverlay: document.getElementById("emergencyOverlay"),
   };
+
+  let embeddedProjectorActive = false;
 
   const state = {
     view: initialView,
@@ -202,6 +206,72 @@
       });
     }
     return [...byCode.values()];
+  }
+
+  function refreshLanguageLibrary() {
+    data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
+  }
+
+  function isBuiltinLanguagePack(code) {
+    return [...(baseData.languagePacks || []), ...extraPacks].some((pack) => pack.code === code);
+  }
+
+  async function loadImportedLanguagePacks() {
+    try {
+      if (window.CISPackStore) {
+        importedPacks = await window.CISPackStore.migrateLegacyStorage();
+      } else {
+        importedPacks = loadJson("importedLanguagePacks", []);
+      }
+    } catch (_error) {
+      importedPacks = loadJson("importedLanguagePacks", []);
+    }
+    refreshLanguageLibrary();
+  }
+
+  function persistImportedLanguagePacks() {
+    saveJson("importedLanguagePacks", importedPacks);
+    if (window.CISPackStore && window.CISPackStore.savePacks) {
+      return window.CISPackStore.savePacks(importedPacks).catch(() => {});
+    }
+    return Promise.resolve();
+  }
+
+  function openLanguagePackImportModal() {
+    if (!window.CISPackImport) {
+      setNotice("Import module failed to load. Refresh the app and try again.");
+      return;
+    }
+    window.CISPackImport.openModal({
+      modalRoot: els.modalRoot,
+      escapeHtml,
+      getImportedPacks: () => importedPacks,
+      getAllPacks: () => data.languagePacks,
+      isBuiltinPack: isBuiltinLanguagePack,
+      onImported: async ({ importedPacks: nextImported, summaryItems }) => {
+        importedPacks = nextImported;
+        refreshLanguageLibrary();
+        await persistImportedLanguagePacks();
+        const primary = summaryItems && summaryItems[0];
+        if (primary && primary.code) {
+          state.languageCode = primary.code;
+          saveValue("language", state.languageCode);
+        }
+        const message = (summaryItems || []).map((item) => {
+          if (item.isNew) return `Imported ${item.added} new hymns in ${item.name}`;
+          if (item.added) return `Added ${item.added} new hymns in ${item.name}`;
+          if (item.updated) return `Updated ${item.updated} hymns in ${item.name}`;
+          return `${item.name} now has ${item.total} hymns`;
+        }).join(" · ");
+        setNotice(message || "Language pack imported.");
+        render();
+      },
+      onClose: () => {
+        if (window.CISPackImport && !window.CISPackImport.isOpen()) {
+          els.modalRoot.innerHTML = "";
+        }
+      },
+    });
   }
 
   function createPlanSlot(role, index, overrides = {}) {
@@ -558,7 +628,7 @@
     renderLanguageSwitcher();
     els.title.textContent = viewTitle();
     els.content.innerHTML = `${renderNotice()}${renderView()}`;
-    renderPresenterOverlay();
+    renderPresenterAV();
     renderEmergencyOverlay();
     document.body.classList.add("app-ready");
   }
@@ -584,8 +654,8 @@
 
   function renderNav() {
     els.nav.innerHTML = navItems.map((item) => `
-      <button class="nav-button ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}">
-        <span class="nav-icon" aria-hidden="true">${item.icon}</span>
+      <button class="rail-btn ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}">
+        <span class="ico" aria-hidden="true">${item.icon}</span>
         <span>${escapeHtml(item.label)}</span>
       </button>
     `).join("");
@@ -621,7 +691,7 @@
     const favoriteCount = [...favorites].filter((key) => getSongByKey(key)).length;
     const assignedCount = assignedSlots().length;
     return `
-      <section class="worship-hero">
+      <section class="hero worship-hero">
         <p class="eyebrow">Christ in Song · VaChinoda Edition</p>
         <h2>Your worship, ready to lead.</h2>
         <p>Search, build a Sabbath order of service, and present any hymn full-screen in the navy and gold worship theme.</p>
@@ -865,11 +935,11 @@
 
   function renderSections(song) {
     return `
-      <div class="section-list">
+      <div class="stanza-list">
         ${song.sections.map((section) => `
-          <article class="lyric-section ${section.kind}">
-            <strong>${escapeHtml(section.label)}</strong>
-            <p>${lyricHtml(section.body)}</p>
+          <article class="stanza ${section.kind}">
+            <div class="slabel">${escapeHtml(section.label)}</div>
+            <div class="stext">${lyricHtml(section.body)}</div>
           </article>
         `).join("")}
       </div>
@@ -1018,6 +1088,227 @@
     return assignedSlots()[0] || null;
   }
 
+  function applyEnginePresenterState(engineState) {
+    state.presenter.open = engineState.active;
+    state.presenter.slideIndex = engineState.slideIndex;
+    state.presenter.songKey = engineState.songKey;
+    state.presenter.planIndex = engineState.planIndex;
+    state.presenter.queueKeys = engineState.queueKeys || [];
+    state.presenter.queueIndex = engineState.queueIndex;
+  }
+
+  function buildPresenterNextContext(item) {
+    if (!item) return { nextSlide: null, nextHymn: null };
+    const index = Math.max(0, Math.min(item.slides.length - 1, state.presenter.slideIndex));
+    const nextSlide = item.slides[index + 1]
+      ? { label: item.slides[index + 1].label, body: item.slides[index + 1].body }
+      : null;
+    const queuedNextKey = state.presenter.queueIndex !== null ? state.presenter.queueKeys[state.presenter.queueIndex + 1] : "";
+    const queuedNextSong = queuedNextKey ? getSongByKey(queuedNextKey) : null;
+    const nextSlot = queuedNextSong ? null : nextAssignedSlot(state.presenter.planIndex);
+    const nextItem = queuedNextSong
+      ? { title: `Hymn ${queuedNextSong.number} · ${queuedNextSong.title}`, slides: queuedNextSong.slides }
+      : nextSlot
+        ? presenterItemFromSlot(nextSlot.slot, nextSlot.index)
+        : null;
+    const nextHymn = nextItem
+      ? {
+          title: nextItem.title,
+          firstLine: nextItem.slides && nextItem.slides[0] ? nextItem.slides[0].body : "",
+        }
+      : null;
+    return { nextSlide, nextHymn };
+  }
+
+  function presenterCanGoPrev(item) {
+    if (!item) return false;
+    const index = state.presenter.slideIndex;
+    return index > 0
+      || (state.presenter.queueIndex !== null && state.presenter.queueIndex > 0)
+      || (typeof state.presenter.planIndex === "number" && previousAssignedSlot(state.presenter.planIndex));
+  }
+
+  function presenterCanGoNext(item) {
+    if (!item) return false;
+    const index = state.presenter.slideIndex;
+    return index < item.slides.length - 1
+      || (state.presenter.queueIndex !== null && state.presenter.queueKeys[state.presenter.queueIndex + 1])
+      || nextAssignedSlot(state.presenter.planIndex);
+  }
+
+  function presenterMoveCore(delta) {
+    const item = currentPresenterItem();
+    if (!item) return false;
+    const beforeKey = `${state.presenter.songKey}-${state.presenter.slideIndex}-${state.presenter.planIndex}`;
+    const next = state.presenter.slideIndex + delta;
+    if (next >= 0 && next < item.slides.length) {
+      state.presenter.slideIndex = next;
+      return beforeKey !== `${state.presenter.songKey}-${state.presenter.slideIndex}-${state.presenter.planIndex}`;
+    }
+    if (delta > 0) {
+      if (state.presenter.queueIndex !== null) {
+        const nextKey = state.presenter.queueKeys[state.presenter.queueIndex + 1];
+        const nextSong = nextKey ? getSongByKey(nextKey) : null;
+        if (nextSong) {
+          state.presenter.songKey = nextKey;
+          state.presenter.slideIndex = 0;
+          state.presenter.queueIndex += 1;
+          return true;
+        }
+        return false;
+      }
+      const nextSlot = nextAssignedSlot(state.presenter.planIndex);
+      if (nextSlot) {
+        const nextItem = presenterItemFromSlot(nextSlot.slot, nextSlot.index);
+        if (nextItem) {
+          state.presenter.songKey = nextSlot.slot.songKey;
+          state.presenter.slideIndex = 0;
+          state.presenter.planIndex = nextSlot.index;
+          state.activeSlot = nextSlot.index;
+          saveValue("activeSlot", state.activeSlot);
+          return true;
+        }
+      }
+      return false;
+    }
+    if (state.presenter.queueIndex !== null) {
+      const prevKey = state.presenter.queueKeys[state.presenter.queueIndex - 1];
+      const prevSong = prevKey ? getSongByKey(prevKey) : null;
+      if (prevSong) {
+        state.presenter.songKey = prevKey;
+        state.presenter.slideIndex = prevSong.slides.length - 1;
+        state.presenter.queueIndex -= 1;
+        return true;
+      }
+      return false;
+    }
+    const prevSlot = previousAssignedSlot(state.presenter.planIndex);
+    if (prevSlot) {
+      const prevItem = presenterItemFromSlot(prevSlot.slot, prevSlot.index);
+      if (prevItem) {
+        state.presenter.songKey = prevSlot.slot.songKey;
+        state.presenter.slideIndex = prevItem.slides.length - 1;
+        state.presenter.planIndex = prevSlot.index;
+        state.activeSlot = prevSlot.index;
+        saveValue("activeSlot", state.activeSlot);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function buildPresenterSessionPatch(overrides = {}) {
+    return {
+      active: true,
+      paused: false,
+      displayMode: "lyrics",
+      slideIndex: 0,
+      songKey: state.presenter.songKey,
+      planIndex: state.presenter.planIndex,
+      queueKeys: state.presenter.queueKeys,
+      queueIndex: state.presenter.queueIndex,
+      fontScale: state.fontScale,
+      timerSeconds: state.timerSeconds,
+      timerRunning: state.timerRunning,
+      timerEndsAt: state.timerEndsAt,
+      ...overrides,
+    };
+  }
+
+  function renderPresenterAV() {
+    if (!window.CISPresenterEngine || !window.CISPresenterOutput || !window.CISPresenterControl) return;
+    applyEnginePresenterState(window.CISPresenterEngine.getState());
+    const snapshot = window.CISPresenterEngine.buildSnapshot();
+    window.CISPresenterControl.render(els.presenterControlRoot, snapshot);
+    if (embeddedProjectorActive) {
+      window.CISPresenterOutput.render(els.presenterOutputRoot, snapshot);
+    } else {
+      window.CISPresenterOutput.render(els.presenterOutputRoot, { active: false });
+    }
+    document.body.classList.toggle("presenter-live", snapshot.active);
+  }
+
+  function setupPresenterSystem() {
+    if (!window.CISPresenterEngine) return;
+    window.CISPresenterControl.configure({ escapeHtml, plain, formatDuration });
+    window.CISPresenterOutput.configure({ escapeHtml, lyricHtml });
+    window.CISPresenterEngine.configure({
+      currentPresenterItem: () => {
+        applyEnginePresenterState(window.CISPresenterEngine.getState());
+        return currentPresenterItem();
+      },
+      nextContext: (_engineState, item) => buildPresenterNextContext(item),
+      canGoPrev: (_engineState, item) => presenterCanGoPrev(item),
+      canGoNext: (_engineState, item) => presenterCanGoNext(item),
+      movePresenter: (engineState, delta) => {
+        applyEnginePresenterState(engineState);
+        const changed = presenterMoveCore(delta);
+        if (changed) {
+          engineState.slideIndex = state.presenter.slideIndex;
+          engineState.songKey = state.presenter.songKey;
+          engineState.planIndex = state.presenter.planIndex;
+          engineState.queueKeys = state.presenter.queueKeys;
+          engineState.queueIndex = state.presenter.queueIndex;
+        }
+        return changed;
+      },
+      onEmbeddedOutput: (enabled) => {
+        embeddedProjectorActive = enabled;
+        if (enabled) {
+          els.presenterOutputRoot.classList.remove("hidden");
+          window.CISPresenterOutput.requestFullscreen(els.presenterOutputRoot);
+        } else {
+          els.presenterOutputRoot.classList.add("hidden");
+          if (document.fullscreenElement === els.presenterOutputRoot && document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          }
+        }
+        renderPresenterAV();
+      },
+      toggleOutputFullscreen: () => {
+        if (embeddedProjectorActive) {
+          window.CISPresenterOutput.requestFullscreen(els.presenterOutputRoot);
+          return;
+        }
+        if (window.CISPresenterOutput) window.CISPresenterOutput.requestFullscreen(document.documentElement);
+      },
+      electronOpenProjector: desktopBridge && desktopBridge.openProjector
+        ? async () => {
+            embeddedProjectorActive = false;
+            await desktopBridge.openProjector();
+          }
+        : null,
+      electronCloseProjector: desktopBridge && desktopBridge.closeProjector
+        ? () => desktopBridge.closeProjector()
+        : null,
+      electronPublish: desktopBridge && desktopBridge.publishPresenterState
+        ? (payload) => desktopBridge.publishPresenterState(payload)
+        : null,
+    });
+    window.CISPresenterEngine.subscribe(() => renderPresenterAV());
+    if (desktopBridge && desktopBridge.onPresenterClosed) {
+      desktopBridge.onPresenterClosed(() => {
+        embeddedProjectorActive = true;
+        renderPresenterAV();
+      });
+    }
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data && event.data.type === "cis-presenter:closed") {
+        embeddedProjectorActive = true;
+        renderPresenterAV();
+      }
+    });
+  }
+
+  function startPresenterSession(patch) {
+    if (!window.CISPresenterEngine) return;
+    state.presenter.open = true;
+    window.CISPresenterEngine.openSession(buildPresenterSessionPatch(patch));
+    applyEnginePresenterState(window.CISPresenterEngine.getState());
+    renderPresenterAV();
+  }
+
   function renderPresenterDashboard() {
     const assigned = assignedSlots();
     const currentInfo = assigned.find((item) => item.index === state.activeSlot) || assigned[0] || null;
@@ -1033,6 +1324,7 @@
           <p class="muted">${nextInfo ? `Next: ${escapeHtml(slotTitle(nextInfo.slot))}` : "Next: Not assigned"}</p>
           <div class="button-row">
             <button class="action-button" type="button" data-command="present-current">Present Current</button>
+            <button class="secondary-button" type="button" data-command="presenter-open-output">Open Projector Screen</button>
             <button class="secondary-button" type="button" data-command="emergency-black">Black Screen</button>
             <button class="secondary-button" type="button" data-command="emergency-white">White Screen</button>
             <button class="secondary-button" type="button" data-command="emergency-logo">Logo Screen</button>
@@ -1133,9 +1425,9 @@
           <h2>Language Packs</h2>
           <div class="import-zone" data-command="import-language-pack">
             <strong>Import Language Pack</strong>
-            <span>Drop a Christ in Song JSON pack here, or choose a file. PowerPoint packs can be converted by Codex and added as JSON.</span>
-            <button class="secondary-button" type="button" data-command="import-language-pack">Choose JSON Pack</button>
-            <input id="languagePackImport" class="hidden" type="file" accept=".json,application/json,.pptx">
+            <span>Add hymns in a new language from a JSON pack or PowerPoint file. Drag-and-drop, validation, and duplicate handling are built in.</span>
+            <button class="action-button" type="button" data-command="import-language-pack">Import Language Pack</button>
+            <span class="muted">Test pack: <code>app/data/sample-packs/ndebele-sample.json</code> (5 Ndebele hymns)</span>
           </div>
           <div class="language-status">
             ${data.languagePacks.map((pack) => `
@@ -1250,6 +1542,10 @@
   }
 
   function closeModal() {
+    if (window.CISPackImport && window.CISPackImport.isOpen()) {
+      window.CISPackImport.closeModal();
+      return;
+    }
     els.modalRoot.innerHTML = "";
   }
 
@@ -1460,32 +1756,38 @@
 
   function openPresenter(song, planIndex) {
     if (!song) return;
-    state.presenter.open = true;
     state.presenter.songKey = songKey(song);
     state.presenter.slideIndex = 0;
     state.presenter.planIndex = typeof planIndex === "number" ? planIndex : null;
     state.presenter.queueKeys = [];
     state.presenter.queueIndex = null;
     addRecent(song);
+    startPresenterSession({
+      songKey: state.presenter.songKey,
+      planIndex: state.presenter.planIndex,
+      queueKeys: [],
+      queueIndex: null,
+      slideIndex: 0,
+    });
     render();
-    if (els.presenterOverlay.requestFullscreen) {
-      els.presenterOverlay.requestFullscreen().catch(() => {});
-    }
   }
 
   function openCustomPresenter(planIndex) {
     const item = presenterItemFromSlot(worshipPlan[planIndex], planIndex);
     if (!item) return;
-    state.presenter.open = true;
     state.presenter.songKey = "";
     state.presenter.slideIndex = 0;
     state.presenter.planIndex = planIndex;
     state.presenter.queueKeys = [];
     state.presenter.queueIndex = null;
+    startPresenterSession({
+      songKey: "",
+      planIndex,
+      queueKeys: [],
+      queueIndex: null,
+      slideIndex: 0,
+    });
     render();
-    if (els.presenterOverlay.requestFullscreen) {
-      els.presenterOverlay.requestFullscreen().catch(() => {});
-    }
   }
 
   function openPresenterQueue(keys, startIndex = 0) {
@@ -1493,7 +1795,6 @@
     if (!queueKeys.length) return;
     const boundedIndex = Math.max(0, Math.min(queueKeys.length - 1, startIndex));
     const song = getSongByKey(queueKeys[boundedIndex]);
-    state.presenter.open = true;
     state.presenter.songKey = queueKeys[boundedIndex];
     state.presenter.slideIndex = 0;
     state.presenter.planIndex = null;
@@ -1503,10 +1804,14 @@
     state.languageCode = parsed.code;
     state.songNumber = parsed.number;
     addRecent(song, parsed.code);
+    startPresenterSession({
+      songKey: state.presenter.songKey,
+      planIndex: null,
+      queueKeys,
+      queueIndex: boundedIndex,
+      slideIndex: 0,
+    });
     render();
-    if (els.presenterOverlay.requestFullscreen) {
-      els.presenterOverlay.requestFullscreen().catch(() => {});
-    }
   }
 
   function presentCurrent() {
@@ -1541,63 +1846,52 @@
     openPresenterQueue(keys, startPosition === -1 ? 0 : startPosition);
   }
 
-  function renderPresenterOverlay() {
-    if (!state.presenter.open) {
-      els.presenterOverlay.className = "presenter-overlay hidden";
-      els.presenterOverlay.setAttribute("aria-hidden", "true");
-      els.presenterOverlay.innerHTML = "";
+  function togglePresenterFullscreen() {
+    if (!window.CISPresenterEngine || !window.CISPresenterEngine.getState().active) return;
+    if (window.CISPresenterEngine.handleCommand("presenter-fullscreen")) return;
+  }
+
+  function presenterMove(delta) {
+    if (!window.CISPresenterEngine) return;
+    if (window.CISPresenterEngine.moveSlide(delta)) {
+      applyEnginePresenterState(window.CISPresenterEngine.getState());
+      window.CISPresenterEngine.publishState();
+      renderPresenterAV();
+    }
+  }
+
+  function closePresenter() {
+    if (window.CISPresenterEngine) window.CISPresenterEngine.closeSession();
+    state.presenter.open = false;
+    state.emergencyMode = "";
+    embeddedProjectorActive = false;
+    render();
+  }
+
+  function setEmergency(mode) {
+    if (window.CISPresenterEngine && window.CISPresenterEngine.getState().active) {
+      window.CISPresenterEngine.setDisplayMode(mode);
+      renderPresenterAV();
       return;
     }
-    const item = currentPresenterItem();
-    if (!item || !item.slides.length) {
-      state.presenter.open = false;
-      renderPresenterOverlay();
+    state.emergencyMode = mode;
+    renderEmergencyOverlay();
+    if (els.emergencyOverlay.requestFullscreen) {
+      els.emergencyOverlay.requestFullscreen().catch(() => {});
+    }
+  }
+
+  function clearEmergency() {
+    if (window.CISPresenterEngine && window.CISPresenterEngine.getState().active) {
+      window.CISPresenterEngine.setDisplayMode("lyrics");
+      renderPresenterAV();
       return;
     }
-    const index = Math.max(0, Math.min(item.slides.length - 1, state.presenter.slideIndex));
-    const slide = item.slides[index];
-    const queuedNextKey = state.presenter.queueIndex !== null ? state.presenter.queueKeys[state.presenter.queueIndex + 1] : "";
-    const queuedNextSong = queuedNextKey ? getSongByKey(queuedNextKey) : null;
-    const nextSlot = queuedNextSong ? null : nextAssignedSlot(state.presenter.planIndex);
-    const nextItem = queuedNextSong
-      ? { title: `Hymn ${queuedNextSong.number} · ${queuedNextSong.title}`, shortTitle: `Hymn ${queuedNextSong.number}`, slides: queuedNextSong.slides }
-      : nextSlot
-        ? presenterItemFromSlot(nextSlot.slot, nextSlot.index)
-        : null;
-    const nextSlide = item.slides[index + 1];
-    const nextText = nextSlide
-      ? `Next: ${nextSlide.label}`
-      : nextItem
-        ? `Next: ${nextItem.shortTitle}`
-        : "End of queue";
-    const nextPreview = nextSlide ? nextSlide.body : nextItem && nextItem.slides[0] ? nextItem.slides[0].body : "";
-    const progress = item.slides.map((_, dotIndex) => `<span class="presenter-dot ${dotIndex === index ? "on" : ""}"></span>`).join("");
-    els.presenterOverlay.className = "presenter-overlay";
-    els.presenterOverlay.setAttribute("aria-hidden", "false");
-    els.presenterOverlay.innerHTML = `
-      <div class="presenter-top">
-        <div><strong>${escapeHtml(item.shortTitle)}</strong> · ${escapeHtml(item.title.replace(item.shortTitle, "").replace(/^ · /, ""))}</div>
-        <div class="stage-count">${index + 1} of ${item.slides.length}</div>
-      </div>
-      <div class="presenter-stage">${lyricHtml(slide.body)}</div>
-      <div class="presenter-bottom">
-        <div>
-          <span class="stage-label">${escapeHtml(slide.label)}</span>
-          ${nextItem ? `<span class="stage-count"> · ${escapeHtml(nextText)}</span>` : ""}
-        </div>
-        <div class="presenter-progress" aria-label="Slide progress">${progress}</div>
-        <div class="presenter-next-info"><strong>${escapeHtml(nextText)}</strong><span>${escapeHtml(plain(nextPreview).slice(0, 120))}</span></div>
-        <div class="presenter-controls">
-          <button type="button" data-command="presenter-prev">‹ Prev</button>
-          <button type="button" data-command="presenter-next">Next ›</button>
-          <button type="button" data-command="emergency-black">Black</button>
-          <button type="button" data-command="emergency-white">White</button>
-          <button type="button" data-command="emergency-logo">Logo</button>
-          <button type="button" data-command="close-presenter">Clear</button>
-          <button type="button" data-command="close-presenter">Close</button>
-        </div>
-      </div>
-    `;
+    state.emergencyMode = "";
+    if (document.fullscreenElement === els.emergencyOverlay && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+    renderEmergencyOverlay();
   }
 
   function nextAssignedSlot(index) {
@@ -1608,88 +1902,6 @@
   function previousAssignedSlot(index) {
     if (typeof index !== "number") return null;
     return [...assignedSlots()].reverse().find((item) => item.index < index) || null;
-  }
-
-  function presenterMove(delta) {
-    const item = currentPresenterItem();
-    if (!item) return;
-    const next = state.presenter.slideIndex + delta;
-    if (next >= 0 && next < item.slides.length) {
-      state.presenter.slideIndex = next;
-      renderPresenterOverlay();
-      return;
-    }
-    if (delta > 0) {
-      if (state.presenter.queueIndex !== null) {
-        const nextKey = state.presenter.queueKeys[state.presenter.queueIndex + 1];
-        const nextSong = nextKey ? getSongByKey(nextKey) : null;
-        if (nextSong) {
-          state.presenter.songKey = nextKey;
-          state.presenter.slideIndex = 0;
-          state.presenter.queueIndex += 1;
-          renderPresenterOverlay();
-        }
-        return;
-      }
-      const nextSlot = nextAssignedSlot(state.presenter.planIndex);
-      if (nextSlot) {
-        const nextItem = presenterItemFromSlot(nextSlot.slot, nextSlot.index);
-        if (nextItem) {
-          state.presenter.songKey = nextSlot.slot.songKey;
-          state.presenter.slideIndex = 0;
-          state.presenter.planIndex = nextSlot.index;
-          state.activeSlot = nextSlot.index;
-          renderPresenterOverlay();
-        }
-      }
-      return;
-    }
-    if (state.presenter.queueIndex !== null) {
-      const prevKey = state.presenter.queueKeys[state.presenter.queueIndex - 1];
-      const prevSong = prevKey ? getSongByKey(prevKey) : null;
-      if (prevSong) {
-        state.presenter.songKey = prevKey;
-        state.presenter.slideIndex = prevSong.slides.length - 1;
-        state.presenter.queueIndex -= 1;
-        renderPresenterOverlay();
-      }
-      return;
-    }
-      const prevSlot = previousAssignedSlot(state.presenter.planIndex);
-      if (prevSlot) {
-      const prevItem = presenterItemFromSlot(prevSlot.slot, prevSlot.index);
-      if (prevItem) {
-        state.presenter.songKey = prevSlot.slot.songKey;
-        state.presenter.slideIndex = prevItem.slides.length - 1;
-        state.presenter.planIndex = prevSlot.index;
-        state.activeSlot = prevSlot.index;
-        renderPresenterOverlay();
-      }
-    }
-  }
-
-  function closePresenter() {
-    state.presenter.open = false;
-    if (document.fullscreenElement && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    }
-    render();
-  }
-
-  function setEmergency(mode) {
-    state.emergencyMode = mode;
-    renderEmergencyOverlay();
-    if (els.emergencyOverlay.requestFullscreen) {
-      els.emergencyOverlay.requestFullscreen().catch(() => {});
-    }
-  }
-
-  function clearEmergency() {
-    state.emergencyMode = "";
-    if (document.fullscreenElement === els.emergencyOverlay && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    }
-    renderEmergencyOverlay();
   }
 
   function renderEmergencyOverlay() {
@@ -1838,46 +2050,17 @@
         if (Array.isArray(payload.customTemplates)) customTemplates = payload.customTemplates;
         if (Array.isArray(payload.importedLanguagePacks)) {
           importedPacks = payload.importedLanguagePacks;
-          data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
+          refreshLanguageLibrary();
         }
         saveJson("worshipPlan", worshipPlan);
         saveJson("songService", songService);
         saveJson("favorites", [...favorites]);
         saveJson("recents", recents);
         saveJson("customTemplates", customTemplates);
-        saveJson("importedLanguagePacks", importedPacks);
-        render();
+        persistImportedLanguagePacks().finally(() => render());
+        return;
       } catch (error) {
         window.alert("That backup file could not be restored.");
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  function importLanguagePackFromFile(file) {
-    if (!file) return;
-    if (/\.pptx$/i.test(file.name)) {
-      window.alert("PowerPoint language packs need to be converted to Christ in Song JSON before browser import. Send the PPTX through Codex and import the generated JSON pack here.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const payload = JSON.parse(String(reader.result || "{}"));
-        const packs = Array.isArray(payload.languagePacks) ? payload.languagePacks : Array.isArray(payload.songs) ? [payload] : [];
-        const valid = packs.filter((pack) => pack && pack.code && pack.name && Array.isArray(pack.songs));
-        if (!valid.length) throw new Error("No valid packs");
-        importedPacks = mergeLanguagePacks([...importedPacks, ...valid.map((pack) => ({
-          ...pack,
-          status: "ready",
-          songCount: pack.songs.length,
-          source: pack.source || file.name,
-        }))]);
-        data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
-        saveJson("importedLanguagePacks", importedPacks);
-        render();
-      } catch (error) {
-        window.alert("That language pack JSON could not be imported.");
       }
     };
     reader.readAsText(file);
@@ -1888,7 +2071,7 @@
     recents = [];
     customTemplates = [];
     importedPacks = [];
-    data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks]);
+    refreshLanguageLibrary();
     worshipPlan = createDefaultPlan();
     songService = createDefaultSongService();
     saveJson("favorites", []);
@@ -1897,7 +2080,7 @@
     saveJson("importedLanguagePacks", []);
     saveJson("worshipPlan", worshipPlan);
     saveJson("songService", songService);
-    render();
+    persistImportedLanguagePacks().finally(() => render());
   }
 
   function persistTimer() {
@@ -1906,11 +2089,21 @@
     saveValue("timerEndsAt", state.timerEndsAt);
   }
 
+  function syncTimerToPresenter() {
+    if (!window.CISPresenterEngine || !window.CISPresenterEngine.getState().active) return;
+    window.CISPresenterEngine.patchState({
+      timerSeconds: state.timerSeconds,
+      timerRunning: state.timerRunning,
+      timerEndsAt: state.timerEndsAt,
+    });
+  }
+
   function adjustTimer(delta) {
     const next = Math.max(60, timerRemaining() + delta);
     state.timerSeconds = next;
     state.timerEndsAt = state.timerRunning ? Date.now() + next * 1000 : 0;
     persistTimer();
+    syncTimerToPresenter();
     render();
   }
 
@@ -1924,6 +2117,7 @@
       state.timerEndsAt = Date.now() + Math.max(1, state.timerSeconds) * 1000;
     }
     persistTimer();
+    syncTimerToPresenter();
     render();
   }
 
@@ -1932,6 +2126,7 @@
     state.timerSeconds = 600;
     state.timerEndsAt = 0;
     persistTimer();
+    syncTimerToPresenter();
     render();
   }
 
@@ -2054,30 +2249,6 @@
       restoreBackupFromFile(target.files && target.files[0]);
       target.value = "";
     }
-    if (target.id === "languagePackImport") {
-      importLanguagePackFromFile(target.files && target.files[0]);
-      target.value = "";
-    }
-  });
-
-  document.addEventListener("dragover", (event) => {
-    const zone = event.target.closest(".import-zone");
-    if (!zone) return;
-    event.preventDefault();
-    zone.classList.add("dragging");
-  });
-
-  document.addEventListener("dragleave", (event) => {
-    const zone = event.target.closest(".import-zone");
-    if (zone) zone.classList.remove("dragging");
-  });
-
-  document.addEventListener("drop", (event) => {
-    const zone = event.target.closest(".import-zone");
-    if (!zone) return;
-    event.preventDefault();
-    zone.classList.remove("dragging");
-    importLanguagePackFromFile(event.dataTransfer.files && event.dataTransfer.files[0]);
   });
 
   document.addEventListener("keydown", (event) => {
@@ -2085,7 +2256,7 @@
       if (event.key === "Escape") clearEmergency();
       return;
     }
-    if (state.presenter.open) {
+    if (state.presenter.open || (window.CISPresenterEngine && window.CISPresenterEngine.getState().active)) {
       if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
         event.preventDefault();
         presenterMove(1);
@@ -2095,10 +2266,16 @@
         presenterMove(-1);
       }
       if (event.key === "Escape") closePresenter();
+      if (event.key.toLowerCase() === "f") togglePresenterFullscreen();
+      if (event.key.toLowerCase() === "h") closePresenter();
       if (event.key.toLowerCase() === "b") setEmergency("black");
       if (event.key.toLowerCase() === "w") setEmergency("white");
       if (event.key.toLowerCase() === "l") setEmergency("logo");
-      if (event.key.toLowerCase() === "c") closePresenter();
+      if (event.key.toLowerCase() === "c") clearEmergency();
+      if (event.key.toLowerCase() === "p") {
+        if (window.CISPresenterEngine) window.CISPresenterEngine.togglePause();
+        renderPresenterAV();
+      }
       return;
     }
     if (state.view === "song") {
@@ -2208,11 +2385,7 @@
       if (input) input.click();
       return;
     }
-    if (command === "import-language-pack") {
-      const input = document.getElementById("languagePackImport");
-      if (input) input.click();
-      return;
-    }
+    if (command === "import-language-pack") return openLanguagePackImportModal();
     if (command === "import-plan") {
       const input = document.getElementById("worshipPlanImport");
       if (input) input.click();
@@ -2272,10 +2445,23 @@
     }
     if (command === "next-slide") return moveSlide(1);
     if (command === "prev-slide") return moveSlide(-1);
+    if (command === "presenter-pause") {
+      if (window.CISPresenterEngine) window.CISPresenterEngine.togglePause();
+      renderPresenterAV();
+      return;
+    }
+    if (command === "presenter-open-output") {
+      if (window.CISPresenterEngine) {
+        window.CISPresenterEngine.openOutputSurface();
+        renderPresenterAV();
+      }
+      return;
+    }
     if (command === "present-song") return openPresenter(selectedSong(), null);
     if (command === "present-current" || command === "open-presenter") return presentCurrent();
     if (command === "presenter-next") return presenterMove(1);
     if (command === "presenter-prev") return presenterMove(-1);
+    if (command === "presenter-fullscreen") return togglePresenterFullscreen();
     if (command === "close-presenter") return closePresenter();
     if (command === "emergency-black") return setEmergency("black");
     if (command === "emergency-white") return setEmergency("white");
@@ -2339,13 +2525,26 @@
   }
 
   setupDesktopBridge();
+  setupPresenterSystem();
 
-  render();
+  loadImportedLanguagePacks().finally(() => {
+    render();
+    if (!data.languagePacks.length) {
+      setNotice("Hymn library failed to load. Check app/data/songs.js.");
+    }
+  });
   setInterval(() => {
     if (state.timerRunning && timerRemaining() <= 0) {
       state.timerRunning = false;
       state.timerSeconds = 0;
       persistTimer();
+      syncTimerToPresenter();
+    }
+    if (window.CISPresenterEngine && window.CISPresenterEngine.getState().active) {
+      syncTimerToPresenter();
+      window.CISPresenterEngine.publishState();
+      renderPresenterAV();
+      return;
     }
     if (state.view === "presenter" || state.presenter.open) render();
   }, 1000);
