@@ -100,17 +100,9 @@ def extract_lines(path: str) -> list[str]:
     with open(path, "rb") as handle:
         data = handle.read()
 
-    candidates: list[str] = []
-    for chunk in re.findall(rb"[\x20-\x7e\n\r\t]{4,}", data):
-        candidates.append(chunk.decode("latin-1", errors="ignore"))
-    for match in re.finditer(rb"(?:[\x20-\x7e]\x00){4,}", data):
-        try:
-            candidates.append(match.group(0).decode("utf-16-le", errors="ignore"))
-        except UnicodeDecodeError:
-            continue
-
     lines: list[str] = []
-    for blob in candidates:
+    for match in re.finditer(rb"(?:[\x20-\x7e]\x00){4,}", data):
+        blob = match.group(0).decode("utf-16-le", errors="ignore")
         for raw_line in re.split(r"[\r\n]+", blob):
             line = normalize_line(raw_line)
             if is_hymn_line(line):
