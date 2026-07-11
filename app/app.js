@@ -52,9 +52,11 @@
     { id: "home", label: "Home Dashboard", icon: "⌂" },
     { id: "index", label: "Hymn Index", icon: "☰" },
     { id: "search", label: "Search", icon: "⌕" },
+    { id: "bible", label: "Bible", icon: "✞" },
     { id: "builder", label: "Worship Builder", icon: "+" },
     { id: "presenter", label: "Presenter", icon: "▶" },
     { id: "favorites", label: "Favorites", icon: "★" },
+    { id: "help", label: "Help", icon: "?" },
     { id: "settings", label: "Settings", icon: "⚙" },
   ];
   const launchParams = new URLSearchParams(window.location.search);
@@ -106,6 +108,10 @@
     emergencyMode: "",
     showAddContent: false,
     practiceMode: false,
+    bibleTranslation: loadValue("bibleTranslation", "KJV"),
+    bibleBookOrder: Number(loadValue("bibleBookOrder", 43)) || 43,
+    bibleChapter: Number(loadValue("bibleChapter", 1)) || 1,
+    bibleVerse: Number(loadValue("bibleVerse", 0)) || 0,
   };
 
   let favorites = new Set(loadJson("favorites", []));
@@ -118,6 +124,8 @@
   let loadedAudioSongKey = "";
   let songAudioMeta = null;
   let audioDockState = { currentTime: 0 };
+  let bibleReaderState = { loading: false, error: "", bookPayload: null, chapterPayload: null };
+  let bibleLoadedKey = "";
   let worshipPlan = normalizeWorshipPlan(loadJson("worshipPlan", null));
   let songService = normalizeSongService(loadJson("songService", null));
   state.activeSlot = Math.min(state.activeSlot, worshipPlan.length - 1);
@@ -284,6 +292,177 @@
     audioDockState = { currentTime: 0 };
     paintAudioDock(true);
     setNotice(`Audio removed from Hymn ${song.number}.`);
+  }
+
+  function setupBible() {
+    if (!window.CISBibleReaderUI || !window.CISBibleStore) return;
+    window.CISBibleReaderUI.configure({ escapeHtml });
+  }
+
+  function bibleCacheKey() {
+    return `${state.bibleTranslation}:${state.bibleBookOrder}:${state.bibleChapter}`;
+  }
+
+  function renderBibleShell() {
+    if (!window.CISBibleReaderUI || !window.CISBibleStore) {
+      return `<section class="section"><p class="muted">Bible reader failed to load.</p></section>`;
+    }
+    const store = window.CISBibleStore;
+    return `
+      <div id="bibleReaderRoot">
+        ${window.CISBibleReaderUI.renderReader({
+          translations: store.getTranslations(),
+          books: store.getBooks(),
+          translationCode: state.bibleTranslation,
+          bookOrder: state.bibleBookOrder,
+          chapterNumber: state.bibleChapter,
+          bookPayload: bibleReaderState.bookPayload,
+          chapterPayload: bibleReaderState.chapterPayload,
+          highlightVerse: state.bibleVerse,
+          loading: bibleReaderState.loading,
+          error: bibleReaderState.error,
+          translationMeta: store.getTranslationMeta(state.bibleTranslation),
+          bookMeta: store.getBookMeta(state.bibleBookOrder),
+        })}
+      </div>
+    `;
+  }
+
+  function paintBibleReader() {
+    const root = document.getElementById("bibleReaderRoot");
+    if (!root || state.view !== "bible" || !window.CISBibleReaderUI) return;
+    root.innerHTML = window.CISBibleReaderUI.renderReader({
+      translations: window.CISBibleStore.getTranslations(),
+      books: window.CISBibleStore.getBooks(),
+      translationCode: state.bibleTranslation,
+      bookOrder: state.bibleBookOrder,
+      chapterNumber: state.bibleChapter,
+      bookPayload: bibleReaderState.bookPayload,
+      chapterPayload: bibleReaderState.chapterPayload,
+      highlightVerse: state.bibleVerse,
+      loading: bibleReaderState.loading,
+      error: bibleReaderState.error,
+      translationMeta: window.CISBibleStore.getTranslationMeta(state.bibleTranslation),
+      bookMeta: window.CISBibleStore.getBookMeta(state.bibleBookOrder),
+    });
+    bindBibleHandlers(root);
+  }
+
+  async function loadBibleChapter() {
+    if (!window.CISBibleStore) return;
+    bibleReaderState.loading = true;
+    bibleReaderState.error = "";
+    paintBibleReader();
+    try {
+      const payload = await window.CISBibleStore.loadBook(state.bibleTranslation, state.bibleBookOrder);
+      bibleReaderState.bookPayload = payload;
+      let chapter = window.CISBibleStore.getChapter(payload, state.bibleChapter);
+      if (!chapter) {
+        state.bibleChapter = 1;
+        saveValue("bibleChapter", state.bibleChapter);
+        chapter = window.CISBibleStore.getChapter(payload, 1);
+      }
+      bibleReaderState.chapterPayload = chapter;
+      bibleLoadedKey = bibleCacheKey();
+    } catch (error) {
+      bibleReaderState.error = (error && error.message) ? error.message : "Could not load Bible text.";
+      bibleReaderState.bookPayload = null;
+      bibleReaderState.chapterPayload = null;
+    } finally {
+      bibleReaderState.loading = false;
+      paintBibleReader();
+      if (state.bibleVerse) {
+        const verseEl = document.getElementById(`verse-${state.bibleVerse}`);
+        if (verseEl) verseEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }
+
+  function changeBibleChapter(delta) {
+    if (!window.CISBibleStore) return;
+    const count = window.CISBibleStore.chapterCount(state.bibleBookOrder);
+    const next = Math.max(1, Math.min(count, state.bibleChapter + delta));
+    if (next === state.bibleChapter) return;
+    state.bibleChapter = next;
+    state.bibleVerse = 0;
+    saveValue("bibleChapter", state.bibleChapter);
+    saveValue("bibleVerse", state.bibleVerse);
+    bibleLoadedKey = "";
+    loadBibleChapter();
+  }
+
+  function bindBibleHandlers(root) {
+    if (!root || !window.CISBibleReaderUI) return;
+    window.CISBibleReaderUI.bindReader(root, {
+      handleCommand(command, element) {
+        if (command === "set-translation") {
+          state.bibleTranslation = element.dataset.translation || element.value;
+          saveValue("bibleTranslation", state.bibleTranslation);
+          state.bibleVerse = 0;
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "set-book") {
+          state.bibleBookOrder = Number(element.value);
+          state.bibleChapter = 1;
+          state.bibleVerse = 0;
+          saveValue("bibleBookOrder", state.bibleBookOrder);
+          saveValue("bibleChapter", state.bibleChapter);
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "set-chapter") {
+          state.bibleChapter = Number(element.dataset.chapter);
+          state.bibleVerse = 0;
+          saveValue("bibleChapter", state.bibleChapter);
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "prev-chapter") return changeBibleChapter(-1);
+        if (command === "next-chapter") return changeBibleChapter(1);
+        if (command === "jump") {
+          const input = root.querySelector("[data-bible-command='jump-input']");
+          const ref = window.CISBibleStore.parseReference(input ? input.value : "");
+          if (!ref) {
+            setNotice("Enter a reference like John 3 or John 3:16.");
+            return;
+          }
+          state.bibleBookOrder = ref.bookOrder;
+          state.bibleChapter = ref.chapter;
+          state.bibleVerse = ref.verse || 0;
+          saveValue("bibleBookOrder", state.bibleBookOrder);
+          saveValue("bibleChapter", state.bibleChapter);
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "copy-reference") {
+          const text = window.CISBibleStore.formatReference(state.bibleBookOrder, state.bibleChapter, state.bibleVerse || null);
+          if (navigator.clipboard && text) {
+            navigator.clipboard.writeText(text).then(() => setNotice(`Copied ${text}.`)).catch(() => setNotice(text));
+          } else if (text) {
+            setNotice(text);
+          }
+        }
+      },
+    });
+  }
+
+  async function bindBible() {
+    if (state.view !== "bible") return;
+    const root = document.getElementById("bibleReaderRoot");
+    if (!root) return;
+    bindBibleHandlers(root);
+    if (bibleLoadedKey !== bibleCacheKey() || !bibleReaderState.chapterPayload) {
+      await loadBibleChapter();
+    }
   }
 
   function setupSearchEngine() {
@@ -606,6 +785,10 @@
     if (state.view === "song") {
       const song = selectedSong();
       return song ? `Hymn ${song.number}` : "Hymn";
+    }
+    if (state.view === "bible" && window.CISBibleStore) {
+      const meta = window.CISBibleStore.getBookMeta(state.bibleBookOrder);
+      return meta ? `${meta.name} ${state.bibleChapter}` : "Bible";
     }
     const item = navItems.find((nav) => nav.id === state.view);
     return item ? item.label : "Home Dashboard";
@@ -1188,6 +1371,7 @@
     if (state.view === "builder") bindBuilderInteractions();
     bindGlobalSearch();
     bindHymnAudio();
+    bindBible();
     bindBackupSettings();
     document.body.classList.add("app-ready");
   }
@@ -1236,6 +1420,8 @@
     if (state.view === "builder") return renderBuilder();
     if (state.view === "presenter") return renderPresenterDashboard();
     if (state.view === "favorites") return renderFavorites();
+    if (state.view === "bible") return renderBibleShell();
+    if (state.view === "help") return renderHelp();
     if (state.view === "settings") return renderSettings();
     return renderHome();
   }
@@ -1283,10 +1469,12 @@
           <div class="command-grid">
             ${commandCard("index", "☰", "Hymn Index", "Browse by 50-hymn ranges")}
             ${commandCard("search", "⌕", "Search Centre", "Find titles, numbers, and lyrics")}
+            ${commandCard("bible", "✞", "Bible", "Read KJV, ASV, and WEB offline")}
             ${commandCard("builder", "+", "Worship Builder", "Prepare the service order")}
             ${commandCard("favorites", "★", "Favorites", "Open saved hymns")}
             ${commandCard("presenter", "▶", "Presenter Dashboard", "Run the current worship flow")}
             ${commandCard("settings", "⚙", "Language Packs", "Manage multilingual hymn libraries")}
+            ${commandCard("help", "?", "Help", "Features, guides, and where to use the app")}
           </div>
         </section>
         <aside class="panel">
@@ -2190,6 +2378,79 @@
     `;
   }
 
+  function renderHelp() {
+    return `
+      <div class="help-page">
+        <section class="section help-intro">
+          <p class="eyebrow">Christ in Song · VaChinoda Edition</p>
+          <h2>Help</h2>
+          <p class="muted">A quick guide to what this app does, how to lead worship with it, and where it fits best—in the sanctuary, at rehearsal, or on your own device.</p>
+        </section>
+        <div class="dashboard-grid help-grid">
+          <section class="section help-section">
+            <h3>Features</h3>
+            <ul class="help-list">
+              <li><strong>Multilingual hymn library</strong> — Zulu, English, Shona, Venda, Sepedi, and the SDA Hymnal, all available offline.</li>
+              <li><strong>Hymn index & reader</strong> — Browse by number range, read verses or full slides, adjust text size, and save favorites.</li>
+              <li><strong>Global search</strong> — Fuzzy search across titles, numbers, and lyrics in every installed language.</li>
+              <li><strong>Worship Builder</strong> — Plan a Sabbath order of service, opening songs, templates, and mixed content slides.</li>
+              <li><strong>Presenter mode</strong> — Full-screen projection with slide control; dual-monitor support in the desktop app.</li>
+              <li><strong>Tags & categories</strong> — Organize hymns by theme and get smart suggestions while building a service.</li>
+              <li><strong>Service bulletin export</strong> — Generate printable HTML or PDF bulletins from your worship plan.</li>
+              <li><strong>Backup & restore</strong> — Export and import your plans, favorites, tags, and settings as a <code>.csbackup</code> file.</li>
+              <li><strong>Hymn audio & practice</strong> — Attach MP3 or MIDI per hymn, loop sections, and adjust tempo for rehearsal.</li>
+              <li><strong>Offline Bible</strong> — Read KJV, ASV, and WEB with book/chapter navigation and reference lookup.</li>
+              <li><strong>Language pack import</strong> — Add new languages from JSON or PowerPoint without coding.</li>
+            </ul>
+          </section>
+          <aside class="panel help-section">
+            <h3>How to use</h3>
+            <ol class="help-steps">
+              <li><strong>Choose a language</strong> — Use the language switcher in the header to pick the hymn book you need.</li>
+              <li><strong>Find a hymn</strong> — Open <em>Hymn Index</em> for numbered ranges, or <em>Search</em> for titles and lyrics.</li>
+              <li><strong>Read & present</strong> — Open a hymn, switch between Slides and Sections, then tap <em>Present</em> for full-screen output.</li>
+              <li><strong>Build a service</strong> — In <em>Worship Builder</em>, add hymns to slots, reorder items, and apply a service template.</li>
+              <li><strong>Run the service</strong> — Open <em>Presenter</em> to advance slides, use the timer, and switch between planned items.</li>
+              <li><strong>Practice with audio</strong> — On any hymn, tap <em>Practice</em>, upload audio if needed, and loop verses or adjust tempo.</li>
+              <li><strong>Read Scripture</strong> — Open <em>Bible</em>, choose KJV/ASV/WEB, pick a book and chapter, or jump to a reference like <em>John 3:16</em>.</li>
+              <li><strong>Protect your work</strong> — In <em>Settings → Backup & Restore</em>, export a backup before major changes or device moves.</li>
+              <li><strong>Add languages</strong> — In <em>Settings</em>, import a JSON or PPTX language pack and choose how to handle duplicates.</li>
+            </ol>
+          </aside>
+        </div>
+        <section class="section help-section">
+          <h3>Where to use it</h3>
+          <div class="help-context-grid">
+            <article class="help-context-card">
+              <strong>Sabbath worship service</strong>
+              <p class="muted">Build the order of service, project hymn slides to the congregation, and keep the operator view on a laptop or second screen.</p>
+            </article>
+            <article class="help-context-card">
+              <strong>Rehearsal & choir practice</strong>
+              <p class="muted">Use Practice mode with uploaded audio or MIDI to loop verses and work at a comfortable tempo before the service.</p>
+            </article>
+            <article class="help-context-card">
+              <strong>Personal devotion</strong>
+              <p class="muted">Browse, search, and favorite hymns on phone or tablet—even without an internet connection after the app is installed.</p>
+            </article>
+            <article class="help-context-card">
+              <strong>Offline & rural settings</strong>
+              <p class="muted">The PWA caches hymn libraries locally. Install once and lead worship where connectivity is limited.</p>
+            </article>
+            <article class="help-context-card">
+              <strong>Desktop (Electron)</strong>
+              <p class="muted">Run the native app for dual-monitor presenting, automatic updates, and a dedicated worship workstation.</p>
+            </article>
+            <article class="help-context-card">
+              <strong>Browser / PWA</strong>
+              <p class="muted">Open in Chrome, Edge, or Safari, install to your home screen, and use the same library on any supported device.</p>
+            </article>
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
   function renderSettings() {
     const backupPanel = window.CISBackupRestore ? window.CISBackupRestore.renderSettingsPanel({
       favorites: favorites.size,
@@ -2247,6 +2508,12 @@
                 <button class="secondary-button" type="button" data-command="check-updates">Check Updates</button>
               </div>
             ` : ""}
+            <hr>
+            <h3>Help</h3>
+            <p class="muted">New to the app? See features, step-by-step guides, and recommended use cases.</p>
+            <div class="button-row">
+              <button class="secondary-button" type="button" data-view="help">Open Help</button>
+            </div>
             <hr>
             <h3>Source Integration</h3>
             <p class="muted">${escapeHtml((data.meta.generatedFrom || []).join(" + "))}</p>
@@ -3497,6 +3764,7 @@
   setupBulletinExport();
   setupSearchEngine();
   setupHymnAudio();
+  setupBible();
 
   Promise.all([loadImportedLanguagePacks(), loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(() => {
     render();

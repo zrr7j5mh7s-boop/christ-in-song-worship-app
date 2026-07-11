@@ -1,8 +1,8 @@
-const CACHE_NAME = "christ-in-song-worship-v19";
+const CACHE_NAME = "christ-in-song-worship-v21";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=19",
+  "./styles.css?v=21",
   "./slide-content.js?v=1",
   "./builder-slides.js?v=1",
   "./service-templates.js?v=1",
@@ -26,12 +26,15 @@ const APP_SHELL = [
   "./song-audio-store.js?v=1",
   "./song-audio-player.js?v=1",
   "./song-audio-ui.js?v=1",
+  "./data/bible-catalog.js?v=1",
+  "./bible-store.js?v=1",
+  "./bible-reader-ui.js?v=1",
   "./presenter-engine.js?v=1",
   "./presenter-output.js?v=1",
   "./presenter-control.js?v=1",
   "./presenter-screen.html",
   "./presenter-screen.js?v=1",
-  "./app.js?v=19",
+  "./app.js?v=21",
   "./data/songs.js?v=2",
   "./data/sda-hymnal-pack.js?v=2",
   "./data/extra-packs.js",
