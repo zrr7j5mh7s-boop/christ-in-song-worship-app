@@ -12,6 +12,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "ELECTRON_ENABLE_LOGGING=1 electron . --dev",
+    "build": "electron-builder --dir",
     "desktop": "electron .",
     "postinstall": "electron-builder install-app-deps",
     "pack": "electron-builder --dir",
