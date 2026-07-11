@@ -14,7 +14,7 @@
 //   paint ('ready-to-show'), we swap: show main window, destroy splash.
 
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, screen } = require('electron');
 const log = require('electron-log/main');
 
 log.initialize();
@@ -37,6 +37,7 @@ if (!gotSingleInstanceLock) {
 
 let mainWindow = null;
 let splashWindow = null;
+let projectorWindow = null;
 let updater = null;
 
 const isDev = process.argv.includes('--dev') || !app.isPackaged;
@@ -167,6 +168,79 @@ ipcMain.handle('app:info', () => ({
 ipcMain.handle('updates:check', () => {
   if (updater) updater.checkForUpdates();
   return { started: true };
+});
+
+function getProjectorDisplay() {
+  const displays = screen.getAllDisplays();
+  const primary = screen.getPrimaryDisplay();
+  return displays.find((display) => display.id !== primary.id) || primary;
+}
+
+function createProjectorWindow() {
+  if (projectorWindow && !projectorWindow.isDestroyed()) {
+    projectorWindow.focus();
+    return projectorWindow;
+  }
+
+  const targetDisplay = getProjectorDisplay();
+  const { x, y, width, height } = targetDisplay.bounds;
+  const hasExternalDisplay = screen.getAllDisplays().length > 1;
+
+  const win = new BrowserWindow({
+    x,
+    y,
+    width,
+    height,
+    fullscreen: hasExternalDisplay,
+    frame: !hasExternalDisplay,
+    backgroundColor: '#0A1020',
+    title: 'Christ in Song · Projector',
+    autoHideMenuBar: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+    },
+  });
+
+  win.loadFile(path.join(__dirname, '..', 'app', 'presenter-screen.html'));
+  win.once('ready-to-show', () => {
+    win.show();
+    if (hasExternalDisplay) {
+      win.setFullScreen(true);
+    }
+  });
+  win.on('closed', () => {
+    projectorWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('presenter-closed');
+    }
+  });
+  projectorWindow = win;
+  return win;
+}
+
+ipcMain.handle('presenter:open', () => {
+  createProjectorWindow();
+  return { opened: true, dualDisplay: screen.getAllDisplays().length > 1 };
+});
+
+ipcMain.handle('presenter:close', () => {
+  if (projectorWindow && !projectorWindow.isDestroyed()) {
+    projectorWindow.close();
+  }
+  projectorWindow = null;
+  return { closed: true };
+});
+
+ipcMain.handle('presenter:publish', (_event, payload) => {
+  if (projectorWindow && !projectorWindow.isDestroyed()) {
+    projectorWindow.webContents.send('presenter-state', payload);
+  }
+  return { delivered: true };
 });
 
 // ---------------------------------------------------------------------
