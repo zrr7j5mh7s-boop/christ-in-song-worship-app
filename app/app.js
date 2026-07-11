@@ -150,6 +150,7 @@
     modalRoot: document.getElementById("modalRoot"),
     presenterOverlay: document.getElementById("presenterOverlay"),
     emergencyOverlay: document.getElementById("emergencyOverlay"),
+    obsStatusRoot: document.getElementById("obsStatusRoot"),
   };
 
   const state = {
@@ -1177,6 +1178,95 @@
       </div>
     `;
   }
+
+  function renderObsTopbar() {
+    if (!window.CISObsSettingsUI || !window.CISObsConnectionService || !els.obsStatusRoot) return;
+    window.CISObsSettingsUI.updateTopbar(
+      els.obsStatusRoot,
+      window.CISObsConnectionService.getStatus(),
+    );
+  }
+
+  function readObsSettingsFromPage() {
+    if (!window.CISObsSettingsUI) return null;
+    const payload = window.CISObsSettingsUI.readSettingsFromDom(document);
+    const password = payload._password;
+    delete payload._password;
+    return { settings: payload, password };
+  }
+
+  async function saveObsSettingsFromPage(options) {
+    if (!window.CISObsConnectionService) return;
+    const parsed = readObsSettingsFromPage();
+    if (!parsed) return;
+    await window.CISObsConnectionService.saveSettings(parsed.settings, {
+      password: parsed.password,
+      connect: options?.connect !== false,
+    });
+    renderObsTopbar();
+    if (state.view === "settings") render();
+  }
+
+  async function testObsConnectionFromPage() {
+    if (!window.CISObsConnectionService) return;
+    const parsed = readObsSettingsFromPage();
+    const overrides = parsed
+      ? { host: parsed.settings.host, port: parsed.settings.port, password: parsed.password }
+      : {};
+    const result = await window.CISObsConnectionService.testConnection(overrides);
+    if (result?.ok) {
+      setNotice(`OBS test OK · ${result.obsVersion || "connected"} (WebSocket ${result.obsWebSocketVersion || "5.x"})`);
+    } else {
+      setNotice(result?.message || "OBS test connection failed.");
+    }
+  }
+
+  async function connectObsFromPage() {
+    if (!window.CISObsConnectionService) return;
+    const parsed = readObsSettingsFromPage();
+    if (parsed) {
+      await window.CISObsConnectionService.saveSettings({ ...parsed.settings, enabled: true }, {
+        password: parsed.password,
+        connect: true,
+      });
+    } else {
+      await window.CISObsConnectionService.connect();
+    }
+    renderObsTopbar();
+    if (state.view === "settings") render();
+    const status = window.CISObsConnectionService.getStatus();
+    setNotice(status.connected ? "Connected to OBS." : (status.lastError || "OBS connection failed."));
+  }
+
+  async function disconnectObsFromPage() {
+    if (!window.CISObsConnectionService) return;
+    await window.CISObsConnectionService.disconnect();
+    renderObsTopbar();
+    if (state.view === "settings") render();
+    setNotice("Disconnected from OBS.");
+  }
+
+  async function refreshObsScenesFromPage() {
+    if (!window.CISObsSceneService) return;
+    try {
+      const scenes = await window.CISObsSceneService.fetchSceneList();
+      setNotice(`Loaded ${scenes.length} OBS scene${scenes.length === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setNotice(error && error.message ? error.message : "Failed to load OBS scenes.");
+    }
+    if (state.view === "settings") render();
+  }
+
+  function setupObsIntegration() {
+    if (!window.CISObsConnectionService) return;
+    if (window.CISObsSettingsUI) {
+      window.CISObsSettingsUI.configure({ escapeHtml });
+    }
+
+  function renderObsSettingsPanel() {
+    if (!window.CISObsSettingsUI || !window.CISObsConnectionService || !window.CISObsSettingsStore) {
+      return "";
+    }
 
   function renderAwaitingPack(pack) {
     return `
@@ -2281,6 +2371,35 @@
     if (command === "emergency-white") return setEmergency("white");
     if (command === "emergency-logo") return setEmergency("logo");
     if (command === "emergency-clear") return clearEmergency();
+
+    if (command === "open-obs-settings") {
+      state.view = "settings";
+      saveValue("view", state.view);
+      render();
+      return;
+    }
+    if (command === "obs-save-settings") {
+      saveObsSettingsFromPage().then(() => setNotice("OBS settings saved.")).catch((error) => {
+        setNotice(error && error.message ? error.message : "Failed to save OBS settings.");
+      });
+      return;
+    }
+    if (command === "obs-test-connection") {
+      testObsConnectionFromPage();
+      return;
+    }
+    if (command === "obs-connect") {
+      connectObsFromPage();
+      return;
+    }
+    if (command === "obs-disconnect") {
+      disconnectObsFromPage();
+      return;
+    }
+    if (command === "obs-refresh-scenes") {
+      refreshObsScenesFromPage();
+      return;
+    }
     if (command === "close-modal") return closeModal();
   }
 
@@ -2339,6 +2458,7 @@
   }
 
   setupDesktopBridge();
+  setupObsIntegration();
 
   render();
   setInterval(() => {

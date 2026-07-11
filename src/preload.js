@@ -28,4 +28,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('update-status', listener);
     return () => ipcRenderer.removeListener('update-status', listener);
   },
+,
+
+  obs: {
+    getStatus: () => ipcRenderer.invoke('obs:get-status'),
+
+    getSettings: () => ipcRenderer.invoke('obs:get-settings'),
+
+    saveSettings: (payload) => ipcRenderer.invoke('obs:save-settings', payload),
+
+    connect: () => ipcRenderer.invoke('obs:connect'),
+
+    disconnect: () => ipcRenderer.invoke('obs:disconnect'),
+
+    testConnection: (payload) => ipcRenderer.invoke('obs:test-connection', payload),
+
+    call: (requestType, requestData) => ipcRenderer.invoke('obs:call', requestType, requestData),
+
+    onEvent: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('obs:event', listener);
+      return () => ipcRenderer.removeListener('obs:event', listener);
+    },
+  },
 });
