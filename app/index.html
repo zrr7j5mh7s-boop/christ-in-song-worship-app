@@ -12,18 +12,19 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=8">
+    <link rel="stylesheet" href="./styles.css?v=14">
   </head>
   <body>
     <div id="launchSplash" class="launch-splash" aria-hidden="true">
       <div class="launch-card">
-        <span class="launch-mark">CIS</span>
+        <div class="launch-mark">CIS</div>
         <strong>Christ in Song</strong>
-        <small>Preparing worship tools</small>
+        <small>VaChinoda Worship OS</small>
+        <div class="launch-dots" aria-hidden="true"><span></span><span></span><span></span></div>
       </div>
     </div>
     <div id="app" class="app-shell">
-      <aside class="sidebar" aria-label="Main navigation">
+      <aside class="sidebar rail" aria-label="Main navigation">
         <div class="brand-lockup">
           <span class="brand-mark" aria-hidden="true">CIS</span>
           <div>
@@ -55,12 +56,27 @@
     </div>
 
     <div id="modalRoot"></div>
+    <div id="presenterControlRoot" class="presenter-control-root hidden" aria-hidden="true"></div>
+    <div id="presenterOutputRoot" class="presenter-output-root hidden" aria-hidden="true"></div>
     <div id="presenterOverlay" class="presenter-overlay hidden" aria-hidden="true"></div>
     <div id="emergencyOverlay" class="emergency-overlay hidden" aria-hidden="true"></div>
 
     <script src="./data/songs.js?v=2"></script>
     <script src="./data/extra-packs.js"></script>
-    <script src="./app.js?v=8"></script>
+    <script src="./slide-content.js?v=1"></script>
+    <script src="./builder-slides.js?v=1"></script>
+    <script src="./service-templates.js?v=1"></script>
+    <script src="./template-store.js?v=1"></script>
+    <script src="./template-ui.js?v=1"></script>
+    <script src="./pack-store.js?v=1"></script>
+    <script src="./pack-import.js?v=1"></script>
+    <script src="./tag-catalog.js?v=1"></script>
+    <script src="./song-tags-store.js?v=1"></script>
+    <script src="./song-tags-ui.js?v=1"></script>
+    <script src="./presenter-engine.js?v=1"></script>
+    <script src="./presenter-output.js?v=1"></script>
+    <script src="./presenter-control.js?v=1"></script>
+    <script src="./app.js?v=14"></script>
     <script>
       if ("serviceWorker" in navigator && !window.electronAPI) {
         window.addEventListener("load", () => {
