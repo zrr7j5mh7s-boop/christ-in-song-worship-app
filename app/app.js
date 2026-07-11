@@ -23,15 +23,17 @@
     "Closing Hymn",
   ];
   const defaultSongServiceSlots = Array.from({ length: 15 }, (_, index) => `Song ${index + 1}`);
-  const customItemTypes = [
-    ["scripture", "Scripture Reading"],
-    ["prayer", "Prayer"],
-    ["announcement", "Announcement"],
-    ["offering", "Offering Appeal"],
-    ["sermon", "Sermon Title"],
-    ["special", "Special Music"],
-    ["note", "Service Note"],
-  ];
+  const customItemTypes = (window.CISSlideContent && window.CISSlideContent.SLIDE_TYPES
+    ? window.CISSlideContent.SLIDE_TYPES.filter((type) => type.id !== "hymn").map((type) => [type.id, type.label])
+    : [
+      ["scripture", "Scripture Reading"],
+      ["prayer", "Prayer"],
+      ["announcement", "Welcome & Announcements"],
+      ["offering", "Offering Appeal"],
+      ["sermon", "Sermon Title"],
+      ["special", "Special Music"],
+      ["benediction", "Benediction / Closing"],
+    ]);
   const builtinTemplates = window.CIS_BUILTIN_TEMPLATES || [];
   const categoryDefinitions = [
     { id: "all", label: "All", keywords: [] },
@@ -99,6 +101,7 @@
     timerRunning: loadValue("timerRunning", "false") === "true",
     timerEndsAt: Number(loadValue("timerEndsAt", 0)) || 0,
     emergencyMode: "",
+    showAddContent: false,
   };
 
   let favorites = new Set(loadJson("favorites", []));
@@ -191,15 +194,18 @@
   }
 
   function createPlanSlot(role, index, overrides = {}) {
+    const type = overrides.type || (overrides.songKey ? "hymn" : overrides.itemType ? overrides.itemType : "hymn");
     return {
       id: overrides.id || `slot-${index + 1}`,
       role,
-      type: overrides.type || "song",
-      itemType: overrides.itemType || "",
+      type,
+      itemType: overrides.itemType || (type === "hymn" ? "" : type),
       title: overrides.title || "",
       body: overrides.body || "",
       notes: overrides.notes || "",
-      songKey: overrides.songKey || "",
+      scriptureRef: overrides.scriptureRef || "",
+      contentFormat: overrides.contentFormat || "plain",
+      songKey: type === "hymn" ? (overrides.songKey || "") : "",
     };
   }
 
@@ -216,15 +222,20 @@
   }
 
   function normalizePlanSlot(slot, index, fallbackRole) {
+    if (window.CISSlideContent) {
+      return window.CISSlideContent.normalizeContentSlot(slot || {}, index, fallbackRole);
+    }
     const source = slot || {};
     const isCustom = source.type === "custom" || source.itemType || source.body || source.title;
     return createPlanSlot(source.role || fallbackRole || `Item ${index + 1}`, index, {
       id: source.id || `slot-${index + 1}`,
-      type: isCustom ? "custom" : "song",
+      type: isCustom ? (source.itemType || "announcement") : "hymn",
       itemType: source.itemType || "",
       title: source.title || "",
       body: source.body || "",
       notes: source.notes || "",
+      scriptureRef: source.scriptureRef || "",
+      contentFormat: source.contentFormat || "plain",
       songKey: isCustom ? "" : (source.songKey || ""),
     });
   }
@@ -318,7 +329,23 @@
   }
 
   function itemTypeLabel(type) {
+    if (window.CISSlideContent) {
+      const meta = window.CISSlideContent.getSlideType(type);
+      return meta ? meta.label : "Service Item";
+    }
     return (customItemTypes.find((item) => item[0] === type) || ["", "Service Item"])[1];
+  }
+
+  function resolveSlotType(slot) {
+    return window.CISSlideContent
+      ? window.CISSlideContent.resolveSlotType(slot)
+      : (slot && slot.type === "custom" ? slot.itemType || "announcement" : "hymn");
+  }
+
+  function isCustomSlot(slot) {
+    return window.CISSlideContent
+      ? window.CISSlideContent.isCustomContentSlot(slot)
+      : !!(slot && (slot.type === "custom" || slot.itemType || slot.body || slot.title));
   }
 
   function getPack(code = state.languageCode) {
@@ -466,22 +493,27 @@
     return source ? source.replace(/^ppt\/slides\//, "") : "Awaiting upload";
   }
 
-  function isCustomSlot(slot) {
-    return slot && slot.type === "custom";
-  }
-
   function slotSong(slot) {
     return slot && slot.songKey ? getSongByKey(slot.songKey) : null;
   }
 
   function slotHasContent(slot) {
     if (!slot) return false;
-    if (isCustomSlot(slot)) return !!plain(`${slot.title} ${slot.body}`);
+    if (isCustomSlot(slot)) {
+      const text = window.CISSlideContent ? window.CISSlideContent.plainText(`${slot.title} ${slot.body}`) : plain(`${slot.title} ${slot.body}`);
+      return !!text;
+    }
     return !!slotSong(slot);
   }
 
   function slotTitle(slot) {
     if (!slot) return "";
+    if (window.CISSlideContent) {
+      return window.CISSlideContent.slotTitle(slot, (entry) => {
+        const song = slotSong(entry);
+        return song ? `Hymn ${song.number} · ${song.title}` : entry.role || "Hymn";
+      });
+    }
     const song = slotSong(slot);
     if (song) return `Hymn ${song.number} · ${song.title}`;
     return slot.title || slot.role || itemTypeLabel(slot.itemType);
@@ -489,12 +521,24 @@
 
   function slotSubtitle(slot) {
     if (!slot) return "";
+    if (window.CISSlideContent) {
+      return window.CISSlideContent.slotSubtitle(slot, (entry) => {
+        const song = slotSong(entry);
+        return song ? `${song.slides.length} slides · ${getPack(parseSongKey(entry.songKey).code).name}` : "Assign a hymn";
+      });
+    }
     const song = slotSong(slot);
     if (song) return `${song.slides.length} slides · ${getPack(parseSongKey(slot.songKey).code).name}`;
     return `${itemTypeLabel(slot.itemType)} · ${plain(slot.body).slice(0, 80) || "Custom slide"}`;
   }
 
   function slotSlides(slot) {
+    if (window.CISSlideContent) {
+      return window.CISSlideContent.buildSlidesFromSlot(slot, (entry) => {
+        const song = slotSong(entry);
+        return song ? song.slides : [];
+      });
+    }
     const song = slotSong(slot);
     if (song) return song.slides;
     if (!isCustomSlot(slot)) return [];
@@ -504,7 +548,7 @@
       .filter(Boolean);
     const slides = chunks.length ? chunks : [slot.title || slot.role || itemTypeLabel(slot.itemType)];
     return slides.map((body, index) => ({
-      kind: "custom",
+      kind: resolveSlotType(slot),
       label: index === 0 ? itemTypeLabel(slot.itemType) : `${itemTypeLabel(slot.itemType)} ${index + 1}`,
       marker: "",
       body,
@@ -891,6 +935,22 @@
     return Promise.resolve();
   }
 
+  function setupBuilderSlides() {
+    if (!window.CISBuilderSlides) return;
+    window.CISBuilderSlides.configure({
+      escapeHtml,
+      plain,
+      getSlideTypes: () => (window.CISSlideContent ? window.CISSlideContent.SLIDE_TYPES : []),
+    });
+    if (window.CISPresenterOutput && window.CISSlideContent) {
+      window.CISPresenterOutput.configure({
+        escapeHtml,
+        lyricHtml,
+        richTextHtml: window.CISSlideContent.richTextHtml,
+      });
+    }
+  }
+
   function setupTemplateSystem() {
     if (window.CISTemplateUI) {
       window.CISTemplateUI.configure({ escapeHtml, plain, itemTypeLabel });
@@ -1065,7 +1125,7 @@
               <p class="muted">${assignedSlots().length} of ${worshipPlan.length} service items ready</p>
             </div>
             <div class="song-actions">
-              <button class="action-button" type="button" data-command="open-custom-item">Add Item</button>
+              <button class="action-button" type="button" data-command="toggle-add-content">Add Content</button>
               <button class="secondary-button" type="button" data-command="save-template">Save as Template</button>
               <button class="secondary-button" type="button" data-command="copy-plan">Copy Builder</button>
               <button class="secondary-button" type="button" data-command="export-plan">Export Builder</button>
@@ -1076,7 +1136,8 @@
               <input id="worshipPlanImport" class="hidden" type="file" accept="application/json">
             </div>
           </div>
-          <p class="muted drag-hint">Drag the ⋮⋮ handle to reorder service items.</p>
+          ${state.showAddContent && window.CISBuilderSlides ? window.CISBuilderSlides.renderAddContentMenu() : ""}
+          <p class="muted drag-hint">Drag the ⋮⋮ handle to reorder any item — hymns, scripture, prayers, and more.</p>
           <div class="set-list">
             ${worshipPlan.map(renderPlanRow).join("")}
           </div>
@@ -1111,18 +1172,26 @@
     const song = getSongByKey(slot.songKey);
     const custom = isCustomSlot(slot);
     const active = state.activeSlot === index ? "active" : "";
+    const typeBadge = window.CISBuilderSlides
+      ? window.CISBuilderSlides.renderSlotTypeBadge(slot, resolveSlotType, (type) => window.CISSlideContent.getSlideType(type))
+      : "";
+    const inlineEditor = active && custom && window.CISBuilderSlides
+      ? window.CISBuilderSlides.renderInlineEditor(slot, index, resolveSlotType, (type) => window.CISSlideContent.getSlideType(type), window.CISSlideContent.richTextHtml)
+      : "";
     return `
       <div class="set-row ${active} ${custom ? "custom-row" : ""}" data-slot="${index}">
         <button class="drag-handle" type="button" draggable="true" data-drag-slot="${index}" aria-label="Drag to reorder">⋮⋮</button>
         <div class="set-number">${index + 1}</div>
         <button class="slot-button ${active}" type="button" data-command="activate-slot" data-slot="${index}">${escapeHtml(slot.role)}</button>
         <div class="set-song ${slotHasContent(slot) ? "assigned" : ""}">
-          ${slotHasContent(slot) ? `${escapeHtml(slotTitle(slot))}<small>${escapeHtml(slotSubtitle(slot))}</small>` : "No hymn assigned"}
+          ${typeBadge}
+          ${slotHasContent(slot) ? `${escapeHtml(slotTitle(slot))}<small>${escapeHtml(slotSubtitle(slot))}</small>` : `<span class="muted">Not configured</span>`}
+          ${inlineEditor}
         </div>
         <div class="mini-actions">
           ${slotHasContent(slot) ? `<button type="button" data-command="present-plan-slot" data-slot="${index}" title="Present">▶</button>` : ""}
           ${song ? `<button type="button" data-command="open-plan-song" data-slot="${index}" title="Open">↗</button>` : ""}
-          ${custom ? `<button type="button" data-command="edit-custom-item" data-slot="${index}" title="Edit">✎</button>` : ""}
+          ${custom ? `<button type="button" data-command="edit-slide-item" data-slot="${index}" title="Edit">✎</button>` : ""}
           <button type="button" data-command="move-slot-up" data-slot="${index}" title="Move up">↑</button>
           <button type="button" data-command="move-slot-down" data-slot="${index}" title="Move down">↓</button>
           <button type="button" data-command="remove-slot-song" data-slot="${index}" title="Remove">×</button>
@@ -1629,16 +1698,80 @@
 
   function assignSongToSlot(index, song) {
     if (!song || !worshipPlan[index]) return;
-    worshipPlan[index].type = "song";
-    worshipPlan[index].songKey = songKey(song);
-    worshipPlan[index].title = "";
-    worshipPlan[index].body = "";
-    worshipPlan[index].itemType = "";
+    worshipPlan[index] = createPlanSlot(worshipPlan[index].role, index, {
+      type: "hymn",
+      songKey: songKey(song),
+    });
     state.activeSlot = index;
     saveValue("activeSlot", state.activeSlot);
     saveJson("worshipPlan", worshipPlan);
     closeModal();
     render();
+  }
+
+  function openSlideItemEditor(index = null, contentType = null) {
+    const slot = typeof index === "number" ? worshipPlan[index] : null;
+    const targetIndex = typeof index === "number" ? index : state.activeSlot;
+    const type = contentType || (slot ? resolveSlotType(slot) : "scripture");
+    const meta = window.CISSlideContent ? window.CISSlideContent.getSlideType(type) : { role: "Service Item", label: "Item" };
+    const draft = slot || createPlanSlot(meta.role, targetIndex, { type, itemType: type });
+    const suggestions = window.CISSlideContent
+      ? window.CISSlideContent.filterScriptureSuggestions(draft.scriptureRef || draft.title)
+      : [];
+    if (!window.CISBuilderSlides) return openCustomItemEditor(index);
+    els.modalRoot.innerHTML = window.CISBuilderSlides.renderEditorModal(
+      draft,
+      typeof index === "number" ? index : null,
+      window.CISSlideContent.SLIDE_TYPES,
+      suggestions,
+    );
+    window.CISBuilderSlides.bindRichEditor(els.modalRoot);
+    window.CISBuilderSlides.bindEditorTypeToggle(els.modalRoot, window.CISSlideContent.SLIDE_TYPES);
+    els.modalRoot.dataset.editorSlot = typeof index === "number" ? String(index) : "append";
+  }
+
+  function saveSlideItemFromModal() {
+    if (!window.CISBuilderSlides || !window.CISSlideContent) return saveCustomItemFromModal();
+    const target = els.modalRoot.dataset.editorSlot || String(state.activeSlot);
+    const payload = window.CISBuilderSlides.readEditorState(els.modalRoot, window.CISSlideContent.sanitizeRichHtml);
+    const meta = window.CISSlideContent.getSlideType(payload.type);
+    const slot = createPlanSlot(payload.role || meta.role, target === "append" ? worshipPlan.length : Number(target), {
+      type: payload.type,
+      itemType: payload.type,
+      title: payload.title,
+      body: payload.body,
+      notes: payload.notes,
+      scriptureRef: payload.scriptureRef,
+      contentFormat: payload.contentFormat,
+    });
+    if (target === "append") {
+      worshipPlan.push(slot);
+      state.activeSlot = worshipPlan.length - 1;
+    } else {
+      worshipPlan[Number(target)] = slot;
+      state.activeSlot = Number(target);
+    }
+    saveValue("activeSlot", state.activeSlot);
+    saveJson("worshipPlan", worshipPlan);
+    closeModal();
+    render();
+  }
+
+  function addContentItem(contentType) {
+    const meta = window.CISSlideContent ? window.CISSlideContent.getSlideType(contentType) : null;
+    if (!meta) return;
+    const slot = createPlanSlot(meta.role, worshipPlan.length, {
+      type: contentType,
+      itemType: contentType,
+      title: contentType === "scripture" ? "" : meta.label,
+      body: "",
+    });
+    worshipPlan.push(slot);
+    state.activeSlot = worshipPlan.length - 1;
+    state.showAddContent = false;
+    saveValue("activeSlot", state.activeSlot);
+    saveJson("worshipPlan", worshipPlan);
+    openSlideItemEditor(state.activeSlot, contentType);
   }
 
   function openCustomItemEditor(index = null) {
@@ -1685,7 +1818,7 @@
             <textarea id="customItemNotes" rows="3" placeholder="Notes for the worship team">${escapeHtml(slot ? slot.notes : "")}</textarea>
           </label>
           <div class="button-row">
-            <button class="action-button" type="button" data-command="save-custom-item">Save Item</button>
+            <button class="action-button" type="button" data-command="save-slide-item">Save Content</button>
             <button class="secondary-button" type="button" data-command="close-modal">Cancel</button>
           </div>
         </form>
@@ -1701,11 +1834,13 @@
     const body = document.getElementById("customItemBody")?.value.trim() || title;
     const notes = document.getElementById("customItemNotes")?.value.trim() || "";
     const slot = createPlanSlot(role, target === "append" ? worshipPlan.length : Number(target), {
-      type: "custom",
+      type: itemType,
       itemType,
       title,
       body,
       notes,
+      scriptureRef: itemType === "scripture" ? title : "",
+      contentFormat: "plain",
     });
     if (target === "append") {
       worshipPlan.push(slot);
@@ -1785,11 +1920,14 @@
       };
     }
     if (isCustomSlot(slot)) {
+      const type = resolveSlotType(slot);
+      const meta = window.CISSlideContent ? window.CISSlideContent.getSlideType(type) : null;
       return {
         type: "custom",
+        contentKind: type,
         title: slot.title || slot.role || itemTypeLabel(slot.itemType),
-        shortTitle: slot.title || slot.role || "Service Item",
-        subtitle: `${slot.role} · ${itemTypeLabel(slot.itemType)}`,
+        shortTitle: meta ? meta.label : itemTypeLabel(slot.itemType),
+        subtitle: `${slot.role}${slot.scriptureRef ? ` · ${slot.scriptureRef}` : ""}`,
         slides: slotSlides(slot),
         song: null,
         songKey: "",
@@ -2371,9 +2509,16 @@
     }
     if (command === "toggle-favorite") return toggleFavorite();
     if (command === "open-slot-picker") return openSlotPicker();
-    if (command === "open-custom-item") return openCustomItemEditor();
-    if (command === "edit-custom-item") return openCustomItemEditor(slotIndex);
-    if (command === "save-custom-item") return saveCustomItemFromModal();
+    if (command === "toggle-add-content") {
+      state.showAddContent = !state.showAddContent;
+      render();
+      return;
+    }
+    if (command === "add-content-item") return addContentItem(target.dataset.contentType);
+    if (command === "open-custom-item" || command === "edit-custom-item" || command === "edit-slide-item") {
+      return openSlideItemEditor(Number.isNaN(slotIndex) ? null : slotIndex);
+    }
+    if (command === "save-custom-item" || command === "save-slide-item") return saveSlideItemFromModal();
     if (command === "preview-template") return openTemplatePreview(target.dataset.template);
     if (command === "load-template") return loadTemplate(target.dataset.template);
     if (command === "save-template") return saveCurrentTemplate();
@@ -2618,6 +2763,7 @@
 
   setupDesktopBridge();
   setupTemplateSystem();
+  setupBuilderSlides();
   setupPresenterSystem();
 
   Promise.all([loadImportedLanguagePacks(), loadCustomTemplates()]).finally(() => {

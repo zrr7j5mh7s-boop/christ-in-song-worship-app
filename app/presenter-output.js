@@ -3,11 +3,13 @@
 
   let escapeHtml = (value) => String(value || "");
   let lyricHtml = (value) => escapeHtml(value).replace(/\n/g, "<br>");
+  let richTextHtml = (value) => lyricHtml(value);
   let lastTransitionKey = "";
 
   function configure(options) {
     if (options.escapeHtml) escapeHtml = options.escapeHtml;
     if (options.lyricHtml) lyricHtml = options.lyricHtml;
+    if (options.richTextHtml) richTextHtml = options.richTextHtml;
   }
 
   function renderEmergency(mode) {
@@ -27,20 +29,79 @@
     return "";
   }
 
+  function renderBody(slide) {
+    const body = slide.body || "";
+    if (body.includes("<")) return richTextHtml(body);
+    return lyricHtml(body);
+  }
+
   function renderSlide(snapshot) {
     const fontSize = Math.round(64 * (snapshot.fontScale || 1));
-    const slide = snapshot.slide || { body: "", label: "" };
+    const slide = snapshot.slide || { body: "", label: "", kind: "hymn" };
+    const kind = slide.kind || snapshot.contentKind || "hymn";
     const transitionClass = snapshot.transitionKey !== lastTransitionKey ? " is-entering" : "";
     lastTransitionKey = snapshot.transitionKey;
     const pausedClass = snapshot.paused ? " is-paused" : "";
+
+    if (kind === "scripture") {
+      return `
+        <div class="projector-stage-wrap projector-kind-scripture${transitionClass}${pausedClass}">
+          <div class="projector-meta">
+            <span class="projector-title">${escapeHtml(slide.reference || slide.title || snapshot.shortTitle || "Scripture")}</span>
+            <span class="projector-position">${snapshot.slideIndex + 1} of ${snapshot.slideCount}</span>
+          </div>
+          <div class="projector-scripture-ref">${escapeHtml(slide.reference || slide.label || "")}</div>
+          <div class="projector-lyrics projector-text-block" style="--projector-font:${Math.round(fontSize * 0.92)}px">${renderBody(slide)}</div>
+        </div>
+      `;
+    }
+
+    if (kind === "sermon") {
+      return `
+        <div class="projector-stage-wrap projector-kind-sermon${transitionClass}${pausedClass}">
+          <div class="projector-meta">
+            <span class="projector-title">${escapeHtml(snapshot.shortTitle || "Sermon")}</span>
+            <span class="projector-position">${snapshot.slideIndex + 1} of ${snapshot.slideCount}</span>
+          </div>
+          <div class="projector-sermon-title" style="--projector-font:${Math.round(fontSize * 1.05)}px">${escapeHtml(slide.title || slide.label || "")}</div>
+          <div class="projector-lyrics projector-text-block" style="--projector-font:${Math.round(fontSize * 0.72)}px">${renderBody(slide)}</div>
+        </div>
+      `;
+    }
+
+    if (kind === "prayer" || kind === "benediction") {
+      return `
+        <div class="projector-stage-wrap projector-kind-${kind}${transitionClass}${pausedClass}">
+          <div class="projector-meta">
+            <span class="projector-title">${escapeHtml(slide.label || snapshot.shortTitle || "")}</span>
+            <span class="projector-position">${snapshot.slideIndex + 1} of ${snapshot.slideCount}</span>
+          </div>
+          <div class="projector-lyrics projector-text-block projector-text-centered" style="--projector-font:${Math.round(fontSize * 0.82)}px">${renderBody(slide)}</div>
+        </div>
+      `;
+    }
+
+    if (kind === "announcement" || kind === "offering" || kind === "special") {
+      return `
+        <div class="projector-stage-wrap projector-kind-${kind}${transitionClass}${pausedClass}">
+          <div class="projector-meta">
+            <span class="projector-title">${escapeHtml(slide.title || slide.label || snapshot.shortTitle || "")}</span>
+            <span class="projector-position">${snapshot.slideIndex + 1} of ${snapshot.slideCount}</span>
+          </div>
+          <div class="projector-label">${escapeHtml(slide.label || "")}</div>
+          <div class="projector-lyrics projector-text-block projector-text-readable" style="--projector-font:${Math.round(fontSize * 0.78)}px">${renderBody(slide)}</div>
+        </div>
+      `;
+    }
+
     return `
-      <div class="projector-stage-wrap${transitionClass}${pausedClass}">
+      <div class="projector-stage-wrap projector-kind-hymn${transitionClass}${pausedClass}">
         <div class="projector-meta">
           <span class="projector-title">${escapeHtml(snapshot.shortTitle || snapshot.title)}</span>
           <span class="projector-position">${snapshot.slideIndex + 1} of ${snapshot.slideCount}</span>
         </div>
         <div class="projector-label">${escapeHtml(slide.label || "")}</div>
-        <div class="projector-lyrics" style="--projector-font:${fontSize}px">${lyricHtml(slide.body || "")}</div>
+        <div class="projector-lyrics" style="--projector-font:${fontSize}px">${renderBody(slide)}</div>
       </div>
     `;
   }
@@ -54,7 +115,8 @@
       return;
     }
 
-    root.className = "projector-output";
+    const kind = snapshot.slide && snapshot.slide.kind ? snapshot.slide.kind : "hymn";
+    root.className = `projector-output ${kind !== "hymn" ? `projector-${kind}` : ""}`;
     root.setAttribute("aria-hidden", "false");
 
     if (snapshot.displayMode && snapshot.displayMode !== "lyrics") {

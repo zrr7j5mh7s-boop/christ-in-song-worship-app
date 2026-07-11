@@ -1057,9 +1057,164 @@ mark {
 .set-song {
   min-width: 0;
   color: var(--muted);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  display: grid;
+  gap: 6px;
+}
+
+.set-song small {
+  display: block;
+}
+
+.content-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(19, 31, 56, 0.06);
+  color: var(--navy);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.add-content-menu {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fffdf8;
+}
+
+.add-content-menu button {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 54px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.add-content-menu button:hover {
+  border-color: var(--gold);
+  background: #fffaf0;
+}
+
+.content-type-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(19, 31, 56, 0.07);
+  font-size: 18px;
+}
+
+.inline-slot-editor {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: #fffdf8;
+}
+
+.inline-slot-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.inline-slot-preview {
+  margin-top: 8px;
+  color: var(--text);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.inline-slot-ref {
+  margin-top: 6px;
+  color: var(--green);
+  font-weight: 800;
+}
+
+.slide-editor-modal {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.rich-toolbar {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.rich-toolbar button {
+  min-width: 38px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.rich-editor {
+  min-height: 180px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.rich-editor:focus {
+  outline: 2px solid rgba(201, 162, 74, 0.35);
+  border-color: var(--gold);
+}
+
+.projector-text-block {
+  max-width: 92vw;
+}
+
+.projector-text-centered {
+  text-align: center;
+  max-width: 80vw;
+}
+
+.projector-text-readable {
+  text-align: left;
+  max-width: 78vw;
+}
+
+.projector-scripture-ref {
+  margin-bottom: 18px;
+  color: #f5d58b;
+  font-size: clamp(24px, 3vw, 38px);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.projector-sermon-title {
+  margin-bottom: 16px;
+  font-family: var(--display);
+  font-size: var(--projector-font, 64px);
+  line-height: 1.12;
+  font-weight: 700;
+}
+
+.projector-kind-scripture .projector-meta,
+.projector-kind-prayer .projector-meta,
+.projector-kind-benediction .projector-meta {
+  opacity: 0.88;
 }
 
 .set-song.assigned {
