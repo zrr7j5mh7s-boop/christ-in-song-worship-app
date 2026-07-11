@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="theme-color" content="#131f38">
     <meta name="description" content="Offline hymn library, worship builder, and projector presenter for Christ in Song.">
     <meta name="apple-mobile-web-app-title" content="Christ in Song">
@@ -12,18 +12,19 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=8">
+    <link rel="stylesheet" href="./styles.css?v=19">
   </head>
   <body>
     <div id="launchSplash" class="launch-splash" aria-hidden="true">
       <div class="launch-card">
-        <span class="launch-mark">CIS</span>
+        <div class="launch-mark">CIS</div>
         <strong>Christ in Song</strong>
-        <small>Preparing worship tools</small>
+        <small>VaChinoda Worship OS</small>
+        <div class="launch-dots" aria-hidden="true"><span></span><span></span><span></span></div>
       </div>
     </div>
     <div id="app" class="app-shell">
-      <aside class="sidebar" aria-label="Main navigation">
+      <aside class="sidebar rail" aria-label="Main navigation">
         <div class="brand-lockup">
           <span class="brand-mark" aria-hidden="true">CIS</span>
           <div>
@@ -55,12 +56,41 @@
     </div>
 
     <div id="modalRoot"></div>
+    <div id="presenterControlRoot" class="presenter-control-root hidden" aria-hidden="true"></div>
+    <div id="presenterOutputRoot" class="presenter-output-root hidden" aria-hidden="true"></div>
     <div id="presenterOverlay" class="presenter-overlay hidden" aria-hidden="true"></div>
     <div id="emergencyOverlay" class="emergency-overlay hidden" aria-hidden="true"></div>
 
     <script src="./data/songs.js?v=2"></script>
+    <script src="./data/sda-hymnal-pack.js?v=2"></script>
     <script src="./data/extra-packs.js"></script>
-    <script src="./app.js?v=8"></script>
+    <script src="./slide-content.js?v=1"></script>
+    <script src="./builder-slides.js?v=1"></script>
+    <script src="./service-templates.js?v=1"></script>
+    <script src="./template-store.js?v=1"></script>
+    <script src="./template-ui.js?v=1"></script>
+    <script src="./pack-store.js?v=1"></script>
+    <script src="./pack-import.js?v=1"></script>
+    <script src="./tag-catalog.js?v=1"></script>
+    <script src="./song-tags-store.js?v=1"></script>
+    <script src="./song-tags-ui.js?v=1"></script>
+    <script src="./backup-zip.js?v=1"></script>
+    <script src="./backup-store.js?v=1"></script>
+    <script src="./backup-restore.js?v=1"></script>
+    <script src="./vendor/fuse.min.js"></script>
+    <script src="./hymn-search.js?v=1"></script>
+    <script src="./hymn-search-ui.js?v=1"></script>
+    <script src="./vendor/Midi.js"></script>
+    <script src="./song-audio-store.js?v=1"></script>
+    <script src="./song-audio-player.js?v=1"></script>
+    <script src="./song-audio-ui.js?v=1"></script>
+    <script src="./vendor/pdfmake.min.js"></script>
+    <script src="./vendor/vfs_fonts.js"></script>
+    <script src="./bulletin-export.js?v=1"></script>
+    <script src="./presenter-engine.js?v=1"></script>
+    <script src="./presenter-output.js?v=1"></script>
+    <script src="./presenter-control.js?v=1"></script>
+    <script src="./app.js?v=19"></script>
     <script>
       if ("serviceWorker" in navigator && !window.electronAPI) {
         window.addEventListener("load", () => {
