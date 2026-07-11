@@ -28,7 +28,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('update-status', listener);
     return () => ipcRenderer.removeListener('update-status', listener);
   },
-,
+
+  openProjector: () => ipcRenderer.invoke('presenter:open'),
+
+  closeProjector: () => ipcRenderer.invoke('presenter:close'),
+
+  publishPresenterState: (payload) => ipcRenderer.invoke('presenter:publish', payload),
+
+  onPresenterState: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on('presenter-state', listener);
+    return () => ipcRenderer.removeListener('presenter-state', listener);
+  },
+
+  onPresenterClosed: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = () => callback();
+    ipcRenderer.on('presenter-closed', listener);
+    return () => ipcRenderer.removeListener('presenter-closed', listener);
+  },
 
   obs: {
     getStatus: () => ipcRenderer.invoke('obs:get-status'),
@@ -51,5 +70,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('obs:event', listener);
       return () => ipcRenderer.removeListener('obs:event', listener);
     },
+  },
+
+  obsHttp: {
+    start: (options) => ipcRenderer.invoke('obs-http:start', options),
+
+    stop: () => ipcRenderer.invoke('obs-http:stop'),
+
+    getInfo: () => ipcRenderer.invoke('obs-http:get-info'),
+
+    publish: (payload) => ipcRenderer.invoke('obs-http:publish', payload),
+
+    getLive: () => ipcRenderer.invoke('obs-http:get-live'),
   },
 });

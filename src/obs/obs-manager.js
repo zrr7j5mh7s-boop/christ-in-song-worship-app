@@ -9,11 +9,16 @@ const credentialStore = require('./obs-credential-store');
 
 const STATES = {
   DISABLED: 'disabled',
+  DISCONNECTED: 'disconnected',
   CONNECTING: 'connecting',
+  AUTHENTICATING: 'authenticating',
   CONNECTED: 'connected',
   DISCONNECTING: 'disconnecting',
-  DISCONNECTED: 'disconnected',
   RECONNECTING: 'reconnecting',
+  AUTHENTICATION_FAILED: 'authentication_failed',
+  CONNECTION_FAILED: 'connection_failed',
+  OBS_UNAVAILABLE: 'obs_unavailable',
+  VERSION_UNSUPPORTED: 'version_unsupported',
   ERROR: 'error',
 };
 
@@ -21,8 +26,10 @@ const DEFAULT_SETTINGS = {
   enabled: false,
   host: '127.0.0.1',
   port: 4455,
+  autoConnectOnStart: false,
   autoReconnect: true,
   reconnectIntervalMs: 5000,
+  connectionTimeoutMs: 10000,
 };
 
 let obs = null;
@@ -30,10 +37,24 @@ let mainWindow = null;
 let connectionState = STATES.DISABLED;
 let lastError = '';
 let obsInfo = null;
+let obsRuntime = createDefaultRuntime();
 let settings = { ...DEFAULT_SETTINGS };
 let reconnectTimer = null;
 let manualDisconnect = false;
 let connectingPromise = null;
+
+function createDefaultRuntime() {
+  return {
+    streaming: false,
+    recording: false,
+    virtualCamera: false,
+    studioMode: false,
+    programScene: '',
+    previewScene: '',
+    currentProfile: '',
+    currentSceneCollection: '',
+  };
+}
 
 function getObsClient() {
   if (!obs) {
@@ -45,15 +66,15 @@ function getObsClient() {
 
 function bindObsEvents(client) {
   client.on('ConnectionOpened', () => {
-    connectionState = STATES.CONNECTED;
-    lastError = '';
-    broadcast('connectionOpened');
+    connectionState = STATES.AUTHENTICATING;
+    broadcast('authenticating');
   });
 
   client.on('ConnectionClosed', () => {
     const wasConnected = connectionState === STATES.CONNECTED;
     connectionState = manualDisconnect ? STATES.DISABLED : STATES.DISCONNECTED;
     obsInfo = null;
+    obsRuntime = createDefaultRuntime();
     broadcast('connectionClosed', { wasConnected });
     if (!manualDisconnect && settings.enabled && settings.autoReconnect) {
       scheduleReconnect();
@@ -61,34 +82,59 @@ function bindObsEvents(client) {
   });
 
   client.on('ConnectionError', (error) => {
-    lastError = formatError(error);
-    connectionState = STATES.ERROR;
-    broadcast('connectionError', { message: lastError });
+    const classified = classifyConnectionError(error);
+    lastError = classified.message;
+    connectionState = classified.state;
+    log.warn('[obs] Connection error:', lastError);
+    broadcast('connectionError', { message: lastError, state: connectionState });
     if (!manualDisconnect && settings.enabled && settings.autoReconnect) {
       scheduleReconnect();
     }
   });
 
   client.on('Identified', (payload) => {
+    connectionState = STATES.CONNECTED;
+    lastError = '';
     obsInfo = {
       negotiatedRpcVersion: payload?.negotiatedRpcVersion,
       obsWebSocketVersion: payload?.obsWebSocketVersion,
     };
     broadcast('identified', obsInfo);
+    syncRuntimeState().catch((error) => {
+      log.warn('[obs] Runtime sync after identify failed:', error.message);
+    });
   });
 
-  const forwardEvents = [
-    'CurrentProgramSceneChanged',
-    'CurrentPreviewSceneChanged',
-    'SceneListChanged',
-    'StreamStateChanged',
-    'RecordStateChanged',
-    'VirtualcamStateChanged',
-    'StudioModeStateChanged',
-  ];
+  client.on('CurrentProgramSceneChanged', (data) => {
+    obsRuntime.programScene = data?.sceneName || '';
+    broadcast('CurrentProgramSceneChanged', data);
+  });
 
-  forwardEvents.forEach((eventName) => {
-    client.on(eventName, (data) => broadcast(eventName, data));
+  client.on('CurrentPreviewSceneChanged', (data) => {
+    obsRuntime.previewScene = data?.sceneName || '';
+    broadcast('CurrentPreviewSceneChanged', data);
+  });
+
+  client.on('SceneListChanged', (data) => broadcast('SceneListChanged', data));
+
+  client.on('StreamStateChanged', (data) => {
+    obsRuntime.streaming = Boolean(data?.outputActive);
+    broadcast('StreamStateChanged', data);
+  });
+
+  client.on('RecordStateChanged', (data) => {
+    obsRuntime.recording = Boolean(data?.outputActive);
+    broadcast('RecordStateChanged', data);
+  });
+
+  client.on('VirtualcamStateChanged', (data) => {
+    obsRuntime.virtualCamera = Boolean(data?.outputActive);
+    broadcast('VirtualcamStateChanged', data);
+  });
+
+  client.on('StudioModeStateChanged', (data) => {
+    obsRuntime.studioMode = Boolean(data?.studioModeEnabled);
+    broadcast('StudioModeStateChanged', data);
   });
 }
 
@@ -100,10 +146,56 @@ function formatError(error) {
   return error.message || String(error);
 }
 
+function classifyConnectionError(error) {
+  const message = formatError(error);
+  const code = error instanceof OBSWebSocketError ? error.code : null;
+  const lower = message.toLowerCase();
+
+  if (code === 4009 || lower.includes('authentication') || lower.includes('auth failed')) {
+    return { state: STATES.AUTHENTICATION_FAILED, message };
+  }
+  if (code === 4004 || lower.includes('rpc version') || lower.includes('version')) {
+    return { state: STATES.VERSION_UNSUPPORTED, message };
+  }
+  if (
+    lower.includes('econnrefused')
+    || lower.includes('enotfound')
+    || lower.includes('econnreset')
+    || lower.includes('not reachable')
+    || lower.includes('could not connect')
+    || lower.includes('websocket connection failed')
+  ) {
+    return { state: STATES.OBS_UNAVAILABLE, message };
+  }
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return { state: STATES.CONNECTION_FAILED, message };
+  }
+  return { state: STATES.CONNECTION_FAILED, message };
+}
+
 function buildWsUrl(host, port) {
   const safeHost = String(host || DEFAULT_SETTINGS.host).trim() || DEFAULT_SETTINGS.host;
   const safePort = Number(port) || DEFAULT_SETTINGS.port;
   return `ws://${safeHost}:${safePort}`;
+}
+
+function withTimeout(promise, timeoutMs) {
+  const ms = Math.max(3000, Number(timeoutMs) || DEFAULT_SETTINGS.connectionTimeoutMs);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`OBS connection timed out after ${ms}ms`));
+    }, ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 function getStatus() {
@@ -112,11 +204,14 @@ function getStatus() {
     enabled: settings.enabled,
     host: settings.host,
     port: settings.port,
+    autoConnectOnStart: settings.autoConnectOnStart,
     autoReconnect: settings.autoReconnect,
     reconnectIntervalMs: settings.reconnectIntervalMs,
+    connectionTimeoutMs: settings.connectionTimeoutMs,
     hasPassword: credentialStore.hasPassword(),
     lastError,
     obsInfo,
+    obsRuntime: { ...obsRuntime },
     connected: connectionState === STATES.CONNECTED,
   };
 }
@@ -151,6 +246,56 @@ function scheduleReconnect() {
   }, settings.reconnectIntervalMs);
 }
 
+async function syncRuntimeState() {
+  const client = getObsClient();
+  if (!client.identified) return obsRuntime;
+
+  try {
+    const version = await client.call('GetVersion');
+    obsInfo = {
+      ...obsInfo,
+      obsVersion: version?.obsVersion,
+      obsWebSocketVersion: version?.obsWebSocketVersion || obsInfo?.obsWebSocketVersion,
+      platform: version?.platform,
+      platformDescription: version?.platformDescription,
+    };
+  } catch (error) {
+    log.warn('[obs] GetVersion failed:', error.message);
+  }
+
+  const safeCall = async (requestType) => {
+    try {
+      return await client.call(requestType);
+    } catch (error) {
+      log.debug(`[obs] ${requestType} skipped:`, error.message);
+      return null;
+    }
+  };
+
+  const stream = await safeCall('GetStreamStatus');
+  const record = await safeCall('GetRecordStatus');
+  const vcam = await safeCall('GetVirtualCamStatus');
+  const studio = await safeCall('GetStudioModeEnabled');
+  const program = await safeCall('GetCurrentProgramScene');
+  const preview = await safeCall('GetCurrentPreviewScene');
+  const profile = await safeCall('GetCurrentProfile');
+  const collection = await safeCall('GetCurrentSceneCollection');
+
+  obsRuntime = {
+    streaming: Boolean(stream?.outputActive),
+    recording: Boolean(record?.outputActive),
+    virtualCamera: Boolean(vcam?.outputActive),
+    studioMode: Boolean(studio?.studioModeEnabled),
+    programScene: program?.currentProgramSceneName || '',
+    previewScene: preview?.currentPreviewSceneName || '',
+    currentProfile: profile?.currentProfileName || '',
+    currentSceneCollection: collection?.currentSceneCollectionName || '',
+  };
+
+  broadcast('runtimeSynced', obsRuntime);
+  return obsRuntime;
+}
+
 function applySettings(nextSettings, options = {}) {
   settings = {
     ...DEFAULT_SETTINGS,
@@ -159,6 +304,8 @@ function applySettings(nextSettings, options = {}) {
     host: String(nextSettings.host || settings.host || DEFAULT_SETTINGS.host).trim() || DEFAULT_SETTINGS.host,
     port: Number(nextSettings.port) || settings.port || DEFAULT_SETTINGS.port,
     reconnectIntervalMs: Math.max(2000, Number(nextSettings.reconnectIntervalMs) || settings.reconnectIntervalMs || 5000),
+    connectionTimeoutMs: Math.max(3000, Math.min(60000, Number(nextSettings.connectionTimeoutMs) || settings.connectionTimeoutMs || 10000)),
+    autoConnectOnStart: Boolean(nextSettings.autoConnectOnStart),
   };
 
   if (options.password !== undefined) {
@@ -200,28 +347,22 @@ async function connect() {
   const url = buildWsUrl(settings.host, settings.port);
   const password = credentialStore.getPassword();
 
-  connectingPromise = client.connect(url, password || undefined)
+  connectingPromise = withTimeout(
+    client.connect(url, password || undefined),
+    settings.connectionTimeoutMs,
+  )
     .then(async () => {
-      try {
-        const version = await client.call('GetVersion');
-        obsInfo = {
-          ...obsInfo,
-          obsVersion: version?.obsVersion,
-          obsWebSocketVersion: version?.obsWebSocketVersion || obsInfo?.obsWebSocketVersion,
-          platform: version?.platform,
-          platformDescription: version?.platformDescription,
-        };
-        broadcast('version', obsInfo);
-      } catch (error) {
-        log.warn('[obs] GetVersion failed after connect:', error.message);
-      }
       connectionState = STATES.CONNECTED;
+      lastError = '';
+      await syncRuntimeState();
       return getStatus();
     })
     .catch((error) => {
-      lastError = formatError(error);
-      connectionState = STATES.ERROR;
-      broadcast('connectionError', { message: lastError });
+      const classified = classifyConnectionError(error);
+      lastError = classified.message;
+      connectionState = classified.state;
+      log.warn('[obs] Connect failed:', lastError);
+      broadcast('connectionError', { message: lastError, state: connectionState });
       if (settings.autoReconnect) scheduleReconnect();
       throw error;
     })
@@ -237,7 +378,7 @@ async function disconnect() {
   manualDisconnect = true;
   const client = getObsClient();
 
-  if (!client.identified && connectionState !== STATES.CONNECTING) {
+  if (!client.identified && connectionState !== STATES.CONNECTING && connectionState !== STATES.AUTHENTICATING) {
     connectionState = settings.enabled ? STATES.DISCONNECTED : STATES.DISABLED;
     broadcast('disconnected');
     return getStatus();
@@ -254,6 +395,7 @@ async function disconnect() {
 
   connectionState = settings.enabled ? STATES.DISCONNECTED : STATES.DISABLED;
   obsInfo = null;
+  obsRuntime = createDefaultRuntime();
   broadcast('disconnected');
   return getStatus();
 }
@@ -266,9 +408,10 @@ async function testConnection(testSettings) {
     : credentialStore.getPassword();
   const url = buildWsUrl(host, port);
   const probe = new OBSWebSocket();
+  const timeoutMs = Number(testSettings?.connectionTimeoutMs) || settings.connectionTimeoutMs || DEFAULT_SETTINGS.connectionTimeoutMs;
 
   try {
-    await probe.connect(url, password || undefined);
+    await withTimeout(probe.connect(url, password || undefined), timeoutMs);
     const version = await probe.call('GetVersion');
     await probe.disconnect();
     return {
@@ -281,9 +424,11 @@ async function testConnection(testSettings) {
     try {
       await probe.disconnect();
     } catch (_ignored) {}
+    const classified = classifyConnectionError(error);
     return {
       ok: false,
-      message: formatError(error),
+      message: classified.message,
+      state: classified.state,
     };
   }
 }
@@ -315,7 +460,10 @@ function registerIpc(ipcMain) {
     const { password, connect, ...rest } = payload;
     return applySettings(rest, { password, connect: connect !== false })
       .then(() => ({ ok: true, status: getStatus() }))
-      .catch((error) => ({ ok: false, message: formatError(error), status: getStatus() }));
+      .catch((error) => {
+        const classified = classifyConnectionError(error);
+        return { ok: false, message: classified.message, state: classified.state, status: getStatus() };
+      });
   });
 
   ipcMain.handle('obs:connect', () => {
@@ -323,7 +471,10 @@ function registerIpc(ipcMain) {
     manualDisconnect = false;
     return connect()
       .then(() => ({ ok: true, status: getStatus() }))
-      .catch((error) => ({ ok: false, message: formatError(error), status: getStatus() }));
+      .catch((error) => {
+        const classified = classifyConnectionError(error);
+        return { ok: false, message: classified.message, state: classified.state, status: getStatus() };
+      });
   });
 
   ipcMain.handle('obs:disconnect', () => disconnect().then(() => ({ ok: true, status: getStatus() })));
@@ -351,4 +502,5 @@ module.exports = {
   disconnect,
   testConnection,
   call,
+  syncRuntimeState,
 };

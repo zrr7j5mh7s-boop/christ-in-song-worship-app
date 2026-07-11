@@ -6,10 +6,76 @@
   const PASSWORD_KEY = "obsPasswordEnc";
   const DEFAULTS = window.CISObsConstants
     ? window.CISObsConstants.DEFAULT_SETTINGS
-    : { enabled: false, host: "127.0.0.1", port: 4455, autoReconnect: true, reconnectIntervalMs: 5000 };
+    : {
+      enabled: false,
+      host: "127.0.0.1",
+      port: 4455,
+      browserSourcePort: 47823,
+      autoConnectOnStart: false,
+      autoReconnect: true,
+      reconnectIntervalMs: 5000,
+      connectionTimeoutMs: 10000,
+      outputTarget: "projector",
+      outputDefaults: {},
+      sceneMappings: {},
+      sourceMappings: {},
+      overlayLayouts: {},
+      autoSceneOnLive: {},
+      confirmations: {},
+      sceneChangePerContent: true,
+    };
 
   function storageKey(key) {
     return `${STORAGE_PREFIX}${key}`;
+  }
+
+  function normalizeObjectMap(raw) {
+    if (!raw || typeof raw !== "object") return {};
+    const next = {};
+    Object.keys(raw).forEach((key) => {
+      const value = raw[key];
+      if (value == null || value === "") return;
+      if (typeof value === "string") {
+        next[key] = value;
+        return;
+      }
+      if (typeof value === "object") next[key] = { ...value };
+    });
+    return next;
+  }
+
+  function normalizeOutputDefaults(raw) {
+    const allowed = new Set(["projector", "obs", "both", "stage", "all"]);
+    const base = window.CISObsConstants
+      ? { ...window.CISObsConstants.DEFAULT_OUTPUT_DEFAULTS }
+      : {};
+    const input = raw && typeof raw === "object" ? raw : {};
+    const next = { ...base };
+    Object.keys(input).forEach((key) => {
+      if (allowed.has(input[key])) next[key] = input[key];
+    });
+    return next;
+  }
+
+  function normalizeOverlayLayouts(raw) {
+    const base = window.CISObsConstants
+      ? JSON.parse(JSON.stringify(window.CISObsConstants.DEFAULT_OVERLAY_LAYOUTS))
+      : {};
+    const input = raw && typeof raw === "object" ? raw : {};
+    return { ...base, ...input };
+  }
+
+  function normalizeConfirmations(raw) {
+    const base = window.CISObsConstants
+      ? { ...window.CISObsConstants.DEFAULT_CONFIRMATIONS }
+      : {};
+    const input = raw && typeof raw === "object" ? raw : {};
+    return {
+      streamStart: input.streamStart !== false,
+      streamStop: input.streamStop !== false,
+      recordStop: input.recordStop !== false,
+      blackout: Boolean(input.blackout),
+    };
   }
 
   function normalizeSettings(raw) {
@@ -18,11 +84,21 @@
       enabled: Boolean(input.enabled),
       host: String(input.host || DEFAULTS.host).trim() || DEFAULTS.host,
       port: Math.max(1, Math.min(65535, Number(input.port) || DEFAULTS.port)),
+      browserSourcePort: Math.max(1024, Math.min(65535, Number(input.browserSourcePort) || DEFAULTS.browserSourcePort || 47823)),
+      autoConnectOnStart: Boolean(input.autoConnectOnStart),
       autoReconnect: input.autoReconnect !== false,
       reconnectIntervalMs: Math.max(2000, Number(input.reconnectIntervalMs) || DEFAULTS.reconnectIntervalMs || 5000),
-      outputTarget: ["projector", "obs", "both", "stage"].includes(input.outputTarget)
+      connectionTimeoutMs: Math.max(3000, Math.min(60000, Number(input.connectionTimeoutMs) || DEFAULTS.connectionTimeoutMs || 10000)),
+      outputTarget: ["projector", "obs", "both", "stage", "all"].includes(input.outputTarget)
         ? input.outputTarget
         : (DEFAULTS.outputTarget || "projector"),
+      outputDefaults: normalizeOutputDefaults(input.outputDefaults),
+      sceneMappings: normalizeObjectMap(input.sceneMappings),
+      sourceMappings: normalizeObjectMap(input.sourceMappings),
+      overlayLayouts: normalizeOverlayLayouts(input.overlayLayouts),
+      autoSceneOnLive: normalizeObjectMap(input.autoSceneOnLive),
+      confirmations: normalizeConfirmations(input.confirmations),
+      sceneChangePerContent: input.sceneChangePerContent !== false,
     };
   }
 
@@ -113,6 +189,16 @@
     localStorage.removeItem(storageKey(PASSWORD_KEY));
   }
 
+  function getOutputDefault(contentType) {
+    const settings = loadSettings();
+    return settings.outputDefaults[contentType] || settings.outputTarget || "projector";
+  }
+
+  function shouldSendToObs(contentType, override) {
+    const target = override || getOutputDefault(contentType);
+    return target === "obs" || target === "both" || target === "all";
+  }
+
   function exportForBackup(settings) {
     const next = normalizeSettings(settings || loadSettings());
     return {
@@ -123,6 +209,11 @@
     };
   }
 
+  function importFromBackup(payload) {
+    if (!payload || !payload.obsSettings) return loadSettings();
+    return saveSettings(payload.obsSettings);
+  }
+
   window.CISObsSettingsStore = {
     loadSettings,
     saveSettings,
@@ -131,6 +222,9 @@
     saveLocalPassword,
     loadLocalPassword,
     clearLocalPassword,
+    getOutputDefault,
+    shouldSendToObs,
     exportForBackup,
+    importFromBackup,
   };
 })();
