@@ -1573,7 +1573,7 @@
               <button class="secondary-button" type="button" data-command="save-template">Save as Template</button>
               <button class="secondary-button" type="button" data-command="copy-plan">Copy Builder</button>
               <button class="secondary-button" type="button" data-command="export-plan">Export Builder</button>
-              <button class="secondary-button" type="button" data-command="export-bulletin">Export Bulletin</button>
+              <button class="secondary-button" type="button" data-command="export-bulletin">Service Bulletin</button>
               <button class="secondary-button" type="button" data-command="import-plan">Import Builder</button>
               <button class="secondary-button" type="button" data-command="print-set">Print</button>
               <button class="danger-button" type="button" data-command="clear-plan">Clear</button>
@@ -2642,7 +2642,31 @@
     downloadText(`christ-in-song-backup-${stamp}.json`, JSON.stringify(payload, null, 2), "application/json");
   }
 
+  function setupBulletinExport() {
+    if (!window.CISBulletinExport) return;
+    window.CISBulletinExport.configure({
+      escapeHtml,
+      modalRoot: els.modalRoot,
+      setNotice,
+      loadPrefs: () => loadJson("bulletinPrefs", window.CISBulletinExport.DEFAULT_PREFS || {}),
+      savePrefs: (prefs) => saveJson("bulletinPrefs", prefs),
+      gatherServiceData: () => ({
+        worshipPlan,
+        songService,
+        helpers: {
+          getSongForSlot: (slot) => slotSong(slot),
+          slotHasContent,
+          getPackName: (slot) => {
+            const parsed = parseSongKey(slot.songKey || "");
+            return getPack(parsed.code).name || "";
+          },
+        },
+      }),
+    });
+  }
+
   function exportBulletin() {
+    if (window.CISBulletinExport) return window.CISBulletinExport.openExportModal();
     const stamp = new Date().toISOString().slice(0, 10);
     const rows = worshipPlan.map((slot, index) => {
       const content = slotHasContent(slot) ? slotTitle(slot) : "To be assigned";
@@ -3284,6 +3308,7 @@
   setupPresenterSystem();
   setupSongTags();
   setupBackupRestore();
+  setupBulletinExport();
 
   Promise.all([loadImportedLanguagePacks(), loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(() => {
     render();
