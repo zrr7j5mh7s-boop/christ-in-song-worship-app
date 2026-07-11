@@ -85,11 +85,21 @@ before producing real installers.
 
 ## 6. Building installers
 
+Run the release pre-flight check any time:
+
 ```bash
-npm run dist:mac      # .dmg + .zip  (run on macOS)
-npm run dist:win      # NSIS installer + portable .exe
-npm run dist:linux    # .AppImage + .deb + .rpm
-npm run dist:all      # all three (only meaningful on macOS/CI with Wine for win)
+npm run verify:release
+```
+
+This confirms `build/icon.icns`, `build/icon.ico`, `build/icon.png`, entitlements,
+the notarize hook, and the GitHub publish block are all wired before packaging.
+
+```bash
+npm run dist:mac           # .dmg + .zip  (run on macOS)
+npm run dist:mac:unsigned  # mac build without code signing (local test only)
+npm run dist:win           # NSIS installer + portable .exe
+npm run dist:linux         # .AppImage + .deb + .rpm
+npm run dist:all           # all three (best on CI; mac can cross-build win with Wine)
 ```
 
 Unsigned builds work fine for local testing. For anything you hand to
@@ -100,36 +110,62 @@ will trigger a SmartScreen warning.
 Installers land in `dist/`, named
 `Christ in Song Worship App-<version>-<os>-<arch>.<ext>`.
 
+### macOS signing + notarization (required for public release)
+
+Set these before `npm run dist:mac` or `npm run release:mac`:
+
+```bash
+export CSC_LINK=/path/to/DeveloperIDApplication.p12
+export CSC_KEY_PASSWORD=your_p12_password
+
+export APPLE_ID=you@example.com
+export APPLE_APP_SPECIFIC_PASSWORD=abcd-efgh-ijkl-mnop
+export APPLE_TEAM_ID=ABCDE12345
+```
+
+`scripts/notarize.js` runs automatically via the `afterSign` hook in
+`package.json`. If the `APPLE_*` variables are missing, the build still
+completes but notarization is skipped — fine for local unsigned testing,
+not for public distribution.
+
 ## 7. Setting up auto-updates
 
 This project uses `electron-updater`, configured in `src/updater.js` and
 checked ~4 seconds after the main window is ready (see `src/main.js`), plus
 on-demand from **Help → Check for Updates…**.
 
-`electron-updater` needs somewhere to check *against*. The `publish` block
-in `package.json` defaults to GitHub Releases:
+`electron-updater` publishes to **GitHub Releases** for this repo:
 
 ```json
 "publish": [
-  { "provider": "github", "owner": "YOUR_GITHUB_ORG", "repo": "christ-in-song-worship-app" }
+  {
+    "provider": "github",
+    "owner": "zrr7j5mh7s-boop",
+    "repo": "christ-in-song-worship-app",
+    "releaseType": "release"
+  }
 ]
 ```
 
-Replace `YOUR_GITHUB_ORG` with your real GitHub org/user, then:
+Release URL:
+`https://github.com/zrr7j5mh7s-boop/christ-in-song-worship-app/releases`
+
+Publish a signed build:
 
 ```bash
 export GH_TOKEN=ghp_your_personal_access_token   # needs "repo" scope
-npm run release      # builds AND uploads to a new GitHub Release + update metadata
+npm run release          # all platforms on current OS
+npm run release:mac      # macOS only
+npm run release:win      # Windows only
+npm run release:linux    # Linux only
 ```
 
-This uploads the installers plus `latest.yml` / `latest-mac.yml` /
-`latest-linux.yml` — the small metadata files `electron-updater` reads to
-know a new version exists. **Do not** hand-edit or omit these; they're what
-makes update checks work.
+This uploads installers plus `latest.yml` / `latest-mac.yml` /
+`latest-linux.yml` — the metadata files `electron-updater` reads to know a
+new version exists. **Do not** hand-edit or omit these.
 
-Alternatives to GitHub: a **generic** provider (any static file host/S3
-bucket you control — set `"provider": "generic", "url": "https://..."`), or
-an **S3** provider directly. Both work the same way from the app's side.
+For a private update server instead of GitHub, switch `build.publish` to a
+generic provider and host the artifacts yourself.
 
 ### A note on Linux and auto-update
 
