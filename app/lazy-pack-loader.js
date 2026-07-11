@@ -9,7 +9,7 @@
     pdfmake: [
       "./vendor/pdfmake.min.js",
       "./vendor/vfs_fonts.js",
-      "./bulletin-export.js?v=1",
+      "./bulletin-export.js?v=2",
     ],
     midi: ["./vendor/Midi.js"],
   };
