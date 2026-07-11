@@ -35,7 +35,9 @@
       ["benediction", "Benediction / Closing"],
     ]);
   const builtinTemplates = window.CIS_BUILTIN_TEMPLATES || [];
-  const categoryDefinitions = [
+  const categoryDefinitions = window.CISTagCatalog
+    ? [{ id: "all", label: "All", color: "#666", keywords: [] }, ...window.CISTagCatalog.getAllTags()]
+    : [
     { id: "all", label: "All", keywords: [] },
     { id: "opening", label: "Opening", keywords: ["opening", "come", "worship", "praise", "sing", "joy"] },
     { id: "praise", label: "Praise", keywords: ["praise", "hallelu", "glory", "sing", "hosanna", "tumi"] },
@@ -82,6 +84,7 @@
     builderQuery: "",
     searchScope: loadValue("searchScope", "current"),
     category: loadValue("category", "all"),
+    tagFilters: loadJson("tagFilters", []),
     activeSlot: Number(loadValue("activeSlot", 0)) || 0,
     activeSongServiceSlot: Number(loadValue("activeSongServiceSlot", 0)) || 0,
     slideIndex: 0,
@@ -108,6 +111,7 @@
   let recents = loadJson("recents", []);
   let customTemplates = [];
   let templateEditorDraft = null;
+  let songTagMap = {};
   let worshipPlan = normalizeWorshipPlan(loadJson("worshipPlan", null));
   let songService = normalizeSongService(loadJson("songService", null));
   state.activeSlot = Math.min(state.activeSlot, worshipPlan.length - 1);
@@ -183,7 +187,11 @@
           return `${item.name} now has ${item.total} hymns`;
         }).join(" · ");
         setNotice(message || "Language pack imported.");
-        render();
+        if (window.CISTagCatalog && summaryItems && summaryItems.some((item) => item.isNew || item.added)) {
+          openBulkTagModal(primary && primary.code ? primary.code : state.languageCode);
+        } else {
+          render();
+        }
       },
       onClose: () => {
         if (window.CISPackImport && !window.CISPackImport.isOpen()) {
@@ -429,13 +437,202 @@
     saveJson("recents", recents);
   }
 
+  function getTagMeta(tagId) {
+    if (window.CISTagCatalog) return window.CISTagCatalog.getTag(tagId);
+    const category = categoryDefinitions.find((item) => item.id === tagId);
+    return category ? { id: category.id, label: category.label, color: category.color || "#666" } : null;
+  }
+
+  function getStoredSongTags(key) {
+    return songTagMap[key] || [];
+  }
+
+  function getSongTags(song, code = state.languageCode) {
+    if (!song) return [];
+    const key = makeSongKey(code, song.number);
+    const stored = getStoredSongTags(key);
+    const embedded = Array.isArray(song.tags) ? song.tags : [];
+    const inferred = window.CISTagCatalog ? window.CISTagCatalog.inferTagsFromSong(song) : [];
+    const catalog = window.CISTagCatalog;
+    const merged = catalog
+      ? catalog.normalizeTags([...embedded, ...stored, ...(stored.length ? [] : inferred.slice(0, 3))])
+      : [...new Set([...embedded, ...stored])];
+    return merged;
+  }
+
+  async function loadSongTags() {
+    try {
+      if (window.CISSongTagsStore) {
+        songTagMap = await window.CISSongTagsStore.migrateLegacyStorage();
+      } else {
+        songTagMap = loadJson("songTags", {});
+      }
+    } catch (_error) {
+      songTagMap = loadJson("songTags", {});
+    }
+  }
+
+  function persistSongTags() {
+    saveJson("songTags", songTagMap);
+    if (window.CISSongTagsStore && window.CISSongTagsStore.saveTagMap) {
+      return window.CISSongTagsStore.saveTagMap(songTagMap).catch(() => {});
+    }
+    return Promise.resolve();
+  }
+
+  function setupSongTags() {
+    if (window.CISSongTagsUI) {
+      window.CISSongTagsUI.configure({ escapeHtml, getTagMeta });
+    }
+  }
+
+  function renderSongTags(song, code = state.languageCode, options = {}) {
+    if (!window.CISSongTagsUI) return "";
+    return window.CISSongTagsUI.renderTagList(getSongTags(song, code), options);
+  }
+
+  function matchesTagFilters(song, code = state.languageCode) {
+    const filters = state.tagFilters || [];
+    if (!filters.length) return true;
+    const tags = getSongTags(song, code);
+    return filters.some((tagId) => tags.includes(tagId));
+  }
+
+  function suggestSongsForSlot(slot, limit = 6) {
+    if (!slot || !window.CISTagCatalog) return [];
+    const hints = window.CISTagCatalog.tagsForSlotRole(slot.role || "");
+    if (!hints.length) return [];
+    const songs = getSongs();
+    return songs
+      .filter((song) => hints.some((tagId) => getSongTags(song).includes(tagId)))
+      .slice(0, limit);
+  }
+
+  function suggestSongsLabel(slot) {
+    if (!slot) return "Suggested hymns";
+    const role = String(slot.role || "").toLowerCase();
+    if (role.includes("opening")) return "Suggested opening songs";
+    if (role.includes("closing")) return "Suggested closing songs";
+    if (role.includes("offering")) return "Suggested offering hymns";
+    if (role.includes("prayer")) return "Suggested prayer hymns";
+    if (role.includes("communion")) return "Suggested communion hymns";
+    if (role.includes("sermon")) return "Suggested worship hymns";
+    return `Suggested for ${slot.role}`;
+  }
+
+  function openSongTagEditor(song, code = state.languageCode) {
+    if (!song || !window.CISSongTagsUI || !window.CISTagCatalog) return;
+    const key = makeSongKey(code, song.number);
+    els.modalRoot.innerHTML = window.CISSongTagsUI.renderSongTagEditor(
+      key,
+      `Hymn ${song.number} · ${song.title}`,
+      getSongTags(song, code),
+      window.CISTagCatalog.getAllTags(),
+    );
+  }
+
+  function openBulkTagModal(packCode = state.languageCode) {
+    if (!window.CISSongTagsUI || !window.CISTagCatalog) return;
+    const packs = importedPacks.length ? importedPacks : data.languagePacks.filter((pack) => pack.source && String(pack.source).includes("Imported"));
+    const targetPacks = packs.length ? packs : [getPack()];
+    els.modalRoot.innerHTML = window.CISSongTagsUI.renderBulkTagModal(
+      targetPacks,
+      packCode,
+      window.CISTagCatalog.getAllTags(),
+    );
+  }
+
+  function syncTagsToSongMetadata(songKey, tags) {
+    const parsed = parseSongKey(songKey);
+    const normalized = window.CISTagCatalog ? window.CISTagCatalog.normalizeTags(tags) : tags;
+    const applyToPack = (pack) => {
+      if (!pack || !Array.isArray(pack.songs)) return false;
+      const song = pack.songs.find((item) => item.number === parsed.number);
+      if (!song) return false;
+      song.tags = normalized;
+      return true;
+    };
+    const pack = data.languagePacks.find((item) => item.code === parsed.code);
+    applyToPack(pack);
+    const imported = importedPacks.find((item) => item.code === parsed.code);
+    if (applyToPack(imported)) persistImportedLanguagePacks();
+  }
+
+  async function saveSongTagsFromModal(songKey) {
+    if (!window.CISSongTagsUI) return;
+    const tags = window.CISSongTagsUI.readCheckedTags(els.modalRoot, ".song-tag-picker");
+    songTagMap[songKey] = window.CISTagCatalog.normalizeTags(tags);
+    syncTagsToSongMetadata(songKey, songTagMap[songKey]);
+    await persistSongTags();
+    closeModal();
+    setNotice("Hymn tags saved.");
+    render();
+  }
+
+  async function autoTagSongFromModal(songKey) {
+    const parsed = parseSongKey(songKey);
+    const song = getSong(parsed.number, parsed.code);
+    if (!song || !window.CISTagCatalog) return;
+    const inferred = window.CISTagCatalog.inferTagsFromSong(song);
+    els.modalRoot.querySelectorAll(".song-tag-picker input[type='checkbox']").forEach((input) => {
+      input.checked = inferred.includes(input.value);
+      input.closest(".song-tag-option")?.classList.toggle("active", input.checked);
+    });
+  }
+
+  async function applyBulkTagsFromModal() {
+    const packCode = document.getElementById("bulkTagPack")?.value || state.languageCode;
+    const mode = document.getElementById("bulkTagMode")?.value || "merge";
+    const tags = window.CISSongTagsUI.readCheckedTags(els.modalRoot, "#bulkTagPicker");
+    const pack = data.languagePacks.find((item) => item.code === packCode);
+    if (!pack || !tags.length) {
+      setNotice("Choose a pack and at least one tag.");
+      return;
+    }
+    const keys = (pack.songs || []).map((song) => makeSongKey(pack.code, song.number));
+    if (window.CISSongTagsStore) {
+      songTagMap = await window.CISSongTagsStore.bulkApplyTags(keys, tags, mode === "replace" ? "replace" : "merge");
+    } else {
+      keys.forEach((key) => {
+        const existing = songTagMap[key] || [];
+        songTagMap[key] = mode === "replace"
+          ? window.CISTagCatalog.normalizeTags(tags)
+          : window.CISTagCatalog.normalizeTags([...existing, ...tags]);
+      });
+      await persistSongTags();
+    }
+    keys.forEach((key) => syncTagsToSongMetadata(key, songTagMap[key]));
+    closeModal();
+    setNotice(`Applied tags to ${keys.length} hymns in ${pack.name}.`);
+    render();
+  }
+
+  async function autoBulkTagFromModal() {
+    const packCode = document.getElementById("bulkTagPack")?.value || state.languageCode;
+    const pack = data.languagePacks.find((item) => item.code === packCode);
+    if (!pack || !window.CISTagCatalog) return;
+    const keys = [];
+    for (const song of pack.songs || []) {
+      const key = makeSongKey(pack.code, song.number);
+      const inferred = window.CISTagCatalog.inferTagsFromSong(song);
+      if (inferred.length) {
+        songTagMap[key] = window.CISTagCatalog.normalizeTags([...(songTagMap[key] || []), ...inferred]);
+        syncTagsToSongMetadata(key, songTagMap[key]);
+        keys.push(key);
+      }
+    }
+    await persistSongTags();
+    setNotice(`Auto-suggested tags for ${keys.length} hymns in ${pack.name}.`);
+    render();
+  }
+
   function searchSongs(query, limit, code = state.languageCode, useCategory = false) {
     const songs = getSongs(code);
     const q = plain(query).toLowerCase();
     const results = q
       ? songs.filter((song) => (song.searchText || `${song.number} ${song.title}`.toLowerCase()).includes(q))
       : songs;
-    const filtered = useCategory ? filterByCategory(results) : results;
+    const filtered = useCategory ? filterByCategory(results, (song) => song, () => code) : results;
     return typeof limit === "number" ? filtered.slice(0, limit) : filtered;
   }
 
@@ -449,15 +646,23 @@
         if (!q || haystack.includes(q)) results.push({ song, code: pack.code, pack });
       }
     }
-    return filterByCategory(results, (item) => item.song).slice(0, limit);
+    return filterByCategory(results, (item) => item.song, (item) => item.code).slice(0, limit);
   }
 
-  function filterByCategory(items, getSongItem = (song) => song) {
-    if (state.category === "all") return items;
-    return items.filter((item) => matchesCategory(getSongItem(item), state.category));
+  function filterByCategory(items, getSongItem = (item) => item, resolveCode = null) {
+    if (!(state.tagFilters || []).length && state.category === "all") return items;
+    return items.filter((item) => {
+      const song = getSongItem(item);
+      const code = resolveCode ? resolveCode(item) : state.languageCode;
+      if ((state.tagFilters || []).length) return matchesTagFilters(song, code);
+      return matchesCategory(song, state.category, code);
+    });
   }
 
-  function matchesCategory(song, categoryId) {
+  function matchesCategory(song, categoryId, code = state.languageCode) {
+    if (categoryId === "all") return true;
+    const tags = getSongTags(song, code);
+    if (tags.includes(categoryId)) return true;
     const category = categoryDefinitions.find((item) => item.id === categoryId);
     if (!category || !category.keywords.length) return true;
     const text = (song.searchText || `${song.number} ${song.title}`).toLowerCase();
@@ -770,11 +975,13 @@
   function renderSongCard(song) {
     const key = songKey(song);
     const starred = favorites.has(key);
+    const tags = renderSongTags(song, state.languageCode);
     return `
       <button class="tile song-tile" type="button" data-song="${song.number}">
         ${starred ? '<span class="star" aria-hidden="true">★</span>' : ""}
         <span class="tnum">${escapeHtml(song.number)}</span>
         <span class="ttitle">${escapeHtml(song.title)}</span>
+        ${tags ? `<span class="tile-tags">${tags}</span>` : ""}
       </button>
     `;
   }
@@ -798,8 +1005,10 @@
           </div>
           <span class="muted">${results.length} result${results.length === 1 ? "" : "s"}</span>
         </div>
-        <div class="filter-row">
-          ${categoryDefinitions.map((category) => `<button class="filter-chip ${state.category === category.id ? "active" : ""}" type="button" data-command="set-category" data-category="${category.id}">${escapeHtml(category.label)}</button>`).join("")}
+        <div class="filter-row tag-filter-section">
+          ${window.CISTagCatalog && window.CISSongTagsUI
+            ? window.CISSongTagsUI.renderFilterRow(window.CISTagCatalog.getAllTags(), state.tagFilters)
+            : categoryDefinitions.map((category) => `<button class="filter-chip ${state.category === category.id ? "active" : ""}" type="button" data-command="set-category" data-category="${category.id}">${escapeHtml(category.label)}</button>`).join("")}
         </div>
         <div class="result-list">
           ${results.map((item) => renderSearchResult(item.song, item.code, item.pack)).join("") || `<div class="empty-state">No hymns match this search.</div>`}
@@ -809,10 +1018,12 @@
   }
 
   function renderSearchResult(song, code = state.languageCode, pack = getPack(code)) {
+    const tags = renderSongTags(song, code);
     return `
       <button class="result-item" type="button" data-song="${song.number}" data-lang-jump="${escapeHtml(code)}">
         <strong>${escapeHtml(pack.name || "Language")} · Hymn ${escapeHtml(song.number)}</strong>
         <span>${escapeHtml(song.title)}</span>
+        ${tags ? `<div class="result-tags">${tags}</div>` : ""}
         <small>${resultSnippet(song, state.query)}</small>
       </button>
     `;
@@ -835,6 +1046,10 @@
                 <p class="eyebrow">${escapeHtml(getPack().name)}</p>
                 <h2>${escapeHtml(song.title)}</h2>
                 <p class="muted">${song.slides.length} presentation slides · ${song.sections.length} unique sections</p>
+                <div class="song-tags-row">
+                  ${renderSongTags(song) || `<span class="muted">No categories yet</span>`}
+                  <button class="text-button" type="button" data-command="edit-song-tags" data-song="${song.number}">Edit Tags</button>
+                </div>
               </div>
             </div>
             <div class="song-actions">
@@ -1097,6 +1312,29 @@
     const templateGallery = window.CISTemplateUI
       ? window.CISTemplateUI.renderGallery(builtinTemplates, customTemplates)
       : "";
+    const activeWorshipSlot = worshipPlan[state.activeSlot] || worshipPlan[0];
+    const activeServiceSlot = songService[state.activeSongServiceSlot] || songService[0];
+    const worshipSuggestions = suggestSongsForSlot(activeWorshipSlot);
+    const serviceSuggestions = suggestSongsForSlot(activeServiceSlot);
+    const renderSuggestionButton = (song) => `
+      <button class="suggested-song-button" type="button" data-command="assign-song" data-song="${song.number}">
+        <strong>Hymn ${escapeHtml(song.number)}</strong>
+        <span>${escapeHtml(song.title)}</span>
+        ${renderSongTags(song) ? `<span class="result-tags">${renderSongTags(song)}</span>` : ""}
+      </button>
+    `;
+    const renderServiceSuggestionButton = (song) => `
+      <button class="suggested-song-button" type="button" data-command="assign-service-song" data-song="${song.number}">
+        <strong>Hymn ${escapeHtml(song.number)}</strong>
+        <span>${escapeHtml(song.title)}</span>
+      </button>
+    `;
+    const worshipSuggestionBlock = window.CISSongTagsUI
+      ? window.CISSongTagsUI.renderSuggestions(suggestSongsLabel(activeWorshipSlot), worshipSuggestions, renderSuggestionButton)
+      : "";
+    const serviceSuggestionBlock = window.CISSongTagsUI
+      ? window.CISSongTagsUI.renderSuggestions(suggestSongsLabel(activeServiceSlot), serviceSuggestions, renderServiceSuggestionButton)
+      : "";
     return `
       ${templateGallery}
       <section class="section opens-service">
@@ -1145,6 +1383,8 @@
         <aside class="panel">
           <h3>Assign Hymn</h3>
           <p class="muted">Builder: ${escapeHtml(worshipPlan[state.activeSlot]?.role || worshipPlan[0].role)} · Song Service: ${escapeHtml(songService[state.activeSongServiceSlot]?.role || songService[0].role)}</p>
+          ${worshipSuggestionBlock}
+          ${serviceSuggestionBlock}
           ${current ? `<button class="action-button" type="button" data-command="assign-current">Use Hymn ${escapeHtml(current.number)}</button>` : ""}
           ${current ? `<button class="secondary-button" type="button" data-command="assign-current-service">Use Hymn ${escapeHtml(current.number)} in Song Service</button>` : ""}
           <hr>
@@ -1158,6 +1398,7 @@
                 <button type="button" data-command="assign-song" data-song="${song.number}">
                   <strong>Hymn ${escapeHtml(song.number)}</strong>
                   <span>${escapeHtml(song.title)}</span>
+                  ${renderSongTags(song) ? `<span class="result-tags">${renderSongTags(song)}</span>` : ""}
                 </button>
                 <button type="button" data-command="assign-service-song" data-song="${song.number}">Song Service</button>
               </div>
@@ -1575,6 +1816,12 @@
             <span>Add hymns in a new language from a JSON pack or PowerPoint file. Drag-and-drop, validation, and duplicate handling are built in.</span>
             <button class="action-button" type="button" data-command="import-language-pack">Import Language Pack</button>
             <span class="muted">Test pack: <code>app/data/sample-packs/ndebele-sample.json</code> (5 Ndebele hymns)</span>
+          </div>
+          <div class="import-zone tag-tools-zone">
+            <strong>Tag & Categorize Hymns</strong>
+            <span>Apply worship categories to imported packs in bulk, or refine tags hymn by hymn from the song reader.</span>
+            <button class="secondary-button" type="button" data-command="open-bulk-tag">Bulk Tag Hymns</button>
+            <span class="muted">${Object.keys(songTagMap).length} hymns tagged across all languages</span>
           </div>
           <div class="language-status">
             ${data.languagePacks.map((pack) => `
@@ -2168,6 +2415,8 @@
       recents,
       customTemplates,
       importedLanguagePacks: importedPacks,
+      songTags: songTagMap,
+      tagFilters: state.tagFilters,
       settings: {
         displayMode: state.displayMode,
         fontScale: state.fontScale,
@@ -2258,6 +2507,15 @@
           importedPacks = payload.importedLanguagePacks;
           refreshLanguageLibrary();
         }
+        if (payload.songTags && typeof payload.songTags === "object") {
+          songTagMap = payload.songTags;
+          saveJson("songTags", songTagMap);
+          persistSongTags();
+        }
+        if (Array.isArray(payload.tagFilters)) {
+          state.tagFilters = payload.tagFilters;
+          saveJson("tagFilters", state.tagFilters);
+        }
         saveJson("worshipPlan", worshipPlan);
         saveJson("songService", songService);
         saveJson("favorites", [...favorites]);
@@ -2277,6 +2535,8 @@
     recents = [];
     customTemplates = [];
     importedPacks = [];
+    songTagMap = {};
+    state.tagFilters = [];
     refreshLanguageLibrary();
     worshipPlan = createDefaultPlan();
     songService = createDefaultSongService();
@@ -2284,9 +2544,11 @@
     saveJson("recents", []);
     saveJson("customTemplates", []);
     saveJson("importedLanguagePacks", []);
+    saveJson("songTags", {});
+    saveJson("tagFilters", []);
     saveJson("worshipPlan", worshipPlan);
     saveJson("songService", songService);
-    Promise.all([persistImportedLanguagePacks(), persistCustomTemplates()]).finally(() => render());
+    Promise.all([persistImportedLanguagePacks(), persistCustomTemplates(), persistSongTags()]).finally(() => render());
   }
 
   function persistTimer() {
@@ -2455,6 +2717,10 @@
       restoreBackupFromFile(target.files && target.files[0]);
       target.value = "";
     }
+    if (target.closest(".song-tag-option")) {
+      const option = target.closest(".song-tag-option");
+      if (option) option.classList.toggle("active", target.checked);
+    }
   });
 
   document.addEventListener("keydown", (event) => {
@@ -2554,10 +2820,40 @@
     }
     if (command === "set-category") {
       state.category = target.dataset.category || "all";
+      state.tagFilters = state.category === "all" ? [] : [state.category];
+      saveValue("category", state.category);
+      saveJson("tagFilters", state.tagFilters);
+      render();
+      return;
+    }
+    if (command === "toggle-tag-filter") {
+      const tag = target.dataset.tag;
+      if (!tag) return;
+      const filters = state.tagFilters || [];
+      state.tagFilters = filters.includes(tag) ? filters.filter((item) => item !== tag) : [...filters, tag];
+      state.category = state.tagFilters.length === 1 ? state.tagFilters[0] : "all";
+      saveJson("tagFilters", state.tagFilters);
       saveValue("category", state.category);
       render();
       return;
     }
+    if (command === "clear-tag-filters") {
+      state.tagFilters = [];
+      state.category = "all";
+      saveJson("tagFilters", []);
+      saveValue("category", "all");
+      render();
+      return;
+    }
+    if (command === "edit-song-tags") {
+      const song = getSong(target.dataset.song) || selectedSong();
+      return openSongTagEditor(song, state.languageCode);
+    }
+    if (command === "save-song-tags") return saveSongTagsFromModal(target.dataset.songKey);
+    if (command === "auto-tag-song") return autoTagSongFromModal(target.dataset.songKey);
+    if (command === "open-bulk-tag") return openBulkTagModal();
+    if (command === "apply-bulk-tags") return applyBulkTagsFromModal();
+    if (command === "auto-bulk-tag") return autoBulkTagFromModal();
     if (command === "activate-slot") {
       state.activeSlot = slotIndex;
       saveValue("activeSlot", state.activeSlot);
@@ -2765,8 +3061,9 @@
   setupTemplateSystem();
   setupBuilderSlides();
   setupPresenterSystem();
+  setupSongTags();
 
-  Promise.all([loadImportedLanguagePacks(), loadCustomTemplates()]).finally(() => {
+  Promise.all([loadImportedLanguagePacks(), loadCustomTemplates(), loadSongTags()]).finally(() => {
     render();
     if (!data.languagePacks.length) {
       setNotice("Hymn library failed to load. Check app/data/songs.js.");
