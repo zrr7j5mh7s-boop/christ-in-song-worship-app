@@ -463,6 +463,14 @@ h3 {
   color: var(--muted);
 }
 
+.locale-dropdown-trigger .locale-meta-inline {
+  font-size: 0.72rem;
+  font-weight: 600;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .hymn-pack-switcher .locale-dropdown-trigger.ready {
   border-color: rgba(40, 98, 71, 0.35);
 }
