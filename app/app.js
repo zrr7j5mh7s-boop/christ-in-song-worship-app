@@ -7,10 +7,10 @@
   const desktopBridge = electronBridge || legacyDesktopBridge;
   const baseData = window.CIS_DATA || { meta: {}, languagePacks: [] };
   const extraPacks = window.CIS_EXTRA_LANGUAGE_PACKS || [];
-  let importedPacks = loadJson("importedLanguagePacks", []);
+  let importedPacks = [];
   const data = {
     meta: baseData.meta || {},
-    languagePacks: mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]),
+    languagePacks: [],
   };
   const rangeSize = 50;
   const defaultSlots = [
@@ -32,92 +32,7 @@
     ["special", "Special Music"],
     ["note", "Service Note"],
   ];
-  const serviceTemplates = [
-    {
-      id: "sabbath",
-      name: "Sabbath Worship",
-      detail: "Opening, doxology, prayer, scripture, offering, sermon, closing.",
-      slots: [
-        { role: "Opening Hymn" },
-        { role: "Doxology" },
-        { role: "Invocation", type: "custom", itemType: "prayer", title: "Opening Prayer", body: "Opening prayer" },
-        { role: "Scripture Reading", type: "custom", itemType: "scripture", title: "Scripture Reading", body: "Scripture reading" },
-        { role: "Offering Hymn" },
-        { role: "Special Music", type: "custom", itemType: "special", title: "Special Music", body: "Special music" },
-        { role: "Sermon", type: "custom", itemType: "sermon", title: "Sermon Title", body: "Sermon title" },
-        { role: "Closing Hymn" },
-      ],
-    },
-    {
-      id: "prayer",
-      name: "Prayer Meeting",
-      detail: "Simple evening flow for hymns, scripture, requests, and prayer.",
-      slots: [
-        { role: "Opening Hymn" },
-        { role: "Scripture Reading", type: "custom", itemType: "scripture", title: "Scripture Reading", body: "Scripture reading" },
-        { role: "Prayer Requests", type: "custom", itemType: "prayer", title: "Prayer Requests", body: "Prayer requests" },
-        { role: "Prayer Hymn" },
-        { role: "Closing Prayer", type: "custom", itemType: "prayer", title: "Closing Prayer", body: "Closing prayer" },
-      ],
-    },
-    {
-      id: "communion",
-      name: "Communion",
-      detail: "Reverent service pattern for communion Sabbath.",
-      slots: [
-        { role: "Opening Hymn" },
-        { role: "Doxology" },
-        { role: "Scripture Reading", type: "custom", itemType: "scripture", title: "Communion Scripture", body: "Communion scripture" },
-        { role: "Prayer Hymn" },
-        { role: "Ordinance", type: "custom", itemType: "note", title: "Ordinance of Humility", body: "Ordinance of humility" },
-        { role: "Communion Hymn" },
-        { role: "Closing Hymn" },
-      ],
-    },
-    {
-      id: "funeral",
-      name: "Funeral",
-      detail: "Comfort-focused order with scripture, tribute, message, and closing.",
-      slots: [
-        { role: "Processional Hymn" },
-        { role: "Opening Prayer", type: "custom", itemType: "prayer", title: "Opening Prayer", body: "Opening prayer" },
-        { role: "Scripture Reading", type: "custom", itemType: "scripture", title: "Scripture Reading", body: "Scripture reading" },
-        { role: "Tribute", type: "custom", itemType: "note", title: "Tribute", body: "Tribute" },
-        { role: "Sermon", type: "custom", itemType: "sermon", title: "Message of Hope", body: "Message of hope" },
-        { role: "Closing Hymn" },
-      ],
-    },
-    {
-      id: "youth",
-      name: "Youth Service",
-      detail: "Flexible, music-forward youth programme.",
-      slots: [
-        { role: "Opening Song" },
-        { role: "Welcome", type: "custom", itemType: "announcement", title: "Welcome", body: "Welcome" },
-        { role: "Praise Hymn" },
-        { role: "Scripture Reading", type: "custom", itemType: "scripture", title: "Scripture Reading", body: "Scripture reading" },
-        { role: "Special Music", type: "custom", itemType: "special", title: "Special Music", body: "Special music" },
-        { role: "Message", type: "custom", itemType: "sermon", title: "Message", body: "Message" },
-        { role: "Closing Song" },
-      ],
-    },
-    {
-      id: "camp",
-      name: "Camp Meeting",
-      detail: "Larger service with song service, announcements, appeal, and sermon.",
-      slots: [
-        { role: "Opening Hymn" },
-        { role: "Doxology" },
-        { role: "Welcome", type: "custom", itemType: "announcement", title: "Welcome", body: "Welcome" },
-        { role: "Announcements", type: "custom", itemType: "announcement", title: "Announcements", body: "Announcements" },
-        { role: "Offering Appeal", type: "custom", itemType: "offering", title: "Offering Appeal", body: "Offering appeal" },
-        { role: "Special Music", type: "custom", itemType: "special", title: "Special Music", body: "Special music" },
-        { role: "Sermon", type: "custom", itemType: "sermon", title: "Sermon Title", body: "Sermon title" },
-        { role: "Appeal Hymn" },
-        { role: "Closing Hymn" },
-      ],
-    },
-  ];
+  const builtinTemplates = window.CIS_BUILTIN_TEMPLATES || [];
   const categoryDefinitions = [
     { id: "all", label: "All", keywords: [] },
     { id: "opening", label: "Opening", keywords: ["opening", "come", "worship", "praise", "sing", "joy"] },
@@ -148,9 +63,13 @@
     title: document.getElementById("pageTitle"),
     languageSwitcher: document.getElementById("languageSwitcher"),
     modalRoot: document.getElementById("modalRoot"),
+    presenterControlRoot: document.getElementById("presenterControlRoot"),
+    presenterOutputRoot: document.getElementById("presenterOutputRoot"),
     presenterOverlay: document.getElementById("presenterOverlay"),
     emergencyOverlay: document.getElementById("emergencyOverlay"),
   };
+
+  let embeddedProjectorActive = false;
 
   const state = {
     view: initialView,
@@ -184,7 +103,8 @@
 
   let favorites = new Set(loadJson("favorites", []));
   let recents = loadJson("recents", []);
-  let customTemplates = loadJson("customTemplates", []);
+  let customTemplates = [];
+  let templateEditorDraft = null;
   let worshipPlan = normalizeWorshipPlan(loadJson("worshipPlan", null));
   let songService = normalizeSongService(loadJson("songService", null));
   state.activeSlot = Math.min(state.activeSlot, worshipPlan.length - 1);
@@ -202,6 +122,72 @@
       });
     }
     return [...byCode.values()];
+  }
+
+  function refreshLanguageLibrary() {
+    data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
+  }
+
+  function isBuiltinLanguagePack(code) {
+    return [...(baseData.languagePacks || []), ...extraPacks].some((pack) => pack.code === code);
+  }
+
+  async function loadImportedLanguagePacks() {
+    try {
+      if (window.CISPackStore) {
+        importedPacks = await window.CISPackStore.migrateLegacyStorage();
+      } else {
+        importedPacks = loadJson("importedLanguagePacks", []);
+      }
+    } catch (_error) {
+      importedPacks = loadJson("importedLanguagePacks", []);
+    }
+    refreshLanguageLibrary();
+  }
+
+  function persistImportedLanguagePacks() {
+    saveJson("importedLanguagePacks", importedPacks);
+    if (window.CISPackStore && window.CISPackStore.savePacks) {
+      return window.CISPackStore.savePacks(importedPacks).catch(() => {});
+    }
+    return Promise.resolve();
+  }
+
+  function openLanguagePackImportModal() {
+    if (!window.CISPackImport) {
+      setNotice("Import module failed to load. Refresh the app and try again.");
+      return;
+    }
+    window.CISPackImport.openModal({
+      modalRoot: els.modalRoot,
+      escapeHtml,
+      getImportedPacks: () => importedPacks,
+      getAllPacks: () => data.languagePacks,
+      isBuiltinPack: isBuiltinLanguagePack,
+      onImported: async ({ importedPacks: nextImported, summaryItems }) => {
+        importedPacks = nextImported;
+        refreshLanguageLibrary();
+        await persistImportedLanguagePacks();
+        const primary = summaryItems && summaryItems[0];
+        if (primary && primary.code) {
+          state.languageCode = primary.code;
+          saveValue("language", state.languageCode);
+        }
+        const message = (summaryItems || []).map((item) => {
+          if (item.isNew) return `Imported ${item.added} new hymns in ${item.name}`;
+          if (item.added) return `Added ${item.added} new hymns in ${item.name}`;
+          if (item.updated) return `Updated ${item.updated} hymns in ${item.name}`;
+          return `${item.name} now has ${item.total} hymns`;
+        }).join(" · ");
+        setNotice(message || "Language pack imported.");
+        render();
+      },
+      onClose: () => {
+        if (window.CISPackImport && !window.CISPackImport.isOpen()) {
+          els.modalRoot.innerHTML = "";
+        }
+      },
+    });
   }
 
   function createPlanSlot(role, index, overrides = {}) {
@@ -558,8 +544,9 @@
     renderLanguageSwitcher();
     els.title.textContent = viewTitle();
     els.content.innerHTML = `${renderNotice()}${renderView()}`;
-    renderPresenterOverlay();
+    renderPresenterAV();
     renderEmergencyOverlay();
+    if (state.view === "builder") bindBuilderInteractions();
     document.body.classList.add("app-ready");
   }
 
@@ -584,8 +571,8 @@
 
   function renderNav() {
     els.nav.innerHTML = navItems.map((item) => `
-      <button class="nav-button ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}">
-        <span class="nav-icon" aria-hidden="true">${item.icon}</span>
+      <button class="rail-btn ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}">
+        <span class="ico" aria-hidden="true">${item.icon}</span>
         <span>${escapeHtml(item.label)}</span>
       </button>
     `).join("");
@@ -621,7 +608,7 @@
     const favoriteCount = [...favorites].filter((key) => getSongByKey(key)).length;
     const assignedCount = assignedSlots().length;
     return `
-      <section class="worship-hero">
+      <section class="hero worship-hero">
         <p class="eyebrow">Christ in Song · VaChinoda Edition</p>
         <h2>Your worship, ready to lead.</h2>
         <p>Search, build a Sabbath order of service, and present any hymn full-screen in the navy and gold worship theme.</p>
@@ -865,15 +852,181 @@
 
   function renderSections(song) {
     return `
-      <div class="section-list">
+      <div class="stanza-list">
         ${song.sections.map((section) => `
-          <article class="lyric-section ${section.kind}">
-            <strong>${escapeHtml(section.label)}</strong>
-            <p>${lyricHtml(section.body)}</p>
+          <article class="stanza ${section.kind}">
+            <div class="slabel">${escapeHtml(section.label)}</div>
+            <div class="stext">${lyricHtml(section.body)}</div>
           </article>
         `).join("")}
       </div>
     `;
+  }
+
+  function getAllServiceTemplates() {
+    return [...builtinTemplates, ...customTemplates];
+  }
+
+  function getTemplateById(templateId) {
+    return getAllServiceTemplates().find((template) => template.id === templateId) || null;
+  }
+
+  async function loadCustomTemplates() {
+    try {
+      if (window.CISTemplateStore) {
+        customTemplates = await window.CISTemplateStore.migrateLegacyStorage();
+      } else {
+        customTemplates = loadJson("customTemplates", []);
+      }
+    } catch (_error) {
+      customTemplates = loadJson("customTemplates", []);
+    }
+  }
+
+  function persistCustomTemplates() {
+    saveJson("customTemplates", customTemplates);
+    if (window.CISTemplateStore && window.CISTemplateStore.saveTemplates) {
+      return window.CISTemplateStore.saveTemplates(customTemplates).catch(() => {});
+    }
+    return Promise.resolve();
+  }
+
+  function setupTemplateSystem() {
+    if (window.CISTemplateUI) {
+      window.CISTemplateUI.configure({ escapeHtml, plain, itemTypeLabel });
+    }
+  }
+
+  function bindBuilderInteractions() {
+    const list = document.querySelector(".set-list");
+    if (list && window.CISTemplateUI) {
+      window.CISTemplateUI.bindPlanDragDrop(list, reorderPlanSlots);
+    }
+  }
+
+  function reorderPlanSlots(fromIndex, toIndex) {
+    if (fromIndex === toIndex) return;
+    const item = worshipPlan.splice(fromIndex, 1)[0];
+    worshipPlan.splice(toIndex, 0, item);
+    state.activeSlot = toIndex;
+    saveValue("activeSlot", state.activeSlot);
+    saveJson("worshipPlan", worshipPlan);
+    render();
+  }
+
+  function openTemplatePreview(templateId) {
+    const template = getTemplateById(templateId);
+    if (!template || !window.CISTemplateUI) return;
+    els.modalRoot.innerHTML = window.CISTemplateUI.renderPreviewModal(template);
+  }
+
+  function openTemplateEditor(templateId = null, fromCurrentPlan = false) {
+    if (!window.CISTemplateUI) return;
+    if (templateId) {
+      const template = customTemplates.find((item) => item.id === templateId);
+      if (!template) return;
+      templateEditorDraft = {
+        id: template.id,
+        name: template.name,
+        detail: template.detail,
+        icon: template.icon || "★",
+        slots: template.slots.map((slot) => ({ ...slot })),
+      };
+    } else if (fromCurrentPlan) {
+      templateEditorDraft = {
+        id: null,
+        name: "",
+        detail: `${worshipPlan.length} service items`,
+        icon: "★",
+        slots: worshipPlan.map((slot) => ({
+          role: slot.role,
+          type: slot.type || "song",
+          itemType: slot.itemType || "",
+          title: slot.title || "",
+          body: slot.body || "",
+        })),
+      };
+    } else {
+      templateEditorDraft = {
+        id: null,
+        name: "",
+        detail: "",
+        icon: "★",
+        slots: [{ role: "Opening Hymn", type: "song" }],
+      };
+    }
+    renderTemplateEditorModal();
+  }
+
+  function renderTemplateEditorModal() {
+    if (!templateEditorDraft || !window.CISTemplateUI) return;
+    const mode = templateEditorDraft.id ? "edit" : "create";
+    els.modalRoot.innerHTML = window.CISTemplateUI.renderEditorModal(templateEditorDraft, customItemTypes, mode);
+    window.CISTemplateUI.bindEditorDragDrop(els.modalRoot, (fromIndex, toIndex) => {
+      const item = templateEditorDraft.slots.splice(fromIndex, 1)[0];
+      templateEditorDraft.slots.splice(toIndex, 0, item);
+      renderTemplateEditorModal();
+    });
+    els.modalRoot.querySelectorAll('[data-editor-field="type"]').forEach((select) => {
+      select.addEventListener("change", () => {
+        const row = Number(select.dataset.editorRow);
+        const slot = templateEditorDraft.slots[row];
+        if (!slot) return;
+        slot.type = select.value;
+        if (slot.type === "custom") {
+          slot.itemType = slot.itemType || customItemTypes[0][0];
+          slot.title = slot.title || slot.role;
+          slot.body = slot.body || slot.title;
+        }
+        renderTemplateEditorModal();
+      });
+    });
+  }
+
+  async function saveTemplateEditor() {
+    if (!templateEditorDraft || !window.CISTemplateUI) return;
+    const payload = window.CISTemplateUI.readEditorState(els.modalRoot, customItemTypes);
+    if (!payload.name) {
+      setNotice("Enter a template name before saving.");
+      return;
+    }
+    if (!payload.slots.length) {
+      setNotice("Add at least one service item to the template.");
+      return;
+    }
+    const id = templateEditorDraft.id || `custom-${Date.now()}`;
+    const nextTemplate = {
+      id,
+      name: payload.name,
+      detail: payload.detail || `${payload.slots.length} service items`,
+      icon: payload.icon || "★",
+      category: "custom",
+      builtin: false,
+      slots: payload.slots,
+      updatedAt: Date.now(),
+    };
+    customTemplates = [
+      ...customTemplates.filter((template) => template.id !== id),
+      nextTemplate,
+    ];
+    await persistCustomTemplates();
+    templateEditorDraft = null;
+    closeModal();
+    setNotice(`Saved template “${nextTemplate.name}”.`);
+    render();
+  }
+
+  async function deleteCustomTemplate(templateId) {
+    const template = customTemplates.find((item) => item.id === templateId);
+    if (!template) return;
+    if (!window.confirm(`Delete template “${template.name}”?`)) return;
+    customTemplates = customTemplates.filter((item) => item.id !== templateId);
+    if (window.CISTemplateStore && window.CISTemplateStore.deleteTemplate) {
+      await window.CISTemplateStore.deleteTemplate(templateId).catch(() => {});
+    }
+    await persistCustomTemplates();
+    setNotice(`Deleted template “${template.name}”.`);
+    render();
   }
 
   function renderBuilder() {
@@ -881,8 +1034,11 @@
     const current = selectedSong();
     const results = pack.status === "ready" ? searchSongs(state.builderQuery, 32) : [];
     const songServiceAssigned = assignedSongServiceSlots();
-    const allTemplates = [...serviceTemplates, ...customTemplates];
+    const templateGallery = window.CISTemplateUI
+      ? window.CISTemplateUI.renderGallery(builtinTemplates, customTemplates)
+      : "";
     return `
+      ${templateGallery}
       <section class="section opens-service">
         <div class="song-header">
           <div>
@@ -910,7 +1066,7 @@
             </div>
             <div class="song-actions">
               <button class="action-button" type="button" data-command="open-custom-item">Add Item</button>
-              <button class="secondary-button" type="button" data-command="save-template">Save Template</button>
+              <button class="secondary-button" type="button" data-command="save-template">Save as Template</button>
               <button class="secondary-button" type="button" data-command="copy-plan">Copy Builder</button>
               <button class="secondary-button" type="button" data-command="export-plan">Export Builder</button>
               <button class="secondary-button" type="button" data-command="export-bulletin">Export Bulletin</button>
@@ -920,21 +1076,12 @@
               <input id="worshipPlanImport" class="hidden" type="file" accept="application/json">
             </div>
           </div>
+          <p class="muted drag-hint">Drag the ⋮⋮ handle to reorder service items.</p>
           <div class="set-list">
             ${worshipPlan.map(renderPlanRow).join("")}
           </div>
         </section>
         <aside class="panel">
-          <h3>Service Templates</h3>
-          <div class="template-list">
-            ${allTemplates.map((template) => `
-              <button class="template-button" type="button" data-command="load-template" data-template="${escapeHtml(template.id)}">
-                <strong>${escapeHtml(template.name)}</strong>
-                <span>${escapeHtml(template.detail || `${template.slots.length} service items`)}</span>
-              </button>
-            `).join("")}
-          </div>
-          <hr>
           <h3>Assign Hymn</h3>
           <p class="muted">Builder: ${escapeHtml(worshipPlan[state.activeSlot]?.role || worshipPlan[0].role)} · Song Service: ${escapeHtml(songService[state.activeSongServiceSlot]?.role || songService[0].role)}</p>
           ${current ? `<button class="action-button" type="button" data-command="assign-current">Use Hymn ${escapeHtml(current.number)}</button>` : ""}
@@ -965,7 +1112,8 @@
     const custom = isCustomSlot(slot);
     const active = state.activeSlot === index ? "active" : "";
     return `
-      <div class="set-row ${active} ${custom ? "custom-row" : ""}">
+      <div class="set-row ${active} ${custom ? "custom-row" : ""}" data-slot="${index}">
+        <button class="drag-handle" type="button" draggable="true" data-drag-slot="${index}" aria-label="Drag to reorder">⋮⋮</button>
         <div class="set-number">${index + 1}</div>
         <button class="slot-button ${active}" type="button" data-command="activate-slot" data-slot="${index}">${escapeHtml(slot.role)}</button>
         <div class="set-song ${slotHasContent(slot) ? "assigned" : ""}">
@@ -1018,6 +1166,227 @@
     return assignedSlots()[0] || null;
   }
 
+  function applyEnginePresenterState(engineState) {
+    state.presenter.open = engineState.active;
+    state.presenter.slideIndex = engineState.slideIndex;
+    state.presenter.songKey = engineState.songKey;
+    state.presenter.planIndex = engineState.planIndex;
+    state.presenter.queueKeys = engineState.queueKeys || [];
+    state.presenter.queueIndex = engineState.queueIndex;
+  }
+
+  function buildPresenterNextContext(item) {
+    if (!item) return { nextSlide: null, nextHymn: null };
+    const index = Math.max(0, Math.min(item.slides.length - 1, state.presenter.slideIndex));
+    const nextSlide = item.slides[index + 1]
+      ? { label: item.slides[index + 1].label, body: item.slides[index + 1].body }
+      : null;
+    const queuedNextKey = state.presenter.queueIndex !== null ? state.presenter.queueKeys[state.presenter.queueIndex + 1] : "";
+    const queuedNextSong = queuedNextKey ? getSongByKey(queuedNextKey) : null;
+    const nextSlot = queuedNextSong ? null : nextAssignedSlot(state.presenter.planIndex);
+    const nextItem = queuedNextSong
+      ? { title: `Hymn ${queuedNextSong.number} · ${queuedNextSong.title}`, slides: queuedNextSong.slides }
+      : nextSlot
+        ? presenterItemFromSlot(nextSlot.slot, nextSlot.index)
+        : null;
+    const nextHymn = nextItem
+      ? {
+          title: nextItem.title,
+          firstLine: nextItem.slides && nextItem.slides[0] ? nextItem.slides[0].body : "",
+        }
+      : null;
+    return { nextSlide, nextHymn };
+  }
+
+  function presenterCanGoPrev(item) {
+    if (!item) return false;
+    const index = state.presenter.slideIndex;
+    return index > 0
+      || (state.presenter.queueIndex !== null && state.presenter.queueIndex > 0)
+      || (typeof state.presenter.planIndex === "number" && previousAssignedSlot(state.presenter.planIndex));
+  }
+
+  function presenterCanGoNext(item) {
+    if (!item) return false;
+    const index = state.presenter.slideIndex;
+    return index < item.slides.length - 1
+      || (state.presenter.queueIndex !== null && state.presenter.queueKeys[state.presenter.queueIndex + 1])
+      || nextAssignedSlot(state.presenter.planIndex);
+  }
+
+  function presenterMoveCore(delta) {
+    const item = currentPresenterItem();
+    if (!item) return false;
+    const beforeKey = `${state.presenter.songKey}-${state.presenter.slideIndex}-${state.presenter.planIndex}`;
+    const next = state.presenter.slideIndex + delta;
+    if (next >= 0 && next < item.slides.length) {
+      state.presenter.slideIndex = next;
+      return beforeKey !== `${state.presenter.songKey}-${state.presenter.slideIndex}-${state.presenter.planIndex}`;
+    }
+    if (delta > 0) {
+      if (state.presenter.queueIndex !== null) {
+        const nextKey = state.presenter.queueKeys[state.presenter.queueIndex + 1];
+        const nextSong = nextKey ? getSongByKey(nextKey) : null;
+        if (nextSong) {
+          state.presenter.songKey = nextKey;
+          state.presenter.slideIndex = 0;
+          state.presenter.queueIndex += 1;
+          return true;
+        }
+        return false;
+      }
+      const nextSlot = nextAssignedSlot(state.presenter.planIndex);
+      if (nextSlot) {
+        const nextItem = presenterItemFromSlot(nextSlot.slot, nextSlot.index);
+        if (nextItem) {
+          state.presenter.songKey = nextSlot.slot.songKey;
+          state.presenter.slideIndex = 0;
+          state.presenter.planIndex = nextSlot.index;
+          state.activeSlot = nextSlot.index;
+          saveValue("activeSlot", state.activeSlot);
+          return true;
+        }
+      }
+      return false;
+    }
+    if (state.presenter.queueIndex !== null) {
+      const prevKey = state.presenter.queueKeys[state.presenter.queueIndex - 1];
+      const prevSong = prevKey ? getSongByKey(prevKey) : null;
+      if (prevSong) {
+        state.presenter.songKey = prevKey;
+        state.presenter.slideIndex = prevSong.slides.length - 1;
+        state.presenter.queueIndex -= 1;
+        return true;
+      }
+      return false;
+    }
+    const prevSlot = previousAssignedSlot(state.presenter.planIndex);
+    if (prevSlot) {
+      const prevItem = presenterItemFromSlot(prevSlot.slot, prevSlot.index);
+      if (prevItem) {
+        state.presenter.songKey = prevSlot.slot.songKey;
+        state.presenter.slideIndex = prevItem.slides.length - 1;
+        state.presenter.planIndex = prevSlot.index;
+        state.activeSlot = prevSlot.index;
+        saveValue("activeSlot", state.activeSlot);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function buildPresenterSessionPatch(overrides = {}) {
+    return {
+      active: true,
+      paused: false,
+      displayMode: "lyrics",
+      slideIndex: 0,
+      songKey: state.presenter.songKey,
+      planIndex: state.presenter.planIndex,
+      queueKeys: state.presenter.queueKeys,
+      queueIndex: state.presenter.queueIndex,
+      fontScale: state.fontScale,
+      timerSeconds: state.timerSeconds,
+      timerRunning: state.timerRunning,
+      timerEndsAt: state.timerEndsAt,
+      ...overrides,
+    };
+  }
+
+  function renderPresenterAV() {
+    if (!window.CISPresenterEngine || !window.CISPresenterOutput || !window.CISPresenterControl) return;
+    applyEnginePresenterState(window.CISPresenterEngine.getState());
+    const snapshot = window.CISPresenterEngine.buildSnapshot();
+    window.CISPresenterControl.render(els.presenterControlRoot, snapshot);
+    if (embeddedProjectorActive) {
+      window.CISPresenterOutput.render(els.presenterOutputRoot, snapshot);
+    } else {
+      window.CISPresenterOutput.render(els.presenterOutputRoot, { active: false });
+    }
+    document.body.classList.toggle("presenter-live", snapshot.active);
+  }
+
+  function setupPresenterSystem() {
+    if (!window.CISPresenterEngine) return;
+    window.CISPresenterControl.configure({ escapeHtml, plain, formatDuration });
+    window.CISPresenterOutput.configure({ escapeHtml, lyricHtml });
+    window.CISPresenterEngine.configure({
+      currentPresenterItem: () => {
+        applyEnginePresenterState(window.CISPresenterEngine.getState());
+        return currentPresenterItem();
+      },
+      nextContext: (_engineState, item) => buildPresenterNextContext(item),
+      canGoPrev: (_engineState, item) => presenterCanGoPrev(item),
+      canGoNext: (_engineState, item) => presenterCanGoNext(item),
+      movePresenter: (engineState, delta) => {
+        applyEnginePresenterState(engineState);
+        const changed = presenterMoveCore(delta);
+        if (changed) {
+          engineState.slideIndex = state.presenter.slideIndex;
+          engineState.songKey = state.presenter.songKey;
+          engineState.planIndex = state.presenter.planIndex;
+          engineState.queueKeys = state.presenter.queueKeys;
+          engineState.queueIndex = state.presenter.queueIndex;
+        }
+        return changed;
+      },
+      onEmbeddedOutput: (enabled) => {
+        embeddedProjectorActive = enabled;
+        if (enabled) {
+          els.presenterOutputRoot.classList.remove("hidden");
+          window.CISPresenterOutput.requestFullscreen(els.presenterOutputRoot);
+        } else {
+          els.presenterOutputRoot.classList.add("hidden");
+          if (document.fullscreenElement === els.presenterOutputRoot && document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          }
+        }
+        renderPresenterAV();
+      },
+      toggleOutputFullscreen: () => {
+        if (embeddedProjectorActive) {
+          window.CISPresenterOutput.requestFullscreen(els.presenterOutputRoot);
+          return;
+        }
+        if (window.CISPresenterOutput) window.CISPresenterOutput.requestFullscreen(document.documentElement);
+      },
+      electronOpenProjector: desktopBridge && desktopBridge.openProjector
+        ? async () => {
+            embeddedProjectorActive = false;
+            await desktopBridge.openProjector();
+          }
+        : null,
+      electronCloseProjector: desktopBridge && desktopBridge.closeProjector
+        ? () => desktopBridge.closeProjector()
+        : null,
+      electronPublish: desktopBridge && desktopBridge.publishPresenterState
+        ? (payload) => desktopBridge.publishPresenterState(payload)
+        : null,
+    });
+    window.CISPresenterEngine.subscribe(() => renderPresenterAV());
+    if (desktopBridge && desktopBridge.onPresenterClosed) {
+      desktopBridge.onPresenterClosed(() => {
+        embeddedProjectorActive = true;
+        renderPresenterAV();
+      });
+    }
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data && event.data.type === "cis-presenter:closed") {
+        embeddedProjectorActive = true;
+        renderPresenterAV();
+      }
+    });
+  }
+
+  function startPresenterSession(patch) {
+    if (!window.CISPresenterEngine) return;
+    state.presenter.open = true;
+    window.CISPresenterEngine.openSession(buildPresenterSessionPatch(patch));
+    applyEnginePresenterState(window.CISPresenterEngine.getState());
+    renderPresenterAV();
+  }
+
   function renderPresenterDashboard() {
     const assigned = assignedSlots();
     const currentInfo = assigned.find((item) => item.index === state.activeSlot) || assigned[0] || null;
@@ -1033,6 +1402,7 @@
           <p class="muted">${nextInfo ? `Next: ${escapeHtml(slotTitle(nextInfo.slot))}` : "Next: Not assigned"}</p>
           <div class="button-row">
             <button class="action-button" type="button" data-command="present-current">Present Current</button>
+            <button class="secondary-button" type="button" data-command="presenter-open-output">Open Projector Screen</button>
             <button class="secondary-button" type="button" data-command="emergency-black">Black Screen</button>
             <button class="secondary-button" type="button" data-command="emergency-white">White Screen</button>
             <button class="secondary-button" type="button" data-command="emergency-logo">Logo Screen</button>
@@ -1133,9 +1503,9 @@
           <h2>Language Packs</h2>
           <div class="import-zone" data-command="import-language-pack">
             <strong>Import Language Pack</strong>
-            <span>Drop a Christ in Song JSON pack here, or choose a file. PowerPoint packs can be converted by Codex and added as JSON.</span>
-            <button class="secondary-button" type="button" data-command="import-language-pack">Choose JSON Pack</button>
-            <input id="languagePackImport" class="hidden" type="file" accept=".json,application/json,.pptx">
+            <span>Add hymns in a new language from a JSON pack or PowerPoint file. Drag-and-drop, validation, and duplicate handling are built in.</span>
+            <button class="action-button" type="button" data-command="import-language-pack">Import Language Pack</button>
+            <span class="muted">Test pack: <code>app/data/sample-packs/ndebele-sample.json</code> (5 Ndebele hymns)</span>
           </div>
           <div class="language-status">
             ${data.languagePacks.map((pack) => `
@@ -1250,6 +1620,10 @@
   }
 
   function closeModal() {
+    if (window.CISPackImport && window.CISPackImport.isOpen()) {
+      window.CISPackImport.closeModal();
+      return;
+    }
     els.modalRoot.innerHTML = "";
   }
 
@@ -1347,30 +1721,19 @@
   }
 
   function loadTemplate(templateId) {
-    const template = [...serviceTemplates, ...customTemplates].find((item) => item.id === templateId);
+    const template = getTemplateById(templateId);
     if (!template) return;
     worshipPlan = normalizeWorshipPlan(template.slots);
     state.activeSlot = 0;
     saveValue("activeSlot", state.activeSlot);
     saveJson("worshipPlan", worshipPlan);
+    closeModal();
+    setNotice(`Loaded “${template.name}” template.`);
     render();
   }
 
   function saveCurrentTemplate() {
-    const name = window.prompt("Template name", "Custom Worship Service");
-    if (!name) return;
-    const id = `custom-${Date.now()}`;
-    customTemplates = [
-      ...customTemplates.filter((template) => template.name !== name),
-      {
-        id,
-        name,
-        detail: `${worshipPlan.length} service items`,
-        slots: worshipPlan,
-      },
-    ];
-    saveJson("customTemplates", customTemplates);
-    render();
+    openTemplateEditor(null, true);
   }
 
   function assignSongToServiceSlot(index, song) {
@@ -1460,32 +1823,38 @@
 
   function openPresenter(song, planIndex) {
     if (!song) return;
-    state.presenter.open = true;
     state.presenter.songKey = songKey(song);
     state.presenter.slideIndex = 0;
     state.presenter.planIndex = typeof planIndex === "number" ? planIndex : null;
     state.presenter.queueKeys = [];
     state.presenter.queueIndex = null;
     addRecent(song);
+    startPresenterSession({
+      songKey: state.presenter.songKey,
+      planIndex: state.presenter.planIndex,
+      queueKeys: [],
+      queueIndex: null,
+      slideIndex: 0,
+    });
     render();
-    if (els.presenterOverlay.requestFullscreen) {
-      els.presenterOverlay.requestFullscreen().catch(() => {});
-    }
   }
 
   function openCustomPresenter(planIndex) {
     const item = presenterItemFromSlot(worshipPlan[planIndex], planIndex);
     if (!item) return;
-    state.presenter.open = true;
     state.presenter.songKey = "";
     state.presenter.slideIndex = 0;
     state.presenter.planIndex = planIndex;
     state.presenter.queueKeys = [];
     state.presenter.queueIndex = null;
+    startPresenterSession({
+      songKey: "",
+      planIndex,
+      queueKeys: [],
+      queueIndex: null,
+      slideIndex: 0,
+    });
     render();
-    if (els.presenterOverlay.requestFullscreen) {
-      els.presenterOverlay.requestFullscreen().catch(() => {});
-    }
   }
 
   function openPresenterQueue(keys, startIndex = 0) {
@@ -1493,7 +1862,6 @@
     if (!queueKeys.length) return;
     const boundedIndex = Math.max(0, Math.min(queueKeys.length - 1, startIndex));
     const song = getSongByKey(queueKeys[boundedIndex]);
-    state.presenter.open = true;
     state.presenter.songKey = queueKeys[boundedIndex];
     state.presenter.slideIndex = 0;
     state.presenter.planIndex = null;
@@ -1503,10 +1871,14 @@
     state.languageCode = parsed.code;
     state.songNumber = parsed.number;
     addRecent(song, parsed.code);
+    startPresenterSession({
+      songKey: state.presenter.songKey,
+      planIndex: null,
+      queueKeys,
+      queueIndex: boundedIndex,
+      slideIndex: 0,
+    });
     render();
-    if (els.presenterOverlay.requestFullscreen) {
-      els.presenterOverlay.requestFullscreen().catch(() => {});
-    }
   }
 
   function presentCurrent() {
@@ -1541,63 +1913,52 @@
     openPresenterQueue(keys, startPosition === -1 ? 0 : startPosition);
   }
 
-  function renderPresenterOverlay() {
-    if (!state.presenter.open) {
-      els.presenterOverlay.className = "presenter-overlay hidden";
-      els.presenterOverlay.setAttribute("aria-hidden", "true");
-      els.presenterOverlay.innerHTML = "";
+  function togglePresenterFullscreen() {
+    if (!window.CISPresenterEngine || !window.CISPresenterEngine.getState().active) return;
+    if (window.CISPresenterEngine.handleCommand("presenter-fullscreen")) return;
+  }
+
+  function presenterMove(delta) {
+    if (!window.CISPresenterEngine) return;
+    if (window.CISPresenterEngine.moveSlide(delta)) {
+      applyEnginePresenterState(window.CISPresenterEngine.getState());
+      window.CISPresenterEngine.publishState();
+      renderPresenterAV();
+    }
+  }
+
+  function closePresenter() {
+    if (window.CISPresenterEngine) window.CISPresenterEngine.closeSession();
+    state.presenter.open = false;
+    state.emergencyMode = "";
+    embeddedProjectorActive = false;
+    render();
+  }
+
+  function setEmergency(mode) {
+    if (window.CISPresenterEngine && window.CISPresenterEngine.getState().active) {
+      window.CISPresenterEngine.setDisplayMode(mode);
+      renderPresenterAV();
       return;
     }
-    const item = currentPresenterItem();
-    if (!item || !item.slides.length) {
-      state.presenter.open = false;
-      renderPresenterOverlay();
+    state.emergencyMode = mode;
+    renderEmergencyOverlay();
+    if (els.emergencyOverlay.requestFullscreen) {
+      els.emergencyOverlay.requestFullscreen().catch(() => {});
+    }
+  }
+
+  function clearEmergency() {
+    if (window.CISPresenterEngine && window.CISPresenterEngine.getState().active) {
+      window.CISPresenterEngine.setDisplayMode("lyrics");
+      renderPresenterAV();
       return;
     }
-    const index = Math.max(0, Math.min(item.slides.length - 1, state.presenter.slideIndex));
-    const slide = item.slides[index];
-    const queuedNextKey = state.presenter.queueIndex !== null ? state.presenter.queueKeys[state.presenter.queueIndex + 1] : "";
-    const queuedNextSong = queuedNextKey ? getSongByKey(queuedNextKey) : null;
-    const nextSlot = queuedNextSong ? null : nextAssignedSlot(state.presenter.planIndex);
-    const nextItem = queuedNextSong
-      ? { title: `Hymn ${queuedNextSong.number} · ${queuedNextSong.title}`, shortTitle: `Hymn ${queuedNextSong.number}`, slides: queuedNextSong.slides }
-      : nextSlot
-        ? presenterItemFromSlot(nextSlot.slot, nextSlot.index)
-        : null;
-    const nextSlide = item.slides[index + 1];
-    const nextText = nextSlide
-      ? `Next: ${nextSlide.label}`
-      : nextItem
-        ? `Next: ${nextItem.shortTitle}`
-        : "End of queue";
-    const nextPreview = nextSlide ? nextSlide.body : nextItem && nextItem.slides[0] ? nextItem.slides[0].body : "";
-    const progress = item.slides.map((_, dotIndex) => `<span class="presenter-dot ${dotIndex === index ? "on" : ""}"></span>`).join("");
-    els.presenterOverlay.className = "presenter-overlay";
-    els.presenterOverlay.setAttribute("aria-hidden", "false");
-    els.presenterOverlay.innerHTML = `
-      <div class="presenter-top">
-        <div><strong>${escapeHtml(item.shortTitle)}</strong> · ${escapeHtml(item.title.replace(item.shortTitle, "").replace(/^ · /, ""))}</div>
-        <div class="stage-count">${index + 1} of ${item.slides.length}</div>
-      </div>
-      <div class="presenter-stage">${lyricHtml(slide.body)}</div>
-      <div class="presenter-bottom">
-        <div>
-          <span class="stage-label">${escapeHtml(slide.label)}</span>
-          ${nextItem ? `<span class="stage-count"> · ${escapeHtml(nextText)}</span>` : ""}
-        </div>
-        <div class="presenter-progress" aria-label="Slide progress">${progress}</div>
-        <div class="presenter-next-info"><strong>${escapeHtml(nextText)}</strong><span>${escapeHtml(plain(nextPreview).slice(0, 120))}</span></div>
-        <div class="presenter-controls">
-          <button type="button" data-command="presenter-prev">‹ Prev</button>
-          <button type="button" data-command="presenter-next">Next ›</button>
-          <button type="button" data-command="emergency-black">Black</button>
-          <button type="button" data-command="emergency-white">White</button>
-          <button type="button" data-command="emergency-logo">Logo</button>
-          <button type="button" data-command="close-presenter">Clear</button>
-          <button type="button" data-command="close-presenter">Close</button>
-        </div>
-      </div>
-    `;
+    state.emergencyMode = "";
+    if (document.fullscreenElement === els.emergencyOverlay && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+    renderEmergencyOverlay();
   }
 
   function nextAssignedSlot(index) {
@@ -1608,88 +1969,6 @@
   function previousAssignedSlot(index) {
     if (typeof index !== "number") return null;
     return [...assignedSlots()].reverse().find((item) => item.index < index) || null;
-  }
-
-  function presenterMove(delta) {
-    const item = currentPresenterItem();
-    if (!item) return;
-    const next = state.presenter.slideIndex + delta;
-    if (next >= 0 && next < item.slides.length) {
-      state.presenter.slideIndex = next;
-      renderPresenterOverlay();
-      return;
-    }
-    if (delta > 0) {
-      if (state.presenter.queueIndex !== null) {
-        const nextKey = state.presenter.queueKeys[state.presenter.queueIndex + 1];
-        const nextSong = nextKey ? getSongByKey(nextKey) : null;
-        if (nextSong) {
-          state.presenter.songKey = nextKey;
-          state.presenter.slideIndex = 0;
-          state.presenter.queueIndex += 1;
-          renderPresenterOverlay();
-        }
-        return;
-      }
-      const nextSlot = nextAssignedSlot(state.presenter.planIndex);
-      if (nextSlot) {
-        const nextItem = presenterItemFromSlot(nextSlot.slot, nextSlot.index);
-        if (nextItem) {
-          state.presenter.songKey = nextSlot.slot.songKey;
-          state.presenter.slideIndex = 0;
-          state.presenter.planIndex = nextSlot.index;
-          state.activeSlot = nextSlot.index;
-          renderPresenterOverlay();
-        }
-      }
-      return;
-    }
-    if (state.presenter.queueIndex !== null) {
-      const prevKey = state.presenter.queueKeys[state.presenter.queueIndex - 1];
-      const prevSong = prevKey ? getSongByKey(prevKey) : null;
-      if (prevSong) {
-        state.presenter.songKey = prevKey;
-        state.presenter.slideIndex = prevSong.slides.length - 1;
-        state.presenter.queueIndex -= 1;
-        renderPresenterOverlay();
-      }
-      return;
-    }
-      const prevSlot = previousAssignedSlot(state.presenter.planIndex);
-      if (prevSlot) {
-      const prevItem = presenterItemFromSlot(prevSlot.slot, prevSlot.index);
-      if (prevItem) {
-        state.presenter.songKey = prevSlot.slot.songKey;
-        state.presenter.slideIndex = prevItem.slides.length - 1;
-        state.presenter.planIndex = prevSlot.index;
-        state.activeSlot = prevSlot.index;
-        renderPresenterOverlay();
-      }
-    }
-  }
-
-  function closePresenter() {
-    state.presenter.open = false;
-    if (document.fullscreenElement && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    }
-    render();
-  }
-
-  function setEmergency(mode) {
-    state.emergencyMode = mode;
-    renderEmergencyOverlay();
-    if (els.emergencyOverlay.requestFullscreen) {
-      els.emergencyOverlay.requestFullscreen().catch(() => {});
-    }
-  }
-
-  function clearEmergency() {
-    state.emergencyMode = "";
-    if (document.fullscreenElement === els.emergencyOverlay && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    }
-    renderEmergencyOverlay();
   }
 
   function renderEmergencyOverlay() {
@@ -1817,7 +2096,8 @@
         saveJson("favorites", [...favorites]);
         saveJson("recents", recents);
         saveJson("customTemplates", customTemplates);
-        render();
+        persistCustomTemplates().finally(() => render());
+        return;
       } catch (error) {
         window.alert("That worship builder file could not be imported.");
       }
@@ -1838,46 +2118,17 @@
         if (Array.isArray(payload.customTemplates)) customTemplates = payload.customTemplates;
         if (Array.isArray(payload.importedLanguagePacks)) {
           importedPacks = payload.importedLanguagePacks;
-          data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
+          refreshLanguageLibrary();
         }
         saveJson("worshipPlan", worshipPlan);
         saveJson("songService", songService);
         saveJson("favorites", [...favorites]);
         saveJson("recents", recents);
         saveJson("customTemplates", customTemplates);
-        saveJson("importedLanguagePacks", importedPacks);
-        render();
+        persistCustomTemplates().finally(() => render());
+        return;
       } catch (error) {
         window.alert("That backup file could not be restored.");
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  function importLanguagePackFromFile(file) {
-    if (!file) return;
-    if (/\.pptx$/i.test(file.name)) {
-      window.alert("PowerPoint language packs need to be converted to Christ in Song JSON before browser import. Send the PPTX through Codex and import the generated JSON pack here.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const payload = JSON.parse(String(reader.result || "{}"));
-        const packs = Array.isArray(payload.languagePacks) ? payload.languagePacks : Array.isArray(payload.songs) ? [payload] : [];
-        const valid = packs.filter((pack) => pack && pack.code && pack.name && Array.isArray(pack.songs));
-        if (!valid.length) throw new Error("No valid packs");
-        importedPacks = mergeLanguagePacks([...importedPacks, ...valid.map((pack) => ({
-          ...pack,
-          status: "ready",
-          songCount: pack.songs.length,
-          source: pack.source || file.name,
-        }))]);
-        data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
-        saveJson("importedLanguagePacks", importedPacks);
-        render();
-      } catch (error) {
-        window.alert("That language pack JSON could not be imported.");
       }
     };
     reader.readAsText(file);
@@ -1888,7 +2139,7 @@
     recents = [];
     customTemplates = [];
     importedPacks = [];
-    data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks]);
+    refreshLanguageLibrary();
     worshipPlan = createDefaultPlan();
     songService = createDefaultSongService();
     saveJson("favorites", []);
@@ -1897,7 +2148,7 @@
     saveJson("importedLanguagePacks", []);
     saveJson("worshipPlan", worshipPlan);
     saveJson("songService", songService);
-    render();
+    Promise.all([persistImportedLanguagePacks(), persistCustomTemplates()]).finally(() => render());
   }
 
   function persistTimer() {
@@ -1906,11 +2157,21 @@
     saveValue("timerEndsAt", state.timerEndsAt);
   }
 
+  function syncTimerToPresenter() {
+    if (!window.CISPresenterEngine || !window.CISPresenterEngine.getState().active) return;
+    window.CISPresenterEngine.patchState({
+      timerSeconds: state.timerSeconds,
+      timerRunning: state.timerRunning,
+      timerEndsAt: state.timerEndsAt,
+    });
+  }
+
   function adjustTimer(delta) {
     const next = Math.max(60, timerRemaining() + delta);
     state.timerSeconds = next;
     state.timerEndsAt = state.timerRunning ? Date.now() + next * 1000 : 0;
     persistTimer();
+    syncTimerToPresenter();
     render();
   }
 
@@ -1924,6 +2185,7 @@
       state.timerEndsAt = Date.now() + Math.max(1, state.timerSeconds) * 1000;
     }
     persistTimer();
+    syncTimerToPresenter();
     render();
   }
 
@@ -1932,6 +2194,7 @@
     state.timerSeconds = 600;
     state.timerEndsAt = 0;
     persistTimer();
+    syncTimerToPresenter();
     render();
   }
 
@@ -2054,30 +2317,6 @@
       restoreBackupFromFile(target.files && target.files[0]);
       target.value = "";
     }
-    if (target.id === "languagePackImport") {
-      importLanguagePackFromFile(target.files && target.files[0]);
-      target.value = "";
-    }
-  });
-
-  document.addEventListener("dragover", (event) => {
-    const zone = event.target.closest(".import-zone");
-    if (!zone) return;
-    event.preventDefault();
-    zone.classList.add("dragging");
-  });
-
-  document.addEventListener("dragleave", (event) => {
-    const zone = event.target.closest(".import-zone");
-    if (zone) zone.classList.remove("dragging");
-  });
-
-  document.addEventListener("drop", (event) => {
-    const zone = event.target.closest(".import-zone");
-    if (!zone) return;
-    event.preventDefault();
-    zone.classList.remove("dragging");
-    importLanguagePackFromFile(event.dataTransfer.files && event.dataTransfer.files[0]);
   });
 
   document.addEventListener("keydown", (event) => {
@@ -2085,7 +2324,7 @@
       if (event.key === "Escape") clearEmergency();
       return;
     }
-    if (state.presenter.open) {
+    if (state.presenter.open || (window.CISPresenterEngine && window.CISPresenterEngine.getState().active)) {
       if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
         event.preventDefault();
         presenterMove(1);
@@ -2095,10 +2334,16 @@
         presenterMove(-1);
       }
       if (event.key === "Escape") closePresenter();
+      if (event.key.toLowerCase() === "f") togglePresenterFullscreen();
+      if (event.key.toLowerCase() === "h") closePresenter();
       if (event.key.toLowerCase() === "b") setEmergency("black");
       if (event.key.toLowerCase() === "w") setEmergency("white");
       if (event.key.toLowerCase() === "l") setEmergency("logo");
-      if (event.key.toLowerCase() === "c") closePresenter();
+      if (event.key.toLowerCase() === "c") clearEmergency();
+      if (event.key.toLowerCase() === "p") {
+        if (window.CISPresenterEngine) window.CISPresenterEngine.togglePause();
+        renderPresenterAV();
+      }
       return;
     }
     if (state.view === "song") {
@@ -2129,8 +2374,32 @@
     if (command === "open-custom-item") return openCustomItemEditor();
     if (command === "edit-custom-item") return openCustomItemEditor(slotIndex);
     if (command === "save-custom-item") return saveCustomItemFromModal();
+    if (command === "preview-template") return openTemplatePreview(target.dataset.template);
     if (command === "load-template") return loadTemplate(target.dataset.template);
     if (command === "save-template") return saveCurrentTemplate();
+    if (command === "edit-template") return openTemplateEditor(target.dataset.template);
+    if (command === "delete-template") return deleteCustomTemplate(target.dataset.template);
+    if (command === "open-template-editor") return openTemplateEditor();
+    if (command === "save-template-editor") return saveTemplateEditor();
+    if (command === "add-editor-row") {
+      if (!templateEditorDraft) return;
+      templateEditorDraft.slots.push({
+        role: `Item ${templateEditorDraft.slots.length + 1}`,
+        type: "song",
+      });
+      renderTemplateEditorModal();
+      return;
+    }
+    if (command === "remove-editor-row") {
+      if (!templateEditorDraft) return;
+      const rowIndex = Number(target.dataset.editorRow);
+      templateEditorDraft.slots.splice(rowIndex, 1);
+      if (!templateEditorDraft.slots.length) {
+        templateEditorDraft.slots.push({ role: "Opening Hymn", type: "song" });
+      }
+      renderTemplateEditorModal();
+      return;
+    }
     if (command === "slot-add") return assignSongToSlot(slotIndex, selectedSong());
     if (command === "set-search-scope") {
       state.searchScope = target.dataset.scope || "current";
@@ -2208,11 +2477,7 @@
       if (input) input.click();
       return;
     }
-    if (command === "import-language-pack") {
-      const input = document.getElementById("languagePackImport");
-      if (input) input.click();
-      return;
-    }
+    if (command === "import-language-pack") return openLanguagePackImportModal();
     if (command === "import-plan") {
       const input = document.getElementById("worshipPlanImport");
       if (input) input.click();
@@ -2272,10 +2537,23 @@
     }
     if (command === "next-slide") return moveSlide(1);
     if (command === "prev-slide") return moveSlide(-1);
+    if (command === "presenter-pause") {
+      if (window.CISPresenterEngine) window.CISPresenterEngine.togglePause();
+      renderPresenterAV();
+      return;
+    }
+    if (command === "presenter-open-output") {
+      if (window.CISPresenterEngine) {
+        window.CISPresenterEngine.openOutputSurface();
+        renderPresenterAV();
+      }
+      return;
+    }
     if (command === "present-song") return openPresenter(selectedSong(), null);
     if (command === "present-current" || command === "open-presenter") return presentCurrent();
     if (command === "presenter-next") return presenterMove(1);
     if (command === "presenter-prev") return presenterMove(-1);
+    if (command === "presenter-fullscreen") return togglePresenterFullscreen();
     if (command === "close-presenter") return closePresenter();
     if (command === "emergency-black") return setEmergency("black");
     if (command === "emergency-white") return setEmergency("white");
@@ -2339,13 +2617,27 @@
   }
 
   setupDesktopBridge();
+  setupTemplateSystem();
+  setupPresenterSystem();
 
-  render();
+  Promise.all([loadImportedLanguagePacks(), loadCustomTemplates()]).finally(() => {
+    render();
+    if (!data.languagePacks.length) {
+      setNotice("Hymn library failed to load. Check app/data/songs.js.");
+    }
+  });
   setInterval(() => {
     if (state.timerRunning && timerRemaining() <= 0) {
       state.timerRunning = false;
       state.timerSeconds = 0;
       persistTimer();
+      syncTimerToPresenter();
+    }
+    if (window.CISPresenterEngine && window.CISPresenterEngine.getState().active) {
+      syncTimerToPresenter();
+      window.CISPresenterEngine.publishState();
+      renderPresenterAV();
+      return;
     }
     if (state.view === "presenter" || state.presenter.open) render();
   }, 1000);
