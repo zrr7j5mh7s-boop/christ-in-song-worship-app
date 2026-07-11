@@ -584,8 +584,8 @@
 
   function renderNav() {
     els.nav.innerHTML = navItems.map((item) => `
-      <button class="nav-button ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}">
-        <span class="nav-icon" aria-hidden="true">${item.icon}</span>
+      <button class="rail-btn ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}">
+        <span class="ico" aria-hidden="true">${item.icon}</span>
         <span>${escapeHtml(item.label)}</span>
       </button>
     `).join("");
@@ -621,7 +621,7 @@
     const favoriteCount = [...favorites].filter((key) => getSongByKey(key)).length;
     const assignedCount = assignedSlots().length;
     return `
-      <section class="worship-hero">
+      <section class="hero worship-hero">
         <p class="eyebrow">Christ in Song · VaChinoda Edition</p>
         <h2>Your worship, ready to lead.</h2>
         <p>Search, build a Sabbath order of service, and present any hymn full-screen in the navy and gold worship theme.</p>
@@ -865,11 +865,11 @@
 
   function renderSections(song) {
     return `
-      <div class="section-list">
+      <div class="stanza-list">
         ${song.sections.map((section) => `
-          <article class="lyric-section ${section.kind}">
-            <strong>${escapeHtml(section.label)}</strong>
-            <p>${lyricHtml(section.body)}</p>
+          <article class="stanza ${section.kind}">
+            <div class="slabel">${escapeHtml(section.label)}</div>
+            <div class="stext">${lyricHtml(section.body)}</div>
           </article>
         `).join("")}
       </div>
@@ -1541,6 +1541,18 @@
     openPresenterQueue(keys, startPosition === -1 ? 0 : startPosition);
   }
 
+  function togglePresenterFullscreen() {
+    const target = els.presenterOverlay;
+    if (!target || !state.presenter.open) return;
+    if (document.fullscreenElement === target && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+      return;
+    }
+    if (target.requestFullscreen) {
+      target.requestFullscreen().catch(() => {});
+    }
+  }
+
   function renderPresenterOverlay() {
     if (!state.presenter.open) {
       els.presenterOverlay.className = "presenter-overlay hidden";
@@ -1572,6 +1584,13 @@
         : "End of queue";
     const nextPreview = nextSlide ? nextSlide.body : nextItem && nextItem.slides[0] ? nextItem.slides[0].body : "";
     const progress = item.slides.map((_, dotIndex) => `<span class="presenter-dot ${dotIndex === index ? "on" : ""}"></span>`).join("");
+    const presenterFont = Math.round(58 * state.fontScale);
+    const canPrev = index > 0
+      || (state.presenter.queueIndex !== null && state.presenter.queueIndex > 0)
+      || (typeof state.presenter.planIndex === "number" && previousAssignedSlot(state.presenter.planIndex));
+    const canNext = index < item.slides.length - 1
+      || (state.presenter.queueIndex !== null && state.presenter.queueKeys[state.presenter.queueIndex + 1])
+      || nextAssignedSlot(state.presenter.planIndex);
     els.presenterOverlay.className = "presenter-overlay";
     els.presenterOverlay.setAttribute("aria-hidden", "false");
     els.presenterOverlay.innerHTML = `
@@ -1579,7 +1598,11 @@
         <div><strong>${escapeHtml(item.shortTitle)}</strong> · ${escapeHtml(item.title.replace(item.shortTitle, "").replace(/^ · /, ""))}</div>
         <div class="stage-count">${index + 1} of ${item.slides.length}</div>
       </div>
-      <div class="presenter-stage">${lyricHtml(slide.body)}</div>
+      <div class="presenter-body">
+        <button class="presenter-arrow" type="button" data-command="presenter-prev" ${canPrev ? "" : "disabled"} aria-label="Previous slide">‹</button>
+        <div class="presenter-stage" style="--presenter-font: ${presenterFont}px">${lyricHtml(slide.body)}</div>
+        <button class="presenter-arrow" type="button" data-command="presenter-next" ${canNext ? "" : "disabled"} aria-label="Next slide">›</button>
+      </div>
       <div class="presenter-bottom">
         <div>
           <span class="stage-label">${escapeHtml(slide.label)}</span>
@@ -1590,13 +1613,14 @@
         <div class="presenter-controls">
           <button type="button" data-command="presenter-prev">‹ Prev</button>
           <button type="button" data-command="presenter-next">Next ›</button>
+          <button type="button" data-command="presenter-fullscreen">Fullscreen</button>
           <button type="button" data-command="emergency-black">Black</button>
           <button type="button" data-command="emergency-white">White</button>
           <button type="button" data-command="emergency-logo">Logo</button>
-          <button type="button" data-command="close-presenter">Clear</button>
           <button type="button" data-command="close-presenter">Close</button>
         </div>
       </div>
+      <div class="presenter-hint">Use ← → or Space · F fullscreen · B / W / L blank screen · H home · Esc exit</div>
     `;
   }
 
@@ -1670,7 +1694,7 @@
 
   function closePresenter() {
     state.presenter.open = false;
-    if (document.fullscreenElement && document.exitFullscreen) {
+    if (document.fullscreenElement === els.presenterOverlay && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     }
     render();
@@ -2095,6 +2119,8 @@
         presenterMove(-1);
       }
       if (event.key === "Escape") closePresenter();
+      if (event.key.toLowerCase() === "f") togglePresenterFullscreen();
+      if (event.key.toLowerCase() === "h") closePresenter();
       if (event.key.toLowerCase() === "b") setEmergency("black");
       if (event.key.toLowerCase() === "w") setEmergency("white");
       if (event.key.toLowerCase() === "l") setEmergency("logo");
@@ -2276,6 +2302,7 @@
     if (command === "present-current" || command === "open-presenter") return presentCurrent();
     if (command === "presenter-next") return presenterMove(1);
     if (command === "presenter-prev") return presenterMove(-1);
+    if (command === "presenter-fullscreen") return togglePresenterFullscreen();
     if (command === "close-presenter") return closePresenter();
     if (command === "emergency-black") return setEmergency("black");
     if (command === "emergency-white") return setEmergency("white");
@@ -2341,6 +2368,9 @@
   setupDesktopBridge();
 
   render();
+  if (!data.languagePacks.length) {
+    setNotice("Hymn library failed to load. Check app/data/songs.js.");
+  }
   setInterval(() => {
     if (state.timerRunning && timerRemaining() <= 0) {
       state.timerRunning = false;
