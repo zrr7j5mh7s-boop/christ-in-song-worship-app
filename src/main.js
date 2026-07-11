@@ -21,6 +21,7 @@ log.initialize();
 
 const { buildMenu } = require('./menu');
 const { setupAutoUpdater } = require('./updater');
+const obsManager = require('./obs/obs-manager');
 
 // ---------------------------------------------------------------------
 // Single instance lock - only one copy of the app should ever run.
@@ -243,12 +244,21 @@ ipcMain.handle('presenter:publish', (_event, payload) => {
   return { delivered: true };
 });
 
+obsManager.registerIpc(ipcMain);
+
+const obsHttpServer = require('./obs/obs-http-server');
+obsHttpServer.registerIpc(ipcMain);
+
 // ---------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------
 app.whenReady().then(() => {
   splashWindow = createSplashWindow();
   mainWindow = createMainWindow();
+  obsManager.setMainWindow(mainWindow);
+  obsHttpServer.start({ port: 47823 }).catch((err) => {
+    log.warn('[obs-http] Could not start browser source server:', err.message);
+  });
 
   updater = setupAutoUpdater(mainWindow);
 

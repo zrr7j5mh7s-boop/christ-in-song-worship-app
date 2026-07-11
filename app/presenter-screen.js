@@ -36,6 +36,15 @@
 
   engine.subscribe((snapshot) => output.render(root, snapshot));
 
+  document.addEventListener("click", (event) => {
+    const target = event.target.closest("[data-command]");
+    if (!target) return;
+    if (target.dataset.command === "emergency-clear") {
+      event.preventDefault();
+      engine.sendCommand("emergency-clear");
+    }
+  });
+
   window.addEventListener("keydown", (event) => {
     if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
       event.preventDefault();

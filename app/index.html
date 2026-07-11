@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' ws://127.0.0.1:* wss://127.0.0.1:* ws://localhost:* wss://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="theme-color" content="#131f38">
     <meta name="description" content="Offline hymn library, worship builder, and projector presenter for Christ in Song.">
     <meta name="apple-mobile-web-app-title" content="Christ in Song">
@@ -12,7 +12,7 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=21">
+    <link rel="stylesheet" href="./styles.css?v=25">
   </head>
   <body>
     <div id="launchSplash" class="launch-splash" aria-hidden="true">
@@ -47,8 +47,11 @@
             <h1 id="pageTitle">Home Dashboard</h1>
           </div>
           <div class="topbar-tools">
+            <div id="obsStatusRoot" class="obs-status-root" aria-live="polite"></div>
             <div id="languageSwitcher" class="language-switcher" aria-label="Language packs"></div>
             <button class="tool-button" type="button" data-command="open-presenter">Presenter</button>
+            <button class="tool-button help-emergency-chip" type="button" data-command="help-open-emergency" title="Emergency Help">Emergency</button>
+            <button class="tool-button" type="button" data-view="help" title="Help Centre (F1)">Help</button>
           </div>
         </header>
         <section id="content" class="content" aria-live="polite"></section>
@@ -56,6 +59,7 @@
     </div>
 
     <div id="modalRoot"></div>
+    <div id="helpContextRoot" class="help-context-root hidden" aria-hidden="true"></div>
     <div id="presenterControlRoot" class="presenter-control-root hidden" aria-hidden="true"></div>
     <div id="presenterOutputRoot" class="presenter-output-root hidden" aria-hidden="true"></div>
     <div id="presenterOverlay" class="presenter-overlay hidden" aria-hidden="true"></div>
@@ -87,13 +91,32 @@
     <script src="./vendor/pdfmake.min.js"></script>
     <script src="./vendor/vfs_fonts.js"></script>
     <script src="./bulletin-export.js?v=1"></script>
-    <script src="./presenter-engine.js?v=1"></script>
-    <script src="./presenter-output.js?v=1"></script>
-    <script src="./presenter-control.js?v=1"></script>
-    <script src="./data/bible-catalog.js?v=1"></script>
-    <script src="./bible-store.js?v=1"></script>
-    <script src="./bible-reader-ui.js?v=1"></script>
-    <script src="./app.js?v=21"></script>
+    <script src="./presenter-engine.js?v=2"></script>
+    <script src="./presenter-output.js?v=2"></script>
+    <script src="./presenter-control.js?v=2"></script>
+    <script src="./obs/obs-constants.js?v=2"></script>
+    <script src="./obs/obs-sanitize.js?v=1"></script>
+    <script src="./obs/obs-settings-store.js?v=2"></script>
+    <script src="./obs/obs-event-service.js?v=1"></script>
+    <script src="./obs/obs-ws-client.js?v=1"></script>
+    <script src="./obs/obs-connection-service.js?v=1"></script>
+    <script src="./obs/obs-scene-service.js?v=2"></script>
+    <script src="./obs/obs-source-service.js?v=1"></script>
+    <script src="./obs/obs-output-service.js?v=1"></script>
+    <script src="./obs/obs-control-service.js?v=1"></script>
+    <script src="./obs/obs-mapping-ui.js?v=1"></script>
+    <script src="./obs/obs-control-ui.js?v=1"></script>
+    <script src="./obs/obs-settings-ui.js?v=2"></script>
+    <script src="./help/help-icons.js?v=1"></script>
+    <script src="./help/help-content.js?v=1"></script>
+    <script src="./help/help-store.js?v=1"></script>
+    <script src="./help/help-search.js?v=1"></script>
+    <script src="./help/help-checklists.js?v=1"></script>
+    <script src="./help/help-diagnostics.js?v=1"></script>
+    <script src="./help/help-training.js?v=1"></script>
+    <script src="./help/help-contextual.js?v=1"></script>
+    <script src="./help/help-ui.js?v=1"></script>
+    <script src="./app.js?v=25"></script>
     <script>
       if ("serviceWorker" in navigator && !window.electronAPI) {
         window.addEventListener("load", () => {

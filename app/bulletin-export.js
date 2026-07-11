@@ -174,8 +174,15 @@
 
   function bulletinStyles() {
     return `
-      @page { size: letter; margin: 0.75in 0.85in 0.9in; }
+      @page {
+        size: letter;
+        margin: 0.7in 0.8in 0.85in;
+      }
+      @page :first {
+        margin-top: 0.75in;
+      }
       * { box-sizing: border-box; }
+      html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       body {
         margin: 0;
         color: #1a2433;
@@ -194,6 +201,8 @@
         padding-bottom: 14px;
         border-bottom: 2px solid #1f3b63;
         margin-bottom: 22px;
+        break-after: avoid;
+        page-break-after: avoid;
       }
       .bulletin-header .church-name {
         font-size: 24pt;
@@ -222,8 +231,18 @@
         text-transform: uppercase;
         color: #6a7488;
         margin: 0 0 10px;
+        break-after: avoid;
+        page-break-after: avoid;
       }
-      .bulletin-block { margin-bottom: 24px; }
+      .bulletin-block {
+        margin-bottom: 24px;
+        break-inside: avoid-page;
+        page-break-inside: avoid;
+      }
+      .bulletin-block + .bulletin-block {
+        break-before: auto;
+        page-break-before: auto;
+      }
       .service-item {
         display: grid;
         grid-template-columns: 34px 1fr;
@@ -232,6 +251,8 @@
         border-bottom: 1px solid #e4e0d6;
         break-inside: avoid;
         page-break-inside: avoid;
+        orphans: 3;
+        widows: 3;
       }
       .service-item:last-child { border-bottom: 0; }
       .service-number {
@@ -274,6 +295,8 @@
         font-family: "Helvetica Neue", Arial, sans-serif;
         font-size: 9.5pt;
         color: #5e4b2d;
+        break-inside: avoid;
+        page-break-inside: avoid;
       }
       .service-notes strong {
         display: block;
@@ -290,6 +313,24 @@
         font-size: 9pt;
         color: #6a7488;
         text-align: center;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .print-toolbar {
+        text-align: center;
+        margin-top: 18px;
+        font-family: Arial, sans-serif;
+        color: #5e6575;
+        font-size: 13px;
+      }
+      .print-toolbar button {
+        padding: 10px 18px;
+        font-size: 14px;
+        cursor: pointer;
+        border: 1px solid #c8d0dc;
+        border-radius: 8px;
+        background: #f7f9fc;
+        margin: 0 6px 8px;
       }
       @media screen {
         body { background: #eceae4; padding: 24px; }
@@ -300,9 +341,17 @@
         }
       }
       @media print {
-        body { background: white; }
-        .bulletin-sheet { box-shadow: none; max-width: none; padding: 0; }
+        body { background: white; padding: 0; }
+        .bulletin-sheet {
+          box-shadow: none;
+          max-width: none;
+          padding: 0;
+        }
         .no-print { display: none !important; }
+        a { color: inherit; text-decoration: none; }
+      }
+      @media print and (size: a4) {
+        @page { size: A4; margin: 18mm 20mm 22mm; }
       }
     `;
   }
@@ -369,8 +418,9 @@
     ${order}
     <footer class="bulletin-footer">${escapeHtml(model.footerText)}</footer>
   </div>
-  <div class="no-print" style="text-align:center;margin-top:18px;font-family:Arial,sans-serif;">
-    <button onclick="window.print()" style="padding:10px 18px;font-size:14px;cursor:pointer;">Print Bulletin</button>
+  <div class="no-print print-toolbar">
+    <p>Use your browser print dialog. Choose Letter or A4 paper for best results.</p>
+    <button type="button" onclick="window.print()">Print Bulletin</button>
   </div>
 </body>
 </html>`;

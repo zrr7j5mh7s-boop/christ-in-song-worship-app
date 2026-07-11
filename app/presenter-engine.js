@@ -107,6 +107,10 @@
       second: "2-digit",
     }).format(now);
 
+    const hymnTitle = item && item.title && item.title.includes(" · ")
+      ? item.title.slice(item.title.indexOf(" · ") + 3)
+      : item && item.type === "song" ? (item.song && item.song.title ? item.song.title : "") : "";
+
     return {
       active: state.active,
       paused: state.paused,
@@ -116,6 +120,8 @@
       slideCount: item ? item.slides.length : 0,
       title: item ? item.title : "",
       shortTitle: item ? item.shortTitle : "",
+      hymnTitle,
+      contentKind: item ? (item.contentKind || item.type || "hymn") : "hymn",
       subtitle: item ? item.subtitle : "",
       slide: slide
         ? {

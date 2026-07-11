@@ -191,44 +191,91 @@
     return { name, detail, icon, slots };
   }
 
-  function bindPlanDragDrop(container, onReorder) {
+  function bindSlotDragDrop(container, options) {
     if (!container || container.dataset.dragBound === "true") return;
+    const config = options || {};
+    const handleSelector = config.handleSelector || "[data-drag-slot]";
+    const rowSelector = config.rowSelector || ".set-row";
+    const indexAttr = config.indexAttr || "slot";
+    const onReorder = config.onReorder;
+    if (typeof onReorder !== "function") return;
+
     container.dataset.dragBound = "true";
     let dragIndex = null;
 
+    const readIndex = (node) => Number(node.dataset[indexAttr]);
+    const clearDragState = () => {
+      dragIndex = null;
+      container.querySelectorAll(`${rowSelector}.dragging, ${rowSelector}.drag-over`).forEach((row) => {
+        row.classList.remove("dragging", "drag-over");
+      });
+    };
+
     container.addEventListener("dragstart", (event) => {
-      const handle = event.target.closest("[data-drag-slot]");
+      const handle = event.target.closest(handleSelector);
       if (!handle) return;
-      dragIndex = Number(handle.dataset.dragSlot);
+      dragIndex = readIndex(handle);
+      if (Number.isNaN(dragIndex)) return;
       event.dataTransfer.effectAllowed = "move";
       event.dataTransfer.setData("text/plain", String(dragIndex));
-      const row = handle.closest(".set-row");
+      const row = handle.closest(rowSelector);
       if (row) row.classList.add("dragging");
     });
 
-    container.addEventListener("dragend", (event) => {
-      dragIndex = null;
-      container.querySelectorAll(".set-row.dragging, .set-row.drag-over").forEach((row) => {
-        row.classList.remove("dragging", "drag-over");
-      });
-    });
+    container.addEventListener("dragend", () => clearDragState());
 
     container.addEventListener("dragover", (event) => {
-      const row = event.target.closest(".set-row");
+      const row = event.target.closest(rowSelector);
       if (!row) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = "move";
-      container.querySelectorAll(".set-row.drag-over").forEach((item) => item.classList.remove("drag-over"));
+      container.querySelectorAll(`${rowSelector}.drag-over`).forEach((item) => item.classList.remove("drag-over"));
       row.classList.add("drag-over");
     });
 
     container.addEventListener("drop", (event) => {
       event.preventDefault();
-      const row = event.target.closest(".set-row");
+      const row = event.target.closest(rowSelector);
       if (!row || dragIndex === null) return;
-      const dropIndex = Number(row.dataset.slot);
+      const dropIndex = readIndex(row);
       if (Number.isNaN(dropIndex) || dropIndex === dragIndex) return;
       onReorder(dragIndex, dropIndex);
+      clearDragState();
+    });
+
+    container.querySelectorAll(handleSelector).forEach((handle) => {
+      if (handle.dataset.keyboardDragBound === "true") return;
+      handle.dataset.keyboardDragBound = "true";
+      handle.setAttribute("tabindex", "0");
+      handle.addEventListener("keydown", (event) => {
+        const index = readIndex(handle);
+        if (Number.isNaN(index)) return;
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          onReorder(index, index - 1);
+        } else if (event.key === "ArrowDown") {
+          event.preventDefault();
+          onReorder(index, index + 1);
+        }
+      });
+    });
+  }
+
+  function bindPlanDragDrop(container, onReorder) {
+    bindSlotDragDrop(container, {
+      handleSelector: "[data-drag-slot]",
+      rowSelector: ".set-row",
+      indexAttr: "slot",
+      onReorder,
+    });
+  }
+
+  function bindServiceDragDrop(container, onReorder) {
+    bindSlotDragDrop(container, {
+      handleSelector: "[data-drag-service-slot]",
+      rowSelector: ".song-service-row",
+      indexAttr: "serviceSlot",
+      onReorder,
     });
   }
 
@@ -275,7 +322,9 @@
     renderEditorModal,
     renderEditorSlotRow,
     readEditorState,
+    bindSlotDragDrop,
     bindPlanDragDrop,
+    bindServiceDragDrop,
     bindEditorDragDrop,
     slotSummary,
   };

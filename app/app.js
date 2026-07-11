@@ -52,11 +52,10 @@
     { id: "home", label: "Home Dashboard", icon: "⌂" },
     { id: "index", label: "Hymn Index", icon: "☰" },
     { id: "search", label: "Search", icon: "⌕" },
-    { id: "bible", label: "Bible", icon: "✞" },
     { id: "builder", label: "Worship Builder", icon: "+" },
     { id: "presenter", label: "Presenter", icon: "▶" },
     { id: "favorites", label: "Favorites", icon: "★" },
-    { id: "help", label: "Help", icon: "?" },
+    { id: "help", label: "Help Centre", icon: "?" },
     { id: "settings", label: "Settings", icon: "⚙" },
   ];
   const launchParams = new URLSearchParams(window.location.search);
@@ -69,10 +68,12 @@
     title: document.getElementById("pageTitle"),
     languageSwitcher: document.getElementById("languageSwitcher"),
     modalRoot: document.getElementById("modalRoot"),
+    helpContextRoot: document.getElementById("helpContextRoot"),
     presenterControlRoot: document.getElementById("presenterControlRoot"),
     presenterOutputRoot: document.getElementById("presenterOutputRoot"),
     presenterOverlay: document.getElementById("presenterOverlay"),
     emergencyOverlay: document.getElementById("emergencyOverlay"),
+    obsStatusRoot: document.getElementById("obsStatusRoot"),
   };
 
   let embeddedProjectorActive = false;
@@ -108,10 +109,16 @@
     emergencyMode: "",
     showAddContent: false,
     practiceMode: false,
-    bibleTranslation: loadValue("bibleTranslation", "KJV"),
-    bibleBookOrder: Number(loadValue("bibleBookOrder", 43)) || 43,
-    bibleChapter: Number(loadValue("bibleChapter", 1)) || 1,
-    bibleVerse: Number(loadValue("bibleVerse", 0)) || 0,
+    obsUrls: {},
+    obsHeartbeat: {},
+    help: {
+      category: "",
+      articleId: "",
+      nav: "",
+      searchQuery: "",
+      contextKey: "",
+      history: [],
+    },
   };
 
   let favorites = new Set(loadJson("favorites", []));
@@ -124,8 +131,6 @@
   let loadedAudioSongKey = "";
   let songAudioMeta = null;
   let audioDockState = { currentTime: 0 };
-  let bibleReaderState = { loading: false, error: "", bookPayload: null, chapterPayload: null };
-  let bibleLoadedKey = "";
   let worshipPlan = normalizeWorshipPlan(loadJson("worshipPlan", null));
   let songService = normalizeSongService(loadJson("songService", null));
   state.activeSlot = Math.min(state.activeSlot, worshipPlan.length - 1);
@@ -292,177 +297,6 @@
     audioDockState = { currentTime: 0 };
     paintAudioDock(true);
     setNotice(`Audio removed from Hymn ${song.number}.`);
-  }
-
-  function setupBible() {
-    if (!window.CISBibleReaderUI || !window.CISBibleStore) return;
-    window.CISBibleReaderUI.configure({ escapeHtml });
-  }
-
-  function bibleCacheKey() {
-    return `${state.bibleTranslation}:${state.bibleBookOrder}:${state.bibleChapter}`;
-  }
-
-  function renderBibleShell() {
-    if (!window.CISBibleReaderUI || !window.CISBibleStore) {
-      return `<section class="section"><p class="muted">Bible reader failed to load.</p></section>`;
-    }
-    const store = window.CISBibleStore;
-    return `
-      <div id="bibleReaderRoot">
-        ${window.CISBibleReaderUI.renderReader({
-          translations: store.getTranslations(),
-          books: store.getBooks(),
-          translationCode: state.bibleTranslation,
-          bookOrder: state.bibleBookOrder,
-          chapterNumber: state.bibleChapter,
-          bookPayload: bibleReaderState.bookPayload,
-          chapterPayload: bibleReaderState.chapterPayload,
-          highlightVerse: state.bibleVerse,
-          loading: bibleReaderState.loading,
-          error: bibleReaderState.error,
-          translationMeta: store.getTranslationMeta(state.bibleTranslation),
-          bookMeta: store.getBookMeta(state.bibleBookOrder),
-        })}
-      </div>
-    `;
-  }
-
-  function paintBibleReader() {
-    const root = document.getElementById("bibleReaderRoot");
-    if (!root || state.view !== "bible" || !window.CISBibleReaderUI) return;
-    root.innerHTML = window.CISBibleReaderUI.renderReader({
-      translations: window.CISBibleStore.getTranslations(),
-      books: window.CISBibleStore.getBooks(),
-      translationCode: state.bibleTranslation,
-      bookOrder: state.bibleBookOrder,
-      chapterNumber: state.bibleChapter,
-      bookPayload: bibleReaderState.bookPayload,
-      chapterPayload: bibleReaderState.chapterPayload,
-      highlightVerse: state.bibleVerse,
-      loading: bibleReaderState.loading,
-      error: bibleReaderState.error,
-      translationMeta: window.CISBibleStore.getTranslationMeta(state.bibleTranslation),
-      bookMeta: window.CISBibleStore.getBookMeta(state.bibleBookOrder),
-    });
-    bindBibleHandlers(root);
-  }
-
-  async function loadBibleChapter() {
-    if (!window.CISBibleStore) return;
-    bibleReaderState.loading = true;
-    bibleReaderState.error = "";
-    paintBibleReader();
-    try {
-      const payload = await window.CISBibleStore.loadBook(state.bibleTranslation, state.bibleBookOrder);
-      bibleReaderState.bookPayload = payload;
-      let chapter = window.CISBibleStore.getChapter(payload, state.bibleChapter);
-      if (!chapter) {
-        state.bibleChapter = 1;
-        saveValue("bibleChapter", state.bibleChapter);
-        chapter = window.CISBibleStore.getChapter(payload, 1);
-      }
-      bibleReaderState.chapterPayload = chapter;
-      bibleLoadedKey = bibleCacheKey();
-    } catch (error) {
-      bibleReaderState.error = (error && error.message) ? error.message : "Could not load Bible text.";
-      bibleReaderState.bookPayload = null;
-      bibleReaderState.chapterPayload = null;
-    } finally {
-      bibleReaderState.loading = false;
-      paintBibleReader();
-      if (state.bibleVerse) {
-        const verseEl = document.getElementById(`verse-${state.bibleVerse}`);
-        if (verseEl) verseEl.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }
-  }
-
-  function changeBibleChapter(delta) {
-    if (!window.CISBibleStore) return;
-    const count = window.CISBibleStore.chapterCount(state.bibleBookOrder);
-    const next = Math.max(1, Math.min(count, state.bibleChapter + delta));
-    if (next === state.bibleChapter) return;
-    state.bibleChapter = next;
-    state.bibleVerse = 0;
-    saveValue("bibleChapter", state.bibleChapter);
-    saveValue("bibleVerse", state.bibleVerse);
-    bibleLoadedKey = "";
-    loadBibleChapter();
-  }
-
-  function bindBibleHandlers(root) {
-    if (!root || !window.CISBibleReaderUI) return;
-    window.CISBibleReaderUI.bindReader(root, {
-      handleCommand(command, element) {
-        if (command === "set-translation") {
-          state.bibleTranslation = element.dataset.translation || element.value;
-          saveValue("bibleTranslation", state.bibleTranslation);
-          state.bibleVerse = 0;
-          saveValue("bibleVerse", state.bibleVerse);
-          bibleLoadedKey = "";
-          loadBibleChapter();
-          return;
-        }
-        if (command === "set-book") {
-          state.bibleBookOrder = Number(element.value);
-          state.bibleChapter = 1;
-          state.bibleVerse = 0;
-          saveValue("bibleBookOrder", state.bibleBookOrder);
-          saveValue("bibleChapter", state.bibleChapter);
-          saveValue("bibleVerse", state.bibleVerse);
-          bibleLoadedKey = "";
-          loadBibleChapter();
-          return;
-        }
-        if (command === "set-chapter") {
-          state.bibleChapter = Number(element.dataset.chapter);
-          state.bibleVerse = 0;
-          saveValue("bibleChapter", state.bibleChapter);
-          saveValue("bibleVerse", state.bibleVerse);
-          bibleLoadedKey = "";
-          loadBibleChapter();
-          return;
-        }
-        if (command === "prev-chapter") return changeBibleChapter(-1);
-        if (command === "next-chapter") return changeBibleChapter(1);
-        if (command === "jump") {
-          const input = root.querySelector("[data-bible-command='jump-input']");
-          const ref = window.CISBibleStore.parseReference(input ? input.value : "");
-          if (!ref) {
-            setNotice("Enter a reference like John 3 or John 3:16.");
-            return;
-          }
-          state.bibleBookOrder = ref.bookOrder;
-          state.bibleChapter = ref.chapter;
-          state.bibleVerse = ref.verse || 0;
-          saveValue("bibleBookOrder", state.bibleBookOrder);
-          saveValue("bibleChapter", state.bibleChapter);
-          saveValue("bibleVerse", state.bibleVerse);
-          bibleLoadedKey = "";
-          loadBibleChapter();
-          return;
-        }
-        if (command === "copy-reference") {
-          const text = window.CISBibleStore.formatReference(state.bibleBookOrder, state.bibleChapter, state.bibleVerse || null);
-          if (navigator.clipboard && text) {
-            navigator.clipboard.writeText(text).then(() => setNotice(`Copied ${text}.`)).catch(() => setNotice(text));
-          } else if (text) {
-            setNotice(text);
-          }
-        }
-      },
-    });
-  }
-
-  async function bindBible() {
-    if (state.view !== "bible") return;
-    const root = document.getElementById("bibleReaderRoot");
-    if (!root) return;
-    bindBibleHandlers(root);
-    if (bibleLoadedKey !== bibleCacheKey() || !bibleReaderState.chapterPayload) {
-      await loadBibleChapter();
-    }
   }
 
   function setupSearchEngine() {
@@ -782,13 +616,10 @@
   }
 
   function viewTitle() {
+    if (state.view === "help") return "Help Centre";
     if (state.view === "song") {
       const song = selectedSong();
       return song ? `Hymn ${song.number}` : "Hymn";
-    }
-    if (state.view === "bible" && window.CISBibleStore) {
-      const meta = window.CISBibleStore.getBookMeta(state.bibleBookOrder);
-      return meta ? `${meta.name} ${state.bibleChapter}` : "Bible";
     }
     const item = navItems.find((nav) => nav.id === state.view);
     return item ? item.label : "Home Dashboard";
@@ -913,7 +744,11 @@
       modalRoot: els.modalRoot,
       setNotice,
       render,
-      gatherSnapshot: async () => ({
+      gatherSnapshot: async () => {
+        const obsExport = window.CISObsSettingsStore
+          ? window.CISObsSettingsStore.exportForBackup()
+          : {};
+        return {
         worshipPlan,
         songService,
         favorites: [...favorites],
@@ -927,13 +762,15 @@
           displayMode: state.displayMode,
           fontScale: state.fontScale,
           timerSeconds: state.timerSeconds,
+          obsSettings: obsExport.obsSettings || {},
         },
         ui: {
           searchScope: state.searchScope,
           category: state.category,
           indexRange: state.indexRange,
         },
-      }),
+      };
+      },
       describeCurrentData: async () => ({
         components: {
           "worship-plans": `${assignedSlots().length} builder items · ${assignedSongServiceSlots().length} opening songs`,
@@ -1019,6 +856,10 @@
           if (incomingSettings.timerSeconds) {
             state.timerSeconds = Number(incomingSettings.timerSeconds) || state.timerSeconds;
             saveValue("timerSeconds", state.timerSeconds);
+          }
+          if (incomingSettings.obsSettings && window.CISObsSettingsStore) {
+            window.CISObsSettingsStore.importFromBackup({ obsSettings: incomingSettings.obsSettings });
+            lines.push("OBS settings restored (password must be re-entered if not exported).");
           }
           if (data.settings.languageCode) {
             state.languageCode = data.settings.languageCode;
@@ -1367,12 +1208,14 @@
     if (state.view !== "song" && hymnAudioPlayer) hymnAudioPlayer.pause();
     els.content.innerHTML = `${renderNotice()}${renderView()}`;
     renderPresenterAV();
+    renderObsTopbar();
     renderEmergencyOverlay();
     if (state.view === "builder") bindBuilderInteractions();
     bindGlobalSearch();
     bindHymnAudio();
-    bindBible();
     bindBackupSettings();
+    bindHelpCentre();
+    renderHelpContextOverlay();
     document.body.classList.add("app-ready");
   }
 
@@ -1420,8 +1263,7 @@
     if (state.view === "builder") return renderBuilder();
     if (state.view === "presenter") return renderPresenterDashboard();
     if (state.view === "favorites") return renderFavorites();
-    if (state.view === "bible") return renderBibleShell();
-    if (state.view === "help") return renderHelp();
+    if (state.view === "help") return renderHelpCentre();
     if (state.view === "settings") return renderSettings();
     return renderHome();
   }
@@ -1469,12 +1311,11 @@
           <div class="command-grid">
             ${commandCard("index", "☰", "Hymn Index", "Browse by 50-hymn ranges")}
             ${commandCard("search", "⌕", "Search Centre", "Find titles, numbers, and lyrics")}
-            ${commandCard("bible", "✞", "Bible", "Read KJV, ASV, and WEB offline")}
             ${commandCard("builder", "+", "Worship Builder", "Prepare the service order")}
             ${commandCard("favorites", "★", "Favorites", "Open saved hymns")}
             ${commandCard("presenter", "▶", "Presenter Dashboard", "Run the current worship flow")}
+            ${commandCard("help", "?", "Help Centre", "Setup guides, troubleshooting, and emergency help")}
             ${commandCard("settings", "⚙", "Language Packs", "Manage multilingual hymn libraries")}
-            ${commandCard("help", "?", "Help", "Features, guides, and where to use the app")}
           </div>
         </section>
         <aside class="panel">
@@ -1485,6 +1326,9 @@
           <hr>
           <h3>Live Service</h3>
           ${firstAssigned ? renderCurrentSlot(firstAssigned) : renderCurrentSong(current)}
+          ${window.CISObsSettingsUI && window.CISObsConnectionService
+            ? window.CISObsSettingsUI.renderDashboardStatus(window.CISObsConnectionService.getStatus())
+            : ""}
           <div class="button-row">
             <button class="action-button" type="button" data-command="present-current">Present</button>
             <button class="secondary-button" type="button" data-view="builder">Worship Builder</button>
@@ -2186,6 +2030,14 @@
       window.CISPresenterOutput.render(els.presenterOutputRoot, { active: false });
     }
     document.body.classList.toggle("presenter-live", snapshot.active);
+    if (window.CISObsOutputService && window.CISPresenterEngine) {
+      const item = currentPresenterItem();
+      window.CISObsOutputService.syncFromPresenter(
+        snapshot,
+        window.CISPresenterEngine.getState(),
+        item,
+      ).catch(() => {});
+    }
   }
 
   function setupPresenterSystem() {
@@ -2261,6 +2113,303 @@
     });
   }
 
+  function gatherHelpDiagnosticsReport() {
+    if (!window.CISHelpDiagnostics) return {};
+    const presenterActive = window.CISPresenterEngine ? window.CISPresenterEngine.getState().active : false;
+    return window.CISHelpDiagnostics.gatherDiagnostics({
+      desktopInfo: state.desktopInfo,
+      obsStatus: window.CISObsConnectionService ? window.CISObsConnectionService.getStatus() : {},
+      obsHeartbeat: state.obsHeartbeat,
+      presenterActive,
+      embeddedProjector: embeddedProjectorActive,
+      displayMode: window.CISPresenterEngine ? window.CISPresenterEngine.getState().displayMode : "",
+      languagePacks: data.languagePacks,
+      autosaveCount: autoBackupList.length,
+      lastAutosave: autoBackupList[0]?.id || "",
+      lastNotice: state.notice,
+    });
+  }
+
+  function resetHelpNav() {
+    state.help.category = "";
+    state.help.articleId = "";
+    state.help.nav = "";
+    state.help.contextKey = "";
+  }
+
+  function openHelpArticle(articleId) {
+    state.view = "help";
+    state.help.history.push({ category: state.help.category, articleId: state.help.articleId, nav: state.help.nav });
+    state.help.articleId = articleId;
+    state.help.category = "";
+    state.help.nav = "";
+    saveValue("view", state.view);
+    render();
+  }
+
+  function openHelpCategory(categoryId) {
+    state.view = "help";
+    state.help.history.push({ category: state.help.category, articleId: state.help.articleId, nav: state.help.nav });
+    state.help.category = categoryId;
+    state.help.articleId = "";
+    state.help.nav = "";
+    saveValue("view", state.view);
+    render();
+  }
+
+  function renderHelpCentre() {
+    if (!window.CISHelpUI) return `<section class="section"><p>Help Centre is loading…</p></section>`;
+    const report = state.help.nav === "diagnostics" ? gatherHelpDiagnosticsReport() : null;
+    return window.CISHelpUI.render(state.help, {
+      desktopInfo: state.desktopInfo,
+      diagnosticsReport: report,
+    });
+  }
+
+  function bindHelpCentre() {
+    if (state.view !== "help") return;
+    const root = els.content;
+    if (!root) return;
+
+    const searchInput = root.querySelector("#helpSearchInput");
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        state.help.searchQuery = searchInput.value;
+        const articleList = root.querySelector(".help-search-results");
+        if (articleList || !state.help.articleId) {
+          const shell = renderHelpCentre();
+          const notice = renderNotice();
+          els.content.innerHTML = `${notice}${shell}`;
+          bindHelpCentre();
+          const refreshed = els.content.querySelector("#helpSearchInput");
+          if (refreshed) {
+            refreshed.focus();
+            refreshed.selectionStart = refreshed.selectionEnd = refreshed.value.length;
+          }
+        }
+      });
+      searchInput.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          state.help.searchQuery = "";
+          render();
+        }
+      });
+    }
+
+    const roleSelect = root.querySelector("#helpRoleSelect");
+    if (roleSelect && window.CISHelpStore) {
+      roleSelect.value = window.CISHelpStore.getRole();
+      roleSelect.addEventListener("change", () => {
+        window.CISHelpStore.setRole(roleSelect.value);
+        if (window.CISHelpSearch) window.CISHelpSearch.buildIndex();
+        render();
+      });
+    }
+
+    root.querySelectorAll("[data-help-checklist]").forEach((input) => {
+      input.addEventListener("change", () => {
+        if (!window.CISHelpStore) return;
+        window.CISHelpStore.toggleChecklistItem(input.dataset.helpChecklist, input.dataset.helpCheckKey, input.checked);
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-help-checklist-reset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (!window.CISHelpStore) return;
+        if (window.confirm("Reset this checklist?")) {
+          window.CISHelpStore.resetChecklist(button.dataset.helpChecklistReset);
+          render();
+        }
+      });
+    });
+  }
+
+  function helpTrigger(key, label) {
+    return window.CISHelpContextual ? window.CISHelpContextual.renderTrigger(key, label) : "";
+  }
+
+  function isTrainingModeActive() {
+    return Boolean(window.CISHelpStore && window.CISHelpStore.getTrainingProgress().trainingMode);
+  }
+
+  function confirmTrainingLiveAction(actionLabel) {
+    if (!isTrainingModeActive()) return true;
+    return window.confirm(`Training Mode is active. ${actionLabel} will send content to the live projector. Continue?`);
+  }
+
+  function renderHelpContextOverlay() {
+    const root = els.helpContextRoot;
+    if (!root) return;
+    if (!state.help.contextKey || !window.CISHelpContextual) {
+      root.classList.add("hidden");
+      root.setAttribute("aria-hidden", "true");
+      root.innerHTML = "";
+      return;
+    }
+    root.classList.remove("hidden");
+    root.setAttribute("aria-hidden", "false");
+    root.innerHTML = `
+      <div class="help-context-backdrop" data-command="help-close-context" aria-hidden="true"></div>
+      ${window.CISHelpContextual.renderPanel(state.help.contextKey, escapeHtml)}
+    `;
+  }
+
+  function setupHelpCentre() {
+    if (window.CISHelpUI) window.CISHelpUI.configure({ escapeHtml });
+    if (window.CISHelpSearch) window.CISHelpSearch.init();
+  }
+
+  function renderObsTopbar() {
+    if (!window.CISObsSettingsUI || !window.CISObsConnectionService || !els.obsStatusRoot) return;
+    window.CISObsSettingsUI.updateTopbar(
+      els.obsStatusRoot,
+      window.CISObsConnectionService.getStatus(),
+    );
+  }
+
+  function readObsSettingsFromPage() {
+    if (!window.CISObsSettingsUI) return null;
+    const payload = window.CISObsSettingsUI.readSettingsFromDom(document);
+    const password = payload._password;
+    delete payload._password;
+    return { settings: payload, password };
+  }
+
+  async function saveObsSettingsFromPage(options) {
+    if (!window.CISObsConnectionService) return;
+    const parsed = readObsSettingsFromPage();
+    if (!parsed) return;
+    await window.CISObsConnectionService.saveSettings(parsed.settings, {
+      password: parsed.password,
+      connect: options?.connect !== false,
+    });
+    renderObsTopbar();
+    if (state.view === "settings") render();
+  }
+
+  async function testObsConnectionFromPage() {
+    if (!window.CISObsConnectionService) return;
+    const parsed = readObsSettingsFromPage();
+    const overrides = parsed
+      ? { host: parsed.settings.host, port: parsed.settings.port, password: parsed.password }
+      : {};
+    const result = await window.CISObsConnectionService.testConnection(overrides);
+    if (result?.ok) {
+      setNotice(`OBS test OK · ${result.obsVersion || "connected"} (WebSocket ${result.obsWebSocketVersion || "5.x"})`);
+    } else {
+      setNotice(result?.message || "OBS test connection failed.");
+    }
+  }
+
+  async function connectObsFromPage() {
+    if (!window.CISObsConnectionService) return;
+    const parsed = readObsSettingsFromPage();
+    if (parsed) {
+      await window.CISObsConnectionService.saveSettings({ ...parsed.settings, enabled: true }, {
+        password: parsed.password,
+        connect: true,
+      });
+    } else {
+      await window.CISObsConnectionService.connect();
+    }
+    renderObsTopbar();
+    if (state.view === "settings") render();
+    const status = window.CISObsConnectionService.getStatus();
+    setNotice(status.connected ? "Connected to OBS." : (status.lastError || "OBS connection failed."));
+  }
+
+  async function disconnectObsFromPage() {
+    if (!window.CISObsConnectionService) return;
+    await window.CISObsConnectionService.disconnect();
+    renderObsTopbar();
+    if (state.view === "settings") render();
+    setNotice("Disconnected from OBS.");
+  }
+
+  async function refreshObsScenesFromPage() {
+    if (!window.CISObsSceneService) return;
+    try {
+      const scenes = await window.CISObsSceneService.fetchSceneList();
+      setNotice(`Loaded ${scenes.length} OBS scene${scenes.length === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setNotice(error && error.message ? error.message : "Failed to load OBS scenes.");
+    }
+    if (state.view === "settings") render();
+  }
+
+  async function refreshObsSourcesFromPage() {
+    if (!window.CISObsSourceService) return;
+    try {
+      const inputs = await window.CISObsSourceService.fetchInputs();
+      setNotice(`Loaded ${inputs.length} OBS input${inputs.length === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setNotice(error?.message || "Failed to load OBS sources.");
+    }
+    if (state.view === "settings") render();
+  }
+
+  async function saveObsMappingsFromPage() {
+    if (!window.CISObsSettingsStore) return;
+    const settings = window.CISObsSettingsStore.loadSettings();
+    const sceneMappings = window.CISObsMappingUI
+      ? window.CISObsMappingUI.readSceneMappingsFromDom(document)
+      : settings.sceneMappings;
+    const sourceMappings = window.CISObsMappingUI
+      ? window.CISObsMappingUI.readSourceMappingsFromDom(document)
+      : settings.sourceMappings;
+    window.CISObsSettingsStore.saveSettings({
+      ...settings,
+      sceneMappings,
+      sourceMappings,
+    });
+    setNotice("OBS mappings saved.");
+    if (state.view === "settings") render();
+  }
+
+  async function refreshObsBrowserUrls() {
+    if (!window.CISObsOutputService) return;
+    try {
+      state.obsUrls = await window.CISObsOutputService.getBrowserSourceUrls();
+      state.obsHeartbeat = await window.CISObsOutputService.getHeartbeatStatus();
+    } catch (error) {}
+  }
+
+  function setupObsIntegration() {
+    if (!window.CISObsConnectionService) return;
+    if (window.CISObsSettingsUI) {
+      window.CISObsSettingsUI.configure({ escapeHtml });
+    }
+    if (window.CISObsMappingUI) {
+      window.CISObsMappingUI.configure({ escapeHtml });
+    }
+    if (window.CISObsControlUI) {
+      window.CISObsControlUI.configure({ escapeHtml });
+    }
+    if (window.CISObsEventService) {
+      window.CISObsEventService.subscribe(() => {
+        renderObsTopbar();
+        refreshObsBrowserUrls().then(() => {
+          if (state.view === "settings" || state.view === "presenter") render();
+        });
+      });
+    }
+    window.CISObsConnectionService.init().then(async () => {
+      renderObsTopbar();
+      await refreshObsBrowserUrls();
+      if (window.CISObsConnectionService.getStatus().connected) {
+        if (window.CISObsSceneService) {
+          window.CISObsSceneService.fetchSceneList().catch(() => {});
+        }
+        if (window.CISObsSourceService) {
+          window.CISObsSourceService.fetchInputs().catch(() => {});
+        }
+      }
+    }).catch(() => {
+      renderObsTopbar();
+    });
+  }
+
   function startPresenterSession(patch) {
     if (!window.CISPresenterEngine) return;
     state.presenter.open = true;
@@ -2283,9 +2432,11 @@
           <h2>${currentInfo ? `Current: ${escapeHtml(slotTitle(currentInfo.slot))}` : currentSong ? `Current: Hymn ${escapeHtml(currentSong.number)} · ${escapeHtml(currentSong.title)}` : "Current: No hymn selected"}</h2>
           <p class="muted">${nextInfo ? `Next: ${escapeHtml(slotTitle(nextInfo.slot))}` : "Next: Not assigned"}</p>
           <div class="button-row">
-            <button class="action-button" type="button" data-command="present-current">Present Current</button>
+            <button class="action-button" type="button" data-command="present-current">Present Current${helpTrigger("send-live", "Present Current")}</button>
             <button class="secondary-button" type="button" data-command="presenter-open-output">Open Projector Screen</button>
-            <button class="secondary-button" type="button" data-command="emergency-black">Black Screen</button>
+            <button class="secondary-button" type="button" data-command="help-open-emergency">Emergency Help</button>
+            <button class="secondary-button" type="button" data-command="emergency-clear">Clear${helpTrigger("clear", "Clear")}</button>
+            <button class="secondary-button" type="button" data-command="emergency-black" data-confirm="true">Black Screen${helpTrigger("blackout", "Blackout")}</button>
             <button class="secondary-button" type="button" data-command="emergency-white">White Screen</button>
             <button class="secondary-button" type="button" data-command="emergency-logo">Logo Screen</button>
           </div>
@@ -2318,6 +2469,16 @@
         </section>
         <aside class="panel">
           <h3>Presenter Queue</h3>
+          ${window.CISObsControlUI && window.CISObsConnectionService
+            ? window.CISObsControlUI.renderCompactStatus(
+              window.CISObsConnectionService.getStatus(),
+              window.CISObsOutputService ? window.CISObsOutputService.getLiveState() : null,
+              state.obsHeartbeat,
+            )
+            : ""}
+          ${window.CISObsControlUI && window.CISObsConnectionService
+            ? window.CISObsControlUI.renderControlPanel(window.CISObsConnectionService.getStatus())
+            : ""}
           <div class="result-list">
             ${assigned.map((item) => {
               const song = getSongByKey(item.slot.songKey);
@@ -2375,79 +2536,6 @@
         <strong>${escapeHtml(getPack(parsed.code).name)} · Hymn ${escapeHtml(song.number)}</strong>
         <span>${escapeHtml(song.title)}</span>
       </button>
-    `;
-  }
-
-  function renderHelp() {
-    return `
-      <div class="help-page">
-        <section class="section help-intro">
-          <p class="eyebrow">Christ in Song · VaChinoda Edition</p>
-          <h2>Help</h2>
-          <p class="muted">A quick guide to what this app does, how to lead worship with it, and where it fits best—in the sanctuary, at rehearsal, or on your own device.</p>
-        </section>
-        <div class="dashboard-grid help-grid">
-          <section class="section help-section">
-            <h3>Features</h3>
-            <ul class="help-list">
-              <li><strong>Multilingual hymn library</strong> — Zulu, English, Shona, Venda, Sepedi, and the SDA Hymnal, all available offline.</li>
-              <li><strong>Hymn index & reader</strong> — Browse by number range, read verses or full slides, adjust text size, and save favorites.</li>
-              <li><strong>Global search</strong> — Fuzzy search across titles, numbers, and lyrics in every installed language.</li>
-              <li><strong>Worship Builder</strong> — Plan a Sabbath order of service, opening songs, templates, and mixed content slides.</li>
-              <li><strong>Presenter mode</strong> — Full-screen projection with slide control; dual-monitor support in the desktop app.</li>
-              <li><strong>Tags & categories</strong> — Organize hymns by theme and get smart suggestions while building a service.</li>
-              <li><strong>Service bulletin export</strong> — Generate printable HTML or PDF bulletins from your worship plan.</li>
-              <li><strong>Backup & restore</strong> — Export and import your plans, favorites, tags, and settings as a <code>.csbackup</code> file.</li>
-              <li><strong>Hymn audio & practice</strong> — Attach MP3 or MIDI per hymn, loop sections, and adjust tempo for rehearsal.</li>
-              <li><strong>Offline Bible</strong> — Read KJV, ASV, and WEB with book/chapter navigation and reference lookup.</li>
-              <li><strong>Language pack import</strong> — Add new languages from JSON or PowerPoint without coding.</li>
-            </ul>
-          </section>
-          <aside class="panel help-section">
-            <h3>How to use</h3>
-            <ol class="help-steps">
-              <li><strong>Choose a language</strong> — Use the language switcher in the header to pick the hymn book you need.</li>
-              <li><strong>Find a hymn</strong> — Open <em>Hymn Index</em> for numbered ranges, or <em>Search</em> for titles and lyrics.</li>
-              <li><strong>Read & present</strong> — Open a hymn, switch between Slides and Sections, then tap <em>Present</em> for full-screen output.</li>
-              <li><strong>Build a service</strong> — In <em>Worship Builder</em>, add hymns to slots, reorder items, and apply a service template.</li>
-              <li><strong>Run the service</strong> — Open <em>Presenter</em> to advance slides, use the timer, and switch between planned items.</li>
-              <li><strong>Practice with audio</strong> — On any hymn, tap <em>Practice</em>, upload audio if needed, and loop verses or adjust tempo.</li>
-              <li><strong>Read Scripture</strong> — Open <em>Bible</em>, choose KJV/ASV/WEB, pick a book and chapter, or jump to a reference like <em>John 3:16</em>.</li>
-              <li><strong>Protect your work</strong> — In <em>Settings → Backup & Restore</em>, export a backup before major changes or device moves.</li>
-              <li><strong>Add languages</strong> — In <em>Settings</em>, import a JSON or PPTX language pack and choose how to handle duplicates.</li>
-            </ol>
-          </aside>
-        </div>
-        <section class="section help-section">
-          <h3>Where to use it</h3>
-          <div class="help-context-grid">
-            <article class="help-context-card">
-              <strong>Sabbath worship service</strong>
-              <p class="muted">Build the order of service, project hymn slides to the congregation, and keep the operator view on a laptop or second screen.</p>
-            </article>
-            <article class="help-context-card">
-              <strong>Rehearsal & choir practice</strong>
-              <p class="muted">Use Practice mode with uploaded audio or MIDI to loop verses and work at a comfortable tempo before the service.</p>
-            </article>
-            <article class="help-context-card">
-              <strong>Personal devotion</strong>
-              <p class="muted">Browse, search, and favorite hymns on phone or tablet—even without an internet connection after the app is installed.</p>
-            </article>
-            <article class="help-context-card">
-              <strong>Offline & rural settings</strong>
-              <p class="muted">The PWA caches hymn libraries locally. Install once and lead worship where connectivity is limited.</p>
-            </article>
-            <article class="help-context-card">
-              <strong>Desktop (Electron)</strong>
-              <p class="muted">Run the native app for dual-monitor presenting, automatic updates, and a dedicated worship workstation.</p>
-            </article>
-            <article class="help-context-card">
-              <strong>Browser / PWA</strong>
-              <p class="muted">Open in Chrome, Edge, or Safari, install to your home screen, and use the same library on any supported device.</p>
-            </article>
-          </div>
-        </section>
-      </div>
     `;
   }
 
@@ -2509,10 +2597,12 @@
               </div>
             ` : ""}
             <hr>
-            <h3>Help</h3>
-            <p class="muted">New to the app? See features, step-by-step guides, and recommended use cases.</p>
+            <h3>Help Centre</h3>
+            <p class="muted">Offline setup guides, troubleshooting, emergency tools, and pre-service checklists.</p>
             <div class="button-row">
-              <button class="secondary-button" type="button" data-view="help">Open Help</button>
+              <button class="secondary-button" type="button" data-view="help">Open Help Centre</button>
+              <button class="secondary-button" type="button" data-command="help-open-emergency">Emergency Help</button>
+              <button class="secondary-button" type="button" data-command="help-open-diagnostics">Diagnostics</button>
             </div>
             <hr>
             <h3>Source Integration</h3>
@@ -2520,8 +2610,30 @@
           </aside>
         </div>
         ${backupPanel}
+        ${renderObsSettingsPanel()}
       </div>
     `;
+  }
+
+  function renderObsSettingsPanel() {
+    if (!window.CISObsSettingsUI || !window.CISObsConnectionService || !window.CISObsSettingsStore) {
+      return "";
+    }
+    const status = window.CISObsConnectionService.getStatus();
+    const settings = window.CISObsSettingsStore.loadSettings();
+    const scenePanel = window.CISObsMappingUI
+      ? window.CISObsMappingUI.renderSceneMappingPanel(status, settings)
+      : "";
+    const sourcePanel = window.CISObsMappingUI
+      ? window.CISObsMappingUI.renderSourceMappingPanel(status, settings)
+      : "";
+    const setupGuide = window.CISObsMappingUI
+      ? window.CISObsMappingUI.renderSetupGuide(state.obsUrls)
+      : "";
+    const controlPanel = window.CISObsControlUI
+      ? window.CISObsControlUI.renderControlPanel(status)
+      : "";
+    return `${window.CISObsSettingsUI.renderSettingsPanel(status, settings)}${scenePanel}${sourcePanel}${setupGuide}${controlPanel}`;
   }
 
   function renderAwaitingPack(pack) {
@@ -2999,6 +3111,9 @@
       renderPresenterAV();
       return;
     }
+    if (window.CISObsOutputService) {
+      window.CISObsOutputService.clearWorshipOverlays().catch(() => {});
+    }
     state.emergencyMode = "";
     if (document.fullscreenElement === els.emergencyOverlay && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
@@ -3026,8 +3141,8 @@
     els.emergencyOverlay.className = `emergency-overlay ${state.emergencyMode}`;
     els.emergencyOverlay.setAttribute("aria-hidden", "false");
     els.emergencyOverlay.innerHTML = state.emergencyMode === "logo"
-      ? `<div class="emergency-logo"><strong>CHRIST IN SONG</strong><span>VaChinoda Worship</span></div><button class="emergency-return" type="button" data-command="emergency-clear">Return</button>`
-      : `<button class="emergency-return" type="button" data-command="emergency-clear">Return</button>`;
+      ? `<div class="emergency-logo"><span class="emergency-logo-mark" aria-hidden="true">✦</span><strong>CHRIST IN SONG</strong><span>VaChinoda Worship</span></div><button class="emergency-return" type="button" data-command="emergency-clear">Return to lyrics</button>`
+      : `<button class="emergency-return" type="button" data-command="emergency-clear">Return to lyrics</button>`;
   }
 
   function copyPlan() {
@@ -3335,7 +3450,7 @@
   }
 
   document.addEventListener("click", (event) => {
-    const target = event.target.closest("[data-view], [data-command], [data-song], [data-lang], [data-slide]");
+    const target = event.target.closest("[data-view], [data-command], [data-song], [data-lang], [data-slide], [data-help-article], [data-help-category], [data-help-nav], [data-help-bookmark], [data-help-context], [data-help-training-start], [data-help-training-complete]");
     if (!target) return;
 
     const backdrop = event.target.classList.contains("modal-backdrop");
@@ -3358,7 +3473,55 @@
     const view = target.dataset.view;
     if (view) {
       state.view = view;
+      if (view === "help") resetHelpNav();
       saveValue("view", view);
+      render();
+      return;
+    }
+
+    if (target.dataset.helpArticle) {
+      openHelpArticle(target.dataset.helpArticle);
+      return;
+    }
+    if (target.dataset.helpCategory) {
+      openHelpCategory(target.dataset.helpCategory);
+      return;
+    }
+    if (target.dataset.helpNav) {
+      state.view = "help";
+      state.help.history.push({ category: state.help.category, articleId: state.help.articleId, nav: state.help.nav });
+      state.help.nav = target.dataset.helpNav;
+      state.help.category = "";
+      state.help.articleId = "";
+      saveValue("view", state.view);
+      render();
+      return;
+    }
+    if (target.dataset.helpBookmark && window.CISHelpStore) {
+      window.CISHelpStore.toggleBookmark(target.dataset.helpBookmark);
+      render();
+      return;
+    }
+    if (target.dataset.helpContext) {
+      state.help.contextKey = target.dataset.helpContext;
+      render();
+      return;
+    }
+    if (target.dataset.helpTrainingStart && window.CISHelpStore) {
+      const progress = window.CISHelpStore.getTrainingProgress();
+      progress.trainingMode = true;
+      progress.activeLesson = target.dataset.helpTrainingStart;
+      window.CISHelpStore.saveTrainingProgress(progress);
+      setNotice("Training lesson started.");
+      openHelpCategory("training");
+      return;
+    }
+    if (target.dataset.helpTrainingComplete && window.CISHelpStore) {
+      const progress = window.CISHelpStore.getTrainingProgress();
+      progress.lessons = progress.lessons || {};
+      progress.lessons[target.dataset.helpTrainingComplete] = true;
+      window.CISHelpStore.saveTrainingProgress(progress);
+      setNotice("Lesson marked complete.");
       render();
       return;
     }
@@ -3444,6 +3607,13 @@
     if (state.view === "song") {
       if (event.key === "ArrowRight") moveSlide(1);
       if (event.key === "ArrowLeft") moveSlide(-1);
+    }
+    if (event.key === "F1") {
+      event.preventDefault();
+      state.view = "help";
+      resetHelpNav();
+      saveValue("view", state.view);
+      render();
     }
   });
 
@@ -3698,6 +3868,195 @@
     if (command === "emergency-white") return setEmergency("white");
     if (command === "emergency-logo") return setEmergency("logo");
     if (command === "emergency-clear") return clearEmergency();
+    if (command === "open-obs-settings") {
+      state.view = "settings";
+      saveValue("view", state.view);
+      render();
+      return;
+    }
+    if (command === "help-back") {
+      const prev = state.help.history.pop();
+      if (prev) {
+        state.help.category = prev.category || "";
+        state.help.articleId = prev.articleId || "";
+        state.help.nav = prev.nav || "";
+      } else {
+        resetHelpNav();
+      }
+      render();
+      return;
+    }
+    if (command === "help-clear-search") {
+      state.help.searchQuery = "";
+      render();
+      return;
+    }
+    if (command === "help-open-emergency") {
+      state.view = "help";
+      openHelpCategory("emergency");
+      return;
+    }
+    if (command === "help-open-diagnostics") {
+      state.view = "help";
+      state.help.category = "";
+      state.help.articleId = "";
+      state.help.nav = "diagnostics";
+      saveValue("view", state.view);
+      render();
+      return;
+    }
+    if (command === "help-refresh-diagnostics") {
+      render();
+      return;
+    }
+    if (command === "help-copy-diagnostics") {
+      const report = window.CISHelpDiagnostics
+        ? window.CISHelpDiagnostics.formatReportText(gatherHelpDiagnosticsReport())
+        : "";
+      if (report && navigator.clipboard) {
+        navigator.clipboard.writeText(report).then(() => setNotice("Diagnostic report copied.")).catch(() => setNotice("Could not copy report."));
+      }
+      return;
+    }
+    if (command === "help-close-context") {
+      state.help.contextKey = "";
+      render();
+      return;
+    }
+    if (command === "help-toggle-training") {
+      if (!window.CISHelpStore) return;
+      const progress = window.CISHelpStore.getTrainingProgress();
+      progress.trainingMode = !progress.trainingMode;
+      window.CISHelpStore.saveTrainingProgress(progress);
+      setNotice(progress.trainingMode ? "Training Mode enabled." : "Training Mode exited.");
+      state.view = "help";
+      openHelpCategory("training");
+      return;
+    }
+    if (command === "help-dismiss-whats-new") {
+      if (window.CISHelpStore && state.desktopInfo) {
+        window.CISHelpStore.markWhatsNewSeen(state.desktopInfo.version || "1.0.0");
+      }
+      render();
+      return;
+    }
+    if (command === "obs-save-settings") {
+      saveObsSettingsFromPage().then(() => setNotice("OBS settings saved.")).catch((error) => {
+        setNotice(error && error.message ? error.message : "Failed to save OBS settings.");
+      });
+      return;
+    }
+    if (command === "obs-test-connection") {
+      testObsConnectionFromPage();
+      return;
+    }
+    if (command === "obs-connect") {
+      connectObsFromPage();
+      return;
+    }
+    if (command === "obs-disconnect") {
+      disconnectObsFromPage();
+      return;
+    }
+    if (command === "obs-refresh-scenes") {
+      refreshObsScenesFromPage();
+      return;
+    }
+    if (command === "obs-refresh-sources") {
+      refreshObsSourcesFromPage();
+      return;
+    }
+    if (command === "obs-save-mappings") {
+      saveObsMappingsFromPage();
+      return;
+    }
+    if (command === "obs-copy-url") {
+      const url = target.dataset.url || "";
+      if (url && navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(() => setNotice("Browser Source URL copied.")).catch(() => {});
+      }
+      return;
+    }
+    if (command === "obs-set-program-scene" && window.CISObsControlService) {
+      const select = document.getElementById("obsProgramSceneSelect");
+      const sceneName = select ? select.value : "";
+      window.CISObsControlService.setProgramScene(sceneName)
+        .then(() => setNotice(`OBS program scene: ${sceneName}`))
+        .catch((error) => setNotice(error?.message || "Failed to change OBS scene."));
+      return;
+    }
+    if (command === "obs-studio-transition" && window.CISObsControlService) {
+      window.CISObsControlService.triggerStudioTransition()
+        .then(() => setNotice("OBS studio transition triggered."))
+        .catch((error) => setNotice(error?.message || "Studio transition failed."));
+      return;
+    }
+    if (command === "obs-toggle-studio" && window.CISObsControlService) {
+      const runtime = window.CISObsConnectionService?.getStatus()?.obsRuntime || {};
+      window.CISObsControlService.setStudioMode(!runtime.studioMode)
+        .then(() => { render(); setNotice(runtime.studioMode ? "OBS Studio Mode disabled." : "OBS Studio Mode enabled."); })
+        .catch((error) => setNotice(error?.message || "Failed to toggle Studio Mode."));
+      return;
+    }
+    if (command === "obs-start-stream" && window.CISObsControlService) {
+      window.CISObsControlService.startStream(true)
+        .then((result) => setNotice(result?.cancelled ? "Stream start cancelled." : "OBS streaming started."))
+        .catch((error) => setNotice(error?.message || "Failed to start streaming."));
+      return;
+    }
+    if (command === "obs-stop-stream" && window.CISObsControlService) {
+      window.CISObsControlService.stopStream(true)
+        .then((result) => setNotice(result?.cancelled ? "Stream stop cancelled." : "OBS streaming stopped."))
+        .catch((error) => setNotice(error?.message || "Failed to stop streaming."));
+      return;
+    }
+    if (command === "obs-start-record" && window.CISObsControlService) {
+      window.CISObsControlService.startRecording()
+        .then(() => setNotice("OBS recording started."))
+        .catch((error) => setNotice(error?.message || "Failed to start recording."));
+      return;
+    }
+    if (command === "obs-stop-record" && window.CISObsControlService) {
+      window.CISObsControlService.stopRecording(true)
+        .then((result) => setNotice(result?.cancelled ? "Recording stop cancelled." : "OBS recording stopped."))
+        .catch((error) => setNotice(error?.message || "Failed to stop recording."));
+      return;
+    }
+    if (command === "obs-start-vcam" && window.CISObsControlService) {
+      window.CISObsControlService.startVirtualCamera()
+        .then(() => setNotice("OBS Virtual Camera started."))
+        .catch((error) => setNotice(error?.message || "Virtual Camera unavailable or failed."));
+      return;
+    }
+    if (command === "obs-stop-vcam" && window.CISObsControlService) {
+      window.CISObsControlService.stopVirtualCamera()
+        .then(() => setNotice("OBS Virtual Camera stopped."))
+        .catch((error) => setNotice(error?.message || "Failed to stop Virtual Camera."));
+      return;
+    }
+    if (command === "obs-clear-overlays" && window.CISObsOutputService) {
+      window.CISObsOutputService.clearWorshipOverlays()
+        .then(() => setNotice("Worship overlays cleared on OBS."))
+        .catch((error) => setNotice(error?.message || "Failed to clear overlays."));
+      return;
+    }
+    if ((command === "obs-show-source" || command === "obs-hide-source") && window.CISObsSourceService) {
+      const sourceKey = target.dataset.sourceKey || "";
+      const action = command === "obs-show-source"
+        ? window.CISObsSourceService.showSource(sourceKey)
+        : window.CISObsSourceService.hideSource(sourceKey);
+      action
+        .then(() => setNotice(command === "obs-show-source" ? "OBS source shown." : "OBS source hidden."))
+        .catch((error) => setNotice(error?.message || "OBS source action failed."));
+      return;
+    }
+    if (command === "obs-test-source" && window.CISObsSourceService) {
+      const sourceKey = target.dataset.sourceKey || "";
+      window.CISObsSourceService.showSource(sourceKey)
+        .then(() => setNotice("Source visibility test sent to OBS."))
+        .catch((error) => setNotice(error?.message || "Source test failed."));
+      return;
+    }
     if (command === "close-modal") return closeModal();
   }
 
@@ -3759,12 +4118,13 @@
   setupTemplateSystem();
   setupBuilderSlides();
   setupPresenterSystem();
+  setupObsIntegration();
+  setupHelpCentre();
   setupSongTags();
   setupBackupRestore();
   setupBulletinExport();
   setupSearchEngine();
   setupHymnAudio();
-  setupBible();
 
   Promise.all([loadImportedLanguagePacks(), loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(() => {
     render();

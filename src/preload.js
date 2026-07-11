@@ -48,4 +48,39 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('presenter-closed', listener);
     return () => ipcRenderer.removeListener('presenter-closed', listener);
   },
+
+  obs: {
+    getStatus: () => ipcRenderer.invoke('obs:get-status'),
+
+    getSettings: () => ipcRenderer.invoke('obs:get-settings'),
+
+    saveSettings: (payload) => ipcRenderer.invoke('obs:save-settings', payload),
+
+    connect: () => ipcRenderer.invoke('obs:connect'),
+
+    disconnect: () => ipcRenderer.invoke('obs:disconnect'),
+
+    testConnection: (payload) => ipcRenderer.invoke('obs:test-connection', payload),
+
+    call: (requestType, requestData) => ipcRenderer.invoke('obs:call', requestType, requestData),
+
+    onEvent: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('obs:event', listener);
+      return () => ipcRenderer.removeListener('obs:event', listener);
+    },
+  },
+
+  obsHttp: {
+    start: (options) => ipcRenderer.invoke('obs-http:start', options),
+
+    stop: () => ipcRenderer.invoke('obs-http:stop'),
+
+    getInfo: () => ipcRenderer.invoke('obs-http:get-info'),
+
+    publish: (payload) => ipcRenderer.invoke('obs-http:publish', payload),
+
+    getLive: () => ipcRenderer.invoke('obs-http:get-live'),
+  },
 });

@@ -22,6 +22,37 @@
     `;
   }
 
+  function hymnTitleFromSnapshot(snapshot) {
+    if (snapshot.hymnTitle) return snapshot.hymnTitle;
+    const title = snapshot.title || "";
+    const split = title.indexOf(" · ");
+    if (split >= 0) return title.slice(split + 3);
+    return title;
+  }
+
+  function renderProgressDots(slideIndex, slideCount) {
+    if (!slideCount || slideCount <= 1) return "";
+    const dots = Array.from({ length: slideCount }, (_, index) => {
+      const active = index === slideIndex ? " active" : "";
+      return `<span class="av-progress-dot${active}" aria-hidden="true"></span>`;
+    }).join("");
+    return `<div class="av-progress-dots" aria-label="Stanza ${slideIndex + 1} of ${slideCount}">${dots}</div>`;
+  }
+
+  function renderKeyboardHints() {
+    return `
+      <footer class="av-keyboard-hints" aria-label="Keyboard shortcuts">
+        <span><kbd>←</kbd><kbd>→</kbd> Navigate</span>
+        <span><kbd>B</kbd> Black</span>
+        <span><kbd>C</kbd> Clear</span>
+        <span><kbd>L</kbd> Logo</span>
+        <span><kbd>P</kbd> Pause</span>
+        <span><kbd>Esc</kbd> Exit</span>
+        <span><kbd>F</kbd> Fullscreen</span>
+      </footer>
+    `;
+  }
+
   function renderToolbar(snapshot) {
     const paused = snapshot.paused ? "active" : "";
     return `
@@ -31,6 +62,30 @@
         <button type="button" data-command="emergency-logo" title="Logo screen (L)">Logo</button>
         <button type="button" data-command="emergency-clear" title="Return to lyrics (C)">Clear</button>
         <button type="button" class="${paused}" data-command="presenter-pause" title="Pause display (P)">${snapshot.paused ? "Resume" : "Pause"}</button>
+      </div>
+    `;
+  }
+
+  function renderLivePreview(snapshot, currentSlide) {
+    const hymnNumber = snapshot.shortTitle || "";
+    const hymnTitle = hymnTitleFromSnapshot(snapshot);
+    const bodyPreview = plain(currentSlide.body).slice(0, 280);
+    const statusBadge = snapshot.paused
+      ? `<div class="av-paused-badge">Paused</div>`
+      : snapshot.displayMode !== "lyrics"
+        ? `<div class="av-paused-badge">${escapeHtml(snapshot.displayMode)} screen</div>`
+        : "";
+
+    return `
+      <div class="av-live-frame">
+        <div class="av-live-header">
+          ${hymnNumber ? `<span class="av-live-hymn-number">${escapeHtml(hymnNumber)}</span>` : ""}
+          ${hymnTitle ? `<strong class="av-live-hymn-title">${escapeHtml(hymnTitle)}</strong>` : ""}
+        </div>
+        <div class="av-live-slide-label">${escapeHtml(currentSlide.label || "Live slide")}</div>
+        <div class="av-live-slide-body">${escapeHtml(bodyPreview)}</div>
+        ${renderProgressDots(snapshot.slideIndex, snapshot.slideCount)}
+        ${statusBadge}
       </div>
     `;
   }
@@ -79,12 +134,7 @@
         <div class="av-control-grid">
           <section class="av-live-panel">
             <div class="av-live-label">Audience screen</div>
-            <div class="av-live-frame">
-              <div class="av-live-slide-label">${escapeHtml(currentSlide.label || "Live slide")}</div>
-              <div class="av-live-slide-body">${escapeHtml(plain(currentSlide.body).slice(0, 220))}</div>
-              ${snapshot.paused ? `<div class="av-paused-badge">Paused</div>` : ""}
-              ${snapshot.displayMode !== "lyrics" ? `<div class="av-paused-badge">${escapeHtml(snapshot.displayMode)} screen</div>` : ""}
-            </div>
+            ${renderLivePreview(snapshot, currentSlide)}
             <div class="av-transport">
               <button type="button" data-command="presenter-prev" ${snapshot.canPrev ? "" : "disabled"}>‹ Previous</button>
               <button type="button" class="action-button" data-command="presenter-next" ${snapshot.canNext ? "" : "disabled"}>Next ›</button>
@@ -110,8 +160,7 @@
         </div>
 
         ${renderToolbar(snapshot)}
-
-        <p class="av-shortcuts muted">Shortcuts: ← → move · Space next · B black · W white · L logo · P pause · C clear · Esc exit · F fullscreen output</p>
+        ${renderKeyboardHints()}
       </div>
     `;
   }
