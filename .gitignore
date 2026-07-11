@@ -1,0 +1,26 @@
+node_modules/
+dist/
+release/
+out/
+build/icon.iconset/*.png.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Env / secrets - never commit signing credentials
+.env
+.env.*
+*.p12
+*.pfx
+*.provisionprofile
+
+# Logs
+npm-debug.log*
+logs/
+*.log

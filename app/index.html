@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta name="theme-color" content="#131f38">
+    <meta name="description" content="Offline hymn library, worship builder, and projector presenter for Christ in Song.">
+    <meta name="apple-mobile-web-app-title" content="Christ in Song">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Christ in Song Worship App</title>
+    <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="stylesheet" href="./styles.css?v=8">
+  </head>
+  <body>
+    <div id="launchSplash" class="launch-splash" aria-hidden="true">
+      <div class="launch-card">
+        <span class="launch-mark">CIS</span>
+        <strong>Christ in Song</strong>
+        <small>Preparing worship tools</small>
+      </div>
+    </div>
+    <div id="app" class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <div class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true">CIS</span>
+          <div>
+            <strong>Christ in Song</strong>
+            <span>VaChinoda Worship</span>
+          </div>
+        </div>
+        <nav class="nav-list" id="primaryNav"></nav>
+        <div class="sidebar-actions">
+          <button class="icon-button" type="button" data-command="emergency-black" title="Black screen">■</button>
+          <button class="icon-button" type="button" data-command="emergency-white" title="White screen">□</button>
+          <button class="icon-button" type="button" data-command="emergency-logo" title="Logo screen">CIS</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Digital worship operating system</p>
+            <h1 id="pageTitle">Home Dashboard</h1>
+          </div>
+          <div class="topbar-tools">
+            <div id="languageSwitcher" class="language-switcher" aria-label="Language packs"></div>
+            <button class="tool-button" type="button" data-command="open-presenter">Presenter</button>
+          </div>
+        </header>
+        <section id="content" class="content" aria-live="polite"></section>
+      </main>
+    </div>
+
+    <div id="modalRoot"></div>
+    <div id="presenterOverlay" class="presenter-overlay hidden" aria-hidden="true"></div>
+    <div id="emergencyOverlay" class="emergency-overlay hidden" aria-hidden="true"></div>
+
+    <script src="./data/songs.js?v=2"></script>
+    <script src="./data/extra-packs.js"></script>
+    <script src="./app.js?v=8"></script>
+    <script>
+      if ("serviceWorker" in navigator && !window.electronAPI) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./sw.js").catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

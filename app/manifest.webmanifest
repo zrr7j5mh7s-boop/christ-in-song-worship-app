@@ -1,0 +1,59 @@
+{
+  "name": "Christ in Song Worship App",
+  "short_name": "Christ in Song",
+  "description": "Offline worship builder, hymn library, and projector presenter for Christ in Song.",
+  "id": "/christ-in-song-worship-app",
+  "start_url": "./index.html?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#131f38",
+  "theme_color": "#131f38",
+  "categories": ["music", "productivity", "education"],
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "./icons/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Search Hymns",
+      "short_name": "Search",
+      "description": "Search hymns across installed languages.",
+      "url": "./index.html?view=search",
+      "icons": [{ "src": "./icons/app-icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Worship Builder",
+      "short_name": "Builder",
+      "description": "Prepare a worship order.",
+      "url": "./index.html?view=builder",
+      "icons": [{ "src": "./icons/app-icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Presenter",
+      "short_name": "Presenter",
+      "description": "Open the presenter dashboard.",
+      "url": "./index.html?view=presenter",
+      "icons": [{ "src": "./icons/app-icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

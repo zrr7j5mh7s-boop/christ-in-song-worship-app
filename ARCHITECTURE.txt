@@ -1,0 +1,36 @@
+Christ in Song Worship App Architecture
+
+Runtime
+- Renderer: app/index.html, app/app.js, app/styles.css
+- Offline-first PWA: app/manifest.webmanifest + app/sw.js cache the shell and hymn data when served through a browser or dev server
+- Desktop shell: src/main.js, src/preload.js, src/menu.js, src/updater.js, src/splash.html package the renderer into native macOS, Windows, and Linux apps
+- Local state: browser localStorage stores favorites, recents, worship builder, song service, custom templates, imported JSON language packs, and presenter timer settings
+
+Data
+- Built-in hymns live in app/data/songs.js as window.CIS_DATA
+- Optional language packs can be added through app/data/extra-packs.js or imported in Settings as JSON
+- Imported JSON packs must include code, name, status, songCount, source, and songs
+
+Core Modules
+- Hymn Index: navy/gold tile board with range browsing by active language
+- Search: current-language or all-language search with category filters and highlighted snippets
+- Worship Builder: hymn slots plus custom scripture/prayer/announcement/offering/sermon/special-music items
+- Service Templates: predefined and user-saved templates load into Worship Builder
+- Presenter: full-screen audience view with next-slide/next-item preview, emergency screens, keyboard controls, and countdown timer
+- Backup/Restore: full local worship data export and restore
+- Bulletin Export: downloads a printable HTML order of service
+- Desktop Bridge: native menu commands are forwarded safely through src/preload.js to app/app.js via window.electronAPI
+
+Keyboard Shortcuts
+- Right arrow / Page Down / Space: next presenter slide
+- Left arrow / Page Up: previous presenter slide
+- B: black screen
+- W: white screen
+- L: logo screen
+- C or Escape: clear/close presenter or emergency screen
+
+Packaging
+- package.json contains Electron Builder scripts for macOS, Windows, and Linux
+- src/main.js owns native windows, splash screen, single-instance behavior, menus, and auto-update hooks
+- scripts/notarize.js handles macOS notarization after code signing
+- See BUILD_GUIDE.md and CODE_SIGNING.md for release details
