@@ -7,10 +7,10 @@
   const desktopBridge = electronBridge || legacyDesktopBridge;
   const baseData = window.CIS_DATA || { meta: {}, languagePacks: [] };
   const extraPacks = window.CIS_EXTRA_LANGUAGE_PACKS || [];
-  let importedPacks = loadJson("importedLanguagePacks", []);
+  let importedPacks = [];
   const data = {
     meta: baseData.meta || {},
-    languagePacks: mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]),
+    languagePacks: [],
   };
   const rangeSize = 50;
   const defaultSlots = [
@@ -202,6 +202,72 @@
       });
     }
     return [...byCode.values()];
+  }
+
+  function refreshLanguageLibrary() {
+    data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
+  }
+
+  function isBuiltinLanguagePack(code) {
+    return [...(baseData.languagePacks || []), ...extraPacks].some((pack) => pack.code === code);
+  }
+
+  async function loadImportedLanguagePacks() {
+    try {
+      if (window.CISPackStore) {
+        importedPacks = await window.CISPackStore.migrateLegacyStorage();
+      } else {
+        importedPacks = loadJson("importedLanguagePacks", []);
+      }
+    } catch (_error) {
+      importedPacks = loadJson("importedLanguagePacks", []);
+    }
+    refreshLanguageLibrary();
+  }
+
+  function persistImportedLanguagePacks() {
+    saveJson("importedLanguagePacks", importedPacks);
+    if (window.CISPackStore && window.CISPackStore.savePacks) {
+      return window.CISPackStore.savePacks(importedPacks).catch(() => {});
+    }
+    return Promise.resolve();
+  }
+
+  function openLanguagePackImportModal() {
+    if (!window.CISPackImport) {
+      setNotice("Import module failed to load. Refresh the app and try again.");
+      return;
+    }
+    window.CISPackImport.openModal({
+      modalRoot: els.modalRoot,
+      escapeHtml,
+      getImportedPacks: () => importedPacks,
+      getAllPacks: () => data.languagePacks,
+      isBuiltinPack: isBuiltinLanguagePack,
+      onImported: async ({ importedPacks: nextImported, summaryItems }) => {
+        importedPacks = nextImported;
+        refreshLanguageLibrary();
+        await persistImportedLanguagePacks();
+        const primary = summaryItems && summaryItems[0];
+        if (primary && primary.code) {
+          state.languageCode = primary.code;
+          saveValue("language", state.languageCode);
+        }
+        const message = (summaryItems || []).map((item) => {
+          if (item.isNew) return `Imported ${item.added} new hymns in ${item.name}`;
+          if (item.added) return `Added ${item.added} new hymns in ${item.name}`;
+          if (item.updated) return `Updated ${item.updated} hymns in ${item.name}`;
+          return `${item.name} now has ${item.total} hymns`;
+        }).join(" · ");
+        setNotice(message || "Language pack imported.");
+        render();
+      },
+      onClose: () => {
+        if (window.CISPackImport && !window.CISPackImport.isOpen()) {
+          els.modalRoot.innerHTML = "";
+        }
+      },
+    });
   }
 
   function createPlanSlot(role, index, overrides = {}) {
@@ -584,8 +650,8 @@
 
   function renderNav() {
     els.nav.innerHTML = navItems.map((item) => `
-      <button class="nav-button ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}">
-        <span class="nav-icon" aria-hidden="true">${item.icon}</span>
+      <button class="rail-btn ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}">
+        <span class="ico" aria-hidden="true">${item.icon}</span>
         <span>${escapeHtml(item.label)}</span>
       </button>
     `).join("");
@@ -621,7 +687,7 @@
     const favoriteCount = [...favorites].filter((key) => getSongByKey(key)).length;
     const assignedCount = assignedSlots().length;
     return `
-      <section class="worship-hero">
+      <section class="hero worship-hero">
         <p class="eyebrow">Christ in Song · VaChinoda Edition</p>
         <h2>Your worship, ready to lead.</h2>
         <p>Search, build a Sabbath order of service, and present any hymn full-screen in the navy and gold worship theme.</p>
@@ -865,11 +931,11 @@
 
   function renderSections(song) {
     return `
-      <div class="section-list">
+      <div class="stanza-list">
         ${song.sections.map((section) => `
-          <article class="lyric-section ${section.kind}">
-            <strong>${escapeHtml(section.label)}</strong>
-            <p>${lyricHtml(section.body)}</p>
+          <article class="stanza ${section.kind}">
+            <div class="slabel">${escapeHtml(section.label)}</div>
+            <div class="stext">${lyricHtml(section.body)}</div>
           </article>
         `).join("")}
       </div>
@@ -1133,9 +1199,9 @@
           <h2>Language Packs</h2>
           <div class="import-zone" data-command="import-language-pack">
             <strong>Import Language Pack</strong>
-            <span>Drop a Christ in Song JSON pack here, or choose a file. PowerPoint packs can be converted by Codex and added as JSON.</span>
-            <button class="secondary-button" type="button" data-command="import-language-pack">Choose JSON Pack</button>
-            <input id="languagePackImport" class="hidden" type="file" accept=".json,application/json,.pptx">
+            <span>Add hymns in a new language from a JSON pack or PowerPoint file. Drag-and-drop, validation, and duplicate handling are built in.</span>
+            <button class="action-button" type="button" data-command="import-language-pack">Import Language Pack</button>
+            <span class="muted">Test pack: <code>app/data/sample-packs/ndebele-sample.json</code> (5 Ndebele hymns)</span>
           </div>
           <div class="language-status">
             ${data.languagePacks.map((pack) => `
@@ -1250,6 +1316,10 @@
   }
 
   function closeModal() {
+    if (window.CISPackImport && window.CISPackImport.isOpen()) {
+      window.CISPackImport.closeModal();
+      return;
+    }
     els.modalRoot.innerHTML = "";
   }
 
@@ -1541,6 +1611,18 @@
     openPresenterQueue(keys, startPosition === -1 ? 0 : startPosition);
   }
 
+  function togglePresenterFullscreen() {
+    const target = els.presenterOverlay;
+    if (!target || !state.presenter.open) return;
+    if (document.fullscreenElement === target && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+      return;
+    }
+    if (target.requestFullscreen) {
+      target.requestFullscreen().catch(() => {});
+    }
+  }
+
   function renderPresenterOverlay() {
     if (!state.presenter.open) {
       els.presenterOverlay.className = "presenter-overlay hidden";
@@ -1572,6 +1654,13 @@
         : "End of queue";
     const nextPreview = nextSlide ? nextSlide.body : nextItem && nextItem.slides[0] ? nextItem.slides[0].body : "";
     const progress = item.slides.map((_, dotIndex) => `<span class="presenter-dot ${dotIndex === index ? "on" : ""}"></span>`).join("");
+    const presenterFont = Math.round(58 * state.fontScale);
+    const canPrev = index > 0
+      || (state.presenter.queueIndex !== null && state.presenter.queueIndex > 0)
+      || (typeof state.presenter.planIndex === "number" && previousAssignedSlot(state.presenter.planIndex));
+    const canNext = index < item.slides.length - 1
+      || (state.presenter.queueIndex !== null && state.presenter.queueKeys[state.presenter.queueIndex + 1])
+      || nextAssignedSlot(state.presenter.planIndex);
     els.presenterOverlay.className = "presenter-overlay";
     els.presenterOverlay.setAttribute("aria-hidden", "false");
     els.presenterOverlay.innerHTML = `
@@ -1579,7 +1668,11 @@
         <div><strong>${escapeHtml(item.shortTitle)}</strong> · ${escapeHtml(item.title.replace(item.shortTitle, "").replace(/^ · /, ""))}</div>
         <div class="stage-count">${index + 1} of ${item.slides.length}</div>
       </div>
-      <div class="presenter-stage">${lyricHtml(slide.body)}</div>
+      <div class="presenter-body">
+        <button class="presenter-arrow" type="button" data-command="presenter-prev" ${canPrev ? "" : "disabled"} aria-label="Previous slide">‹</button>
+        <div class="presenter-stage" style="--presenter-font: ${presenterFont}px">${lyricHtml(slide.body)}</div>
+        <button class="presenter-arrow" type="button" data-command="presenter-next" ${canNext ? "" : "disabled"} aria-label="Next slide">›</button>
+      </div>
       <div class="presenter-bottom">
         <div>
           <span class="stage-label">${escapeHtml(slide.label)}</span>
@@ -1590,13 +1683,14 @@
         <div class="presenter-controls">
           <button type="button" data-command="presenter-prev">‹ Prev</button>
           <button type="button" data-command="presenter-next">Next ›</button>
+          <button type="button" data-command="presenter-fullscreen">Fullscreen</button>
           <button type="button" data-command="emergency-black">Black</button>
           <button type="button" data-command="emergency-white">White</button>
           <button type="button" data-command="emergency-logo">Logo</button>
-          <button type="button" data-command="close-presenter">Clear</button>
           <button type="button" data-command="close-presenter">Close</button>
         </div>
       </div>
+      <div class="presenter-hint">Use ← → or Space · F fullscreen · B / W / L blank screen · H home · Esc exit</div>
     `;
   }
 
@@ -1670,7 +1764,7 @@
 
   function closePresenter() {
     state.presenter.open = false;
-    if (document.fullscreenElement && document.exitFullscreen) {
+    if (document.fullscreenElement === els.presenterOverlay && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     }
     render();
@@ -1838,46 +1932,17 @@
         if (Array.isArray(payload.customTemplates)) customTemplates = payload.customTemplates;
         if (Array.isArray(payload.importedLanguagePacks)) {
           importedPacks = payload.importedLanguagePacks;
-          data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
+          refreshLanguageLibrary();
         }
         saveJson("worshipPlan", worshipPlan);
         saveJson("songService", songService);
         saveJson("favorites", [...favorites]);
         saveJson("recents", recents);
         saveJson("customTemplates", customTemplates);
-        saveJson("importedLanguagePacks", importedPacks);
-        render();
+        persistImportedLanguagePacks().finally(() => render());
+        return;
       } catch (error) {
         window.alert("That backup file could not be restored.");
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  function importLanguagePackFromFile(file) {
-    if (!file) return;
-    if (/\.pptx$/i.test(file.name)) {
-      window.alert("PowerPoint language packs need to be converted to Christ in Song JSON before browser import. Send the PPTX through Codex and import the generated JSON pack here.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const payload = JSON.parse(String(reader.result || "{}"));
-        const packs = Array.isArray(payload.languagePacks) ? payload.languagePacks : Array.isArray(payload.songs) ? [payload] : [];
-        const valid = packs.filter((pack) => pack && pack.code && pack.name && Array.isArray(pack.songs));
-        if (!valid.length) throw new Error("No valid packs");
-        importedPacks = mergeLanguagePacks([...importedPacks, ...valid.map((pack) => ({
-          ...pack,
-          status: "ready",
-          songCount: pack.songs.length,
-          source: pack.source || file.name,
-        }))]);
-        data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
-        saveJson("importedLanguagePacks", importedPacks);
-        render();
-      } catch (error) {
-        window.alert("That language pack JSON could not be imported.");
       }
     };
     reader.readAsText(file);
@@ -1888,7 +1953,7 @@
     recents = [];
     customTemplates = [];
     importedPacks = [];
-    data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks]);
+    refreshLanguageLibrary();
     worshipPlan = createDefaultPlan();
     songService = createDefaultSongService();
     saveJson("favorites", []);
@@ -1897,7 +1962,7 @@
     saveJson("importedLanguagePacks", []);
     saveJson("worshipPlan", worshipPlan);
     saveJson("songService", songService);
-    render();
+    persistImportedLanguagePacks().finally(() => render());
   }
 
   function persistTimer() {
@@ -2054,30 +2119,6 @@
       restoreBackupFromFile(target.files && target.files[0]);
       target.value = "";
     }
-    if (target.id === "languagePackImport") {
-      importLanguagePackFromFile(target.files && target.files[0]);
-      target.value = "";
-    }
-  });
-
-  document.addEventListener("dragover", (event) => {
-    const zone = event.target.closest(".import-zone");
-    if (!zone) return;
-    event.preventDefault();
-    zone.classList.add("dragging");
-  });
-
-  document.addEventListener("dragleave", (event) => {
-    const zone = event.target.closest(".import-zone");
-    if (zone) zone.classList.remove("dragging");
-  });
-
-  document.addEventListener("drop", (event) => {
-    const zone = event.target.closest(".import-zone");
-    if (!zone) return;
-    event.preventDefault();
-    zone.classList.remove("dragging");
-    importLanguagePackFromFile(event.dataTransfer.files && event.dataTransfer.files[0]);
   });
 
   document.addEventListener("keydown", (event) => {
@@ -2095,6 +2136,8 @@
         presenterMove(-1);
       }
       if (event.key === "Escape") closePresenter();
+      if (event.key.toLowerCase() === "f") togglePresenterFullscreen();
+      if (event.key.toLowerCase() === "h") closePresenter();
       if (event.key.toLowerCase() === "b") setEmergency("black");
       if (event.key.toLowerCase() === "w") setEmergency("white");
       if (event.key.toLowerCase() === "l") setEmergency("logo");
@@ -2208,11 +2251,7 @@
       if (input) input.click();
       return;
     }
-    if (command === "import-language-pack") {
-      const input = document.getElementById("languagePackImport");
-      if (input) input.click();
-      return;
-    }
+    if (command === "import-language-pack") return openLanguagePackImportModal();
     if (command === "import-plan") {
       const input = document.getElementById("worshipPlanImport");
       if (input) input.click();
@@ -2276,6 +2315,7 @@
     if (command === "present-current" || command === "open-presenter") return presentCurrent();
     if (command === "presenter-next") return presenterMove(1);
     if (command === "presenter-prev") return presenterMove(-1);
+    if (command === "presenter-fullscreen") return togglePresenterFullscreen();
     if (command === "close-presenter") return closePresenter();
     if (command === "emergency-black") return setEmergency("black");
     if (command === "emergency-white") return setEmergency("white");
@@ -2340,7 +2380,12 @@
 
   setupDesktopBridge();
 
-  render();
+  loadImportedLanguagePacks().finally(() => {
+    render();
+    if (!data.languagePacks.length) {
+      setNotice("Hymn library failed to load. Check app/data/songs.js.");
+    }
+  });
   setInterval(() => {
     if (state.timerRunning && timerRemaining() <= 0) {
       state.timerRunning = false;
