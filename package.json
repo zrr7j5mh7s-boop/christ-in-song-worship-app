@@ -1,7 +1,7 @@
 {
   "name": "christ-in-song-worship-app",
   "version": "1.0.0",
-  "description": "Christ in Song Worship App — offline hymn library, worship builder, and full-screen presenter for Sabbath services.",
+  "description": "Christ in Song Worship App \u2014 offline hymn library, worship builder, and full-screen presenter for Sabbath services.",
   "author": {
     "name": "VaChinoda Worship"
   },
@@ -20,7 +20,8 @@
     "dist:win": "electron-builder --win --publish=never",
     "dist:linux": "electron-builder --linux --publish=never",
     "dist:all": "electron-builder --mac --win --linux --publish=never",
-    "release": "electron-builder --publish=always"
+    "release": "electron-builder --publish=always",
+    "test:obs-settings": "node scripts/test-obs-settings.js"
   },
   "devDependencies": {
     "@electron/notarize": "^2.5.0",
@@ -29,12 +30,13 @@
   },
   "dependencies": {
     "electron-log": "^5.1.7",
-    "electron-updater": "^6.3.4"
+    "electron-updater": "^6.3.4",
+    "obs-websocket-js": "^5.0.8"
   },
   "build": {
     "appId": "com.christinsong.worshipapp",
     "productName": "Christ in Song Worship App",
-    "copyright": "Copyright © 2026 VaChinoda Worship",
+    "copyright": "Copyright \u00a9 2026 VaChinoda Worship",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "asar": true,
     "files": [
@@ -57,8 +59,20 @@
       "category": "public.app-category.music",
       "icon": "build/icon.icns",
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] },
-        { "target": "zip", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
@@ -68,13 +82,26 @@
     "afterSign": "scripts/notarize.js",
     "dmg": {
       "background": null,
-      "window": { "width": 540, "height": 380 }
+      "window": {
+        "width": 540,
+        "height": 380
+      }
     },
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "publisherName": "Christ in Song Worship App"
     },
@@ -90,9 +117,24 @@
       "icon": "build/icon.png",
       "category": "Audio",
       "target": [
-        { "target": "AppImage", "arch": ["x64"] },
-        { "target": "deb", "arch": ["x64"] },
-        { "target": "rpm", "arch": ["x64"] }
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "desktop": {
         "Name": "Christ in Song Worship App",

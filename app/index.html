@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://127.0.0.1:* wss://127.0.0.1:* ws://localhost:* wss://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="theme-color" content="#131f38">
     <meta name="description" content="Offline hymn library, worship builder, and projector presenter for Christ in Song.">
     <meta name="apple-mobile-web-app-title" content="Christ in Song">
@@ -12,7 +12,7 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=8">
+    <link rel="stylesheet" href="./styles.css?v=9">
   </head>
   <body>
     <div id="launchSplash" class="launch-splash" aria-hidden="true">
@@ -46,6 +46,7 @@
             <h1 id="pageTitle">Home Dashboard</h1>
           </div>
           <div class="topbar-tools">
+            <div id="obsStatusRoot" class="obs-status-root" aria-live="polite"></div>
             <div id="languageSwitcher" class="language-switcher" aria-label="Language packs"></div>
             <button class="tool-button" type="button" data-command="open-presenter">Presenter</button>
           </div>
@@ -60,7 +61,15 @@
 
     <script src="./data/songs.js?v=2"></script>
     <script src="./data/extra-packs.js"></script>
-    <script src="./app.js?v=8"></script>
+
+    <script src="./obs/obs-constants.js?v=1"></script>
+    <script src="./obs/obs-settings-store.js?v=1"></script>
+    <script src="./obs/obs-event-service.js?v=1"></script>
+    <script src="./obs/obs-ws-client.js?v=1"></script>
+    <script src="./obs/obs-connection-service.js?v=1"></script>
+    <script src="./obs/obs-settings-ui.js?v=1"></script>
+    <script src="./obs/obs-scene-service.js?v=1"></script>
+    <script src="./app.js?v=9"></script>
     <script>
       if ("serviceWorker" in navigator && !window.electronAPI) {
         window.addEventListener("load", () => {

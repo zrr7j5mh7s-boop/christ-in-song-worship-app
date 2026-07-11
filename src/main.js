@@ -21,6 +21,7 @@ log.initialize();
 
 const { buildMenu } = require('./menu');
 const { setupAutoUpdater } = require('./updater');
+const obsManager = require('./obs/obs-manager');
 
 // ---------------------------------------------------------------------
 // Single instance lock - only one copy of the app should ever run.
@@ -169,12 +170,15 @@ ipcMain.handle('updates:check', () => {
   return { started: true };
 });
 
+obsManager.registerIpc(ipcMain);
+
 // ---------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------
 app.whenReady().then(() => {
   splashWindow = createSplashWindow();
   mainWindow = createMainWindow();
+  obsManager.setMainWindow(mainWindow);
 
   updater = setupAutoUpdater(mainWindow);
 
@@ -191,6 +195,7 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createMainWindow();
+      obsManager.setMainWindow(mainWindow);
     }
   });
 });
