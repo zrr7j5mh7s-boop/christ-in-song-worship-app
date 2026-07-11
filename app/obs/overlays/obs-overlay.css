@@ -1,0 +1,277 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: transparent;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: #f4f7ff;
+}
+
+.overlay-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.overlay-root.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.overlay-root.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.overlay-root.no-motion .overlay-panel,
+.overlay-root.no-motion .overlay-text {
+  transition: none !important;
+  animation: none !important;
+}
+
+.safe-area {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  top: 5%;
+  bottom: 5%;
+}
+
+/* Scripture */
+.scripture-panel {
+  position: absolute;
+  max-width: 88%;
+  padding: 1.1rem 1.4rem;
+  border-radius: 12px;
+  background: rgba(8, 16, 32, 0.72);
+  backdrop-filter: blur(6px);
+  line-height: 1.35;
+}
+
+.scripture-panel.no-bg {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.scripture-panel.layout-lower_third {
+  left: 6%;
+  right: 6%;
+  bottom: 8%;
+}
+
+.scripture-panel.layout-upper_third {
+  left: 6%;
+  right: 6%;
+  top: 8%;
+}
+
+.scripture-panel.layout-bottom_center {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 8%;
+  text-align: center;
+}
+
+.scripture-panel.layout-full_width_lower {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: none;
+  border-radius: 0;
+  padding: 1.4rem 6%;
+}
+
+.scripture-panel.layout-left_aligned {
+  left: 6%;
+  bottom: 8%;
+  text-align: left;
+}
+
+.scripture-panel.layout-right_aligned {
+  right: 6%;
+  bottom: 8%;
+  text-align: right;
+}
+
+.scripture-panel.layout-fullscreen {
+  inset: 5%;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+.scripture-ref {
+  font-size: 0.55em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin-bottom: 0.35em;
+}
+
+.scripture-text {
+  font-weight: 600;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+.scripture-translation {
+  margin-top: 0.5em;
+  font-size: 0.45em;
+  opacity: 0.7;
+}
+
+/* Hymn */
+.hymn-panel {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.hymn-panel.layout-lower_third {
+  bottom: 8%;
+  text-align: center;
+}
+
+.hymn-panel.layout-fullscreen {
+  inset: 8%;
+  justify-content: center;
+  text-align: center;
+}
+
+.hymn-meta {
+  font-size: 0.5em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.hymn-title {
+  font-size: 0.65em;
+  font-weight: 700;
+}
+
+.hymn-stanza-label {
+  font-size: 0.45em;
+  opacity: 0.75;
+}
+
+.hymn-lines {
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: pre-line;
+}
+
+.hymn-panel.with-bg {
+  padding: 1rem 1.2rem;
+  border-radius: 12px;
+  background: rgba(8, 16, 32, 0.65);
+}
+
+/* Lower third */
+.lower-third-panel {
+  position: absolute;
+  left: 6%;
+  bottom: 8%;
+  min-width: 28%;
+  max-width: 70%;
+  padding: 0.9rem 1.2rem;
+  border-left: 4px solid #5b8cff;
+  background: linear-gradient(90deg, rgba(8, 16, 32, 0.88), rgba(8, 16, 32, 0.55));
+  border-radius: 0 10px 10px 0;
+}
+
+.lower-third-primary {
+  font-size: 1em;
+  font-weight: 700;
+}
+
+.lower-third-secondary {
+  margin-top: 0.25em;
+  font-size: 0.55em;
+  opacity: 0.85;
+}
+
+/* Sermon title */
+.sermon-title-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8%;
+}
+
+.sermon-title-text {
+  font-size: 2.4em;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+}
+
+.sermon-subtitle-text {
+  margin-top: 0.4em;
+  font-size: 1em;
+  opacity: 0.85;
+}
+
+/* Announcement */
+.announcement-panel {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 10%;
+  padding: 1.2rem 1.4rem;
+  border-radius: 14px;
+  background: rgba(20, 32, 64, 0.82);
+  text-align: center;
+}
+
+.announcement-title {
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.8;
+}
+
+.announcement-body {
+  margin-top: 0.4em;
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: pre-line;
+}
+
+/* Transitions */
+.fade-in {
+  animation: cis-fade-in 280ms ease forwards;
+}
+
+.slide-up-in {
+  animation: cis-slide-up 320ms ease forwards;
+}
+
+@keyframes cis-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes cis-slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}

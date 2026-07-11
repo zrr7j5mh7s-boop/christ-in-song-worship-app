@@ -13,8 +13,9 @@
 //   hidden in the background -> once its content is actually ready to
 //   paint ('ready-to-show'), we swap: show main window, destroy splash.
 
+const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, screen } = require('electron');
 const log = require('electron-log/main');
 
 log.initialize();
@@ -38,9 +39,16 @@ if (!gotSingleInstanceLock) {
 
 let mainWindow = null;
 let splashWindow = null;
+let projectorWindow = null;
 let updater = null;
 
 const isDev = process.argv.includes('--dev') || !app.isPackaged;
+
+function resolveIndexHtml() {
+  const prodIndex = path.join(__dirname, '..', 'app', 'index.prod.html');
+  if (app.isPackaged && fs.existsSync(prodIndex)) return 'index.prod.html';
+  return 'index.html';
+}
 
 app.on('second-instance', () => {
   if (mainWindow) {
@@ -101,7 +109,7 @@ function createMainWindow() {
     },
   });
 
-  win.loadFile(path.join(__dirname, '..', 'app', 'index.html'));
+  win.loadFile(path.join(__dirname, '..', 'app', resolveIndexHtml()));
 
   win.once('ready-to-show', () => {
     win.show();
@@ -170,7 +178,83 @@ ipcMain.handle('updates:check', () => {
   return { started: true };
 });
 
+function getProjectorDisplay() {
+  const displays = screen.getAllDisplays();
+  const primary = screen.getPrimaryDisplay();
+  return displays.find((display) => display.id !== primary.id) || primary;
+}
+
+function createProjectorWindow() {
+  if (projectorWindow && !projectorWindow.isDestroyed()) {
+    projectorWindow.focus();
+    return projectorWindow;
+  }
+
+  const targetDisplay = getProjectorDisplay();
+  const { x, y, width, height } = targetDisplay.bounds;
+  const hasExternalDisplay = screen.getAllDisplays().length > 1;
+
+  const win = new BrowserWindow({
+    x,
+    y,
+    width,
+    height,
+    fullscreen: hasExternalDisplay,
+    frame: !hasExternalDisplay,
+    backgroundColor: '#0A1020',
+    title: 'Christ in Song · Projector',
+    autoHideMenuBar: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+    },
+  });
+
+  win.loadFile(path.join(__dirname, '..', 'app', 'presenter-screen.html'));
+  win.once('ready-to-show', () => {
+    win.show();
+    if (hasExternalDisplay) {
+      win.setFullScreen(true);
+    }
+  });
+  win.on('closed', () => {
+    projectorWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('presenter-closed');
+    }
+  });
+  projectorWindow = win;
+  return win;
+}
+
+ipcMain.handle('presenter:open', () => {
+  createProjectorWindow();
+  return { opened: true, dualDisplay: screen.getAllDisplays().length > 1 };
+});
+
+ipcMain.handle('presenter:close', () => {
+  if (projectorWindow && !projectorWindow.isDestroyed()) {
+    projectorWindow.close();
+  }
+  projectorWindow = null;
+  return { closed: true };
+});
+
+ipcMain.handle('presenter:publish', (_event, payload) => {
+  if (projectorWindow && !projectorWindow.isDestroyed()) {
+    projectorWindow.webContents.send('presenter-state', payload);
+  }
+  return { delivered: true };
+});
+
 obsManager.registerIpc(ipcMain);
+
+const obsHttpServer = require('./obs/obs-http-server');
+obsHttpServer.registerIpc(ipcMain);
 
 // ---------------------------------------------------------------------
 // App lifecycle
@@ -179,6 +263,9 @@ app.whenReady().then(() => {
   splashWindow = createSplashWindow();
   mainWindow = createMainWindow();
   obsManager.setMainWindow(mainWindow);
+  obsHttpServer.start({ port: 47823 }).catch((err) => {
+    log.warn('[obs-http] Could not start browser source server:', err.message);
+  });
 
   updater = setupAutoUpdater(mainWindow);
 
@@ -195,7 +282,6 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createMainWindow();
-      obsManager.setMainWindow(mainWindow);
     }
   });
 });

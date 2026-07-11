@@ -103,14 +103,21 @@
       });
     }
 
-    async function connect(url, password) {
+    async function connect(url, password, connectionTimeoutMs) {
       closeSocket();
       lastPassword = String(password || "");
+      const timeoutMs = Math.max(3000, Number(connectionTimeoutMs) || 10000);
 
       return new Promise((resolve, reject) => {
+        const connectTimer = window.setTimeout(() => {
+          closeSocket();
+          reject(new Error(`OBS connection timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+
         socket = new WebSocket(url);
         socket.onmessage = handleMessage;
         socket.onerror = () => {
+          window.clearTimeout(connectTimer);
           closeSocket();
           reject(new Error("OBS WebSocket connection failed"));
         };
@@ -119,21 +126,32 @@
         };
         socket.onopen = async () => {
           try {
-            const helloMessage = await waitForMessage((message) => message.op === OPCODE.HELLO);
+            const helloMessage = await waitForMessage((message) => message.op === OPCODE.HELLO, timeoutMs);
             const identifyPayload = {
               rpcVersion: 1,
               eventSubscriptions: 0,
             };
-            if (helloMessage.d?.authentication && lastPassword) {
+            const requiresAuth = Boolean(helloMessage.d?.authentication);
+            if (requiresAuth) {
+              if (!lastPassword) {
+                throw new Error("OBS authentication failed: password required");
+              }
               identifyPayload.authentication = await buildAuthString(lastPassword, helloMessage.d.authentication);
             }
             socket.send(JSON.stringify({ op: OPCODE.IDENTIFY, d: identifyPayload }));
-            const identifiedMessage = await waitForMessage((message) => message.op === OPCODE.IDENTIFIED);
+            const identifiedMessage = await waitForMessage((message) => message.op === OPCODE.IDENTIFIED, timeoutMs);
             identified = true;
+            window.clearTimeout(connectTimer);
             resolve(identifiedMessage.d || {});
           } catch (error) {
+            window.clearTimeout(connectTimer);
             closeSocket();
-            reject(error);
+            const message = error && error.message ? error.message : "OBS authentication failed";
+            if (/password required|authentication/i.test(message)) {
+              reject(new Error(`OBS authentication failed: ${message}`));
+            } else {
+              reject(error);
+            }
           }
         };
       });

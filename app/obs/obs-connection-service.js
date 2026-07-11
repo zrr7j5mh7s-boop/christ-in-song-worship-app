@@ -5,11 +5,16 @@
     ? window.CISObsConstants.CONNECTION_STATES
     : {
       DISABLED: "disabled",
+      DISCONNECTED: "disconnected",
       CONNECTING: "connecting",
+      AUTHENTICATING: "authenticating",
       CONNECTED: "connected",
       DISCONNECTING: "disconnecting",
-      DISCONNECTED: "disconnected",
       RECONNECTING: "reconnecting",
+      AUTHENTICATION_FAILED: "authentication_failed",
+      CONNECTION_FAILED: "connection_failed",
+      OBS_UNAVAILABLE: "obs_unavailable",
+      VERSION_UNSUPPORTED: "version_unsupported",
       ERROR: "error",
     };
 
@@ -22,11 +27,14 @@
     enabled: false,
     host: "127.0.0.1",
     port: 4455,
+    autoConnectOnStart: false,
     autoReconnect: true,
     reconnectIntervalMs: 5000,
+    connectionTimeoutMs: 10000,
     hasPassword: false,
     lastError: "",
     obsInfo: null,
+    obsRuntime: null,
     connected: false,
     runtime: electronBridge ? "electron" : "browser",
   };
@@ -35,6 +43,37 @@
   let reconnectTimer = null;
   let manualDisconnect = false;
   let initialized = false;
+
+  function createDefaultRuntime() {
+    return {
+      streaming: false,
+      recording: false,
+      virtualCamera: false,
+      studioMode: false,
+      programScene: "",
+      previewScene: "",
+      currentProfile: "",
+      currentSceneCollection: "",
+    };
+  }
+
+  function classifyBrowserError(error) {
+    const message = error && error.message ? error.message : "OBS connection failed";
+    const lower = message.toLowerCase();
+    if (lower.includes("authentication") || lower.includes("auth failed") || lower.includes("identify")) {
+      return { state: STATES.AUTHENTICATION_FAILED, message };
+    }
+    if (lower.includes("version") || lower.includes("rpc")) {
+      return { state: STATES.VERSION_UNSUPPORTED, message };
+    }
+    if (lower.includes("websocket connection failed") || lower.includes("failed to connect")) {
+      return { state: STATES.OBS_UNAVAILABLE, message };
+    }
+    if (lower.includes("timeout") || lower.includes("timed out")) {
+      return { state: STATES.CONNECTION_FAILED, message };
+    }
+    return { state: STATES.CONNECTION_FAILED, message };
+  }
 
   function applyStatus(next) {
     status = { ...status, ...next };
@@ -76,6 +115,40 @@
     }, settings.reconnectIntervalMs || 5000);
   }
 
+  async function syncBrowserRuntime() {
+    if (!browserClient || !browserClient.isConnected()) return createDefaultRuntime();
+    const safeCall = async (requestType) => {
+      try {
+        return await browserClient.call(requestType);
+      } catch (error) {
+        return null;
+      }
+    };
+    const stream = await safeCall("GetStreamStatus");
+    const record = await safeCall("GetRecordStatus");
+    const vcam = await safeCall("GetVirtualCamStatus");
+    const studio = await safeCall("GetStudioModeEnabled");
+    const program = await safeCall("GetCurrentProgramScene");
+    const preview = await safeCall("GetCurrentPreviewScene");
+    const profile = await safeCall("GetCurrentProfile");
+    const collection = await safeCall("GetCurrentSceneCollection");
+    const runtime = {
+      streaming: Boolean(stream?.outputActive),
+      recording: Boolean(record?.outputActive),
+      virtualCamera: Boolean(vcam?.outputActive),
+      studioMode: Boolean(studio?.studioModeEnabled),
+      programScene: program?.currentProgramSceneName || "",
+      previewScene: preview?.currentPreviewSceneName || "",
+      currentProfile: profile?.currentProfileName || "",
+      currentSceneCollection: collection?.currentSceneCollectionName || "",
+    };
+    applyStatus({ obsRuntime: runtime });
+    if (window.CISObsEventService) {
+      window.CISObsEventService.emit("runtimeSynced", runtime, status);
+    }
+    return runtime;
+  }
+
   async function refreshElectronStatus() {
     if (!electronBridge || !electronBridge.getStatus) return status;
     const next = await electronBridge.getStatus();
@@ -99,7 +172,11 @@
       });
       if (result && result.status) applyStatus(result.status);
       if (result && !result.ok && result.message) {
-        applyStatus({ state: STATES.ERROR, lastError: result.message, connected: false });
+        applyStatus({
+          state: result.state || STATES.ERROR,
+          lastError: result.message,
+          connected: false,
+        });
       }
       return status;
     }
@@ -130,7 +207,7 @@
       if (result && result.status) applyStatus(result.status);
       if (result && !result.ok) {
         applyStatus({
-          state: STATES.ERROR,
+          state: result.state || STATES.ERROR,
           lastError: result.message || "OBS connection failed",
           connected: false,
         });
@@ -150,34 +227,47 @@
       return status;
     }
 
-    applyStatus({ state: STATES.CONNECTING, ...settings, hasPassword: store.hasLocalPasswordMarker() });
+    applyStatus({
+      state: STATES.CONNECTING,
+      ...settings,
+      hasPassword: store.hasLocalPasswordMarker(),
+    });
 
     if (!browserClient) browserClient = window.CISObsWsClient.createClient();
 
     try {
       const password = await store.loadLocalPassword();
-      const identified = await browserClient.connect(buildUrl(settings), password);
+      applyStatus({ state: STATES.AUTHENTICATING });
+      const identified = await browserClient.connect(
+        buildUrl(settings),
+        password,
+        settings.connectionTimeoutMs,
+      );
       const version = await browserClient.call("GetVersion");
+      const obsInfo = {
+        negotiatedRpcVersion: identified?.negotiatedRpcVersion,
+        obsWebSocketVersion: version?.obsWebSocketVersion || identified?.obsWebSocketVersion,
+        obsVersion: version?.obsVersion,
+        platform: version?.platform,
+      };
       applyStatus({
         state: STATES.CONNECTED,
         connected: true,
         lastError: "",
-        obsInfo: {
-          negotiatedRpcVersion: identified?.negotiatedRpcVersion,
-          obsWebSocketVersion: version?.obsWebSocketVersion || identified?.obsWebSocketVersion,
-          obsVersion: version?.obsVersion,
-          platform: version?.platform,
-        },
+        obsInfo,
+        obsRuntime: createDefaultRuntime(),
       });
+      await syncBrowserRuntime();
       if (window.CISObsEventService) {
         window.CISObsEventService.emit("connectionOpened", null, status);
-        window.CISObsEventService.emit("version", status.obsInfo, status);
+        window.CISObsEventService.emit("version", obsInfo, status);
       }
     } catch (error) {
+      const classified = classifyBrowserError(error);
       applyStatus({
-        state: STATES.ERROR,
+        state: classified.state,
         connected: false,
-        lastError: error && error.message ? error.message : "OBS connection failed",
+        lastError: classified.message,
       });
       scheduleBrowserReconnect();
     }
@@ -202,6 +292,7 @@
     applyStatus({
       state: settings.enabled ? STATES.DISCONNECTED : STATES.DISABLED,
       connected: false,
+      obsRuntime: createDefaultRuntime(),
     });
     return status;
   }
@@ -212,6 +303,7 @@
     const payload = {
       host: overrides?.host || base.host,
       port: overrides?.port || base.port,
+      connectionTimeoutMs: overrides?.connectionTimeoutMs || base.connectionTimeoutMs,
     };
 
     if (electronBridge && electronBridge.testConnection) {
@@ -230,7 +322,7 @@
       const password = overrides && Object.prototype.hasOwnProperty.call(overrides, "password")
         ? String(overrides.password || "")
         : (store ? await store.loadLocalPassword() : "");
-      await probe.connect(buildUrl(payload), password);
+      await probe.connect(buildUrl(payload), password, payload.connectionTimeoutMs);
       const version = await probe.call("GetVersion");
       await probe.disconnect();
       return {
@@ -241,9 +333,11 @@
       };
     } catch (error) {
       await probe.disconnect();
+      const classified = classifyBrowserError(error);
       return {
         ok: false,
-        message: error && error.message ? error.message : "OBS test connection failed",
+        message: classified.message,
+        state: classified.state,
       };
     }
   }
@@ -289,6 +383,7 @@
       state: settings.enabled ? STATES.DISCONNECTED : STATES.DISABLED,
       hasPassword: store.hasLocalPasswordMarker(),
       connected: false,
+      obsRuntime: createDefaultRuntime(),
     });
 
     if (electronBridge) {
@@ -302,13 +397,12 @@
         }
       }
       await refreshElectronStatus();
-      if (settings.enabled) {
-        await saveSettings(settings, { connect: true });
-      }
+      const shouldConnect = settings.enabled && settings.autoConnectOnStart;
+      await saveSettings(settings, { connect: shouldConnect });
       return status;
     }
 
-    if (settings.enabled) {
+    if (settings.enabled && settings.autoConnectOnStart) {
       await connect();
     }
     return status;
@@ -323,5 +417,6 @@
     testConnection,
     call,
     refreshElectronStatus,
+    syncBrowserRuntime,
   };
 })();

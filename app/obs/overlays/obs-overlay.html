@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>CIS OBS Overlay</title>
+    <link rel="stylesheet" href="/obs/assets/obs-overlay.css">
+  </head>
+  <body data-route="__OBS_ROUTE__">
+    <div id="overlayRoot" class="overlay-root hidden" aria-live="polite"></div>
+    <script>
+      window.CIS_OBS_ROUTE = "__OBS_ROUTE__";
+      window.CIS_OBS_PORT = __OBS_PORT__;
+    </script>
+    <script src="/obs/assets/obs-overlay-client.js"></script>
+  </body>
+</html>
