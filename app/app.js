@@ -112,6 +112,7 @@
   let customTemplates = [];
   let templateEditorDraft = null;
   let songTagMap = {};
+  let autoBackupList = [];
   let worshipPlan = normalizeWorshipPlan(loadJson("worshipPlan", null));
   let songService = normalizeSongService(loadJson("songService", null));
   state.activeSlot = Math.min(state.activeSlot, worshipPlan.length - 1);
@@ -480,6 +481,210 @@
     return Promise.resolve();
   }
 
+  async function loadAutoBackupList() {
+    try {
+      if (window.CISBackupStore) {
+        autoBackupList = await window.CISBackupStore.listAutoBackups();
+      } else {
+        autoBackupList = [];
+      }
+    } catch (_error) {
+      autoBackupList = [];
+    }
+  }
+
+  function mergeImportedPacks(incoming, mode) {
+    const packs = Array.isArray(incoming) ? incoming : [];
+    if (mode === "replace") return packs.slice();
+    const byCode = new Map(importedPacks.map((pack) => [pack.code, pack]));
+    packs.forEach((pack) => {
+      const existing = byCode.get(pack.code);
+      if (!existing) {
+        byCode.set(pack.code, pack);
+        return;
+      }
+      if (mode !== "merge") return;
+      const songsByNumber = new Map((existing.songs || []).map((song) => [song.number, song]));
+      (pack.songs || []).forEach((song) => songsByNumber.set(song.number, song));
+      const mergedSongs = [...songsByNumber.values()].sort((a, b) => Number(a.number) - Number(b.number));
+      byCode.set(pack.code, {
+        ...existing,
+        ...pack,
+        songs: mergedSongs,
+        songCount: mergedSongs.length,
+      });
+    });
+    return [...byCode.values()];
+  }
+
+  function mergeTemplates(incoming, mode) {
+    const templates = Array.isArray(incoming) ? incoming : [];
+    if (mode === "replace") return templates.slice();
+    const byId = new Map(customTemplates.map((template) => [template.id, template]));
+    templates.forEach((template) => {
+      if (template && template.id) byId.set(template.id, template);
+    });
+    return [...byId.values()];
+  }
+
+  function mergeTagMap(incoming, mode) {
+    const next = mode === "replace" ? {} : { ...songTagMap };
+    Object.entries(incoming || {}).forEach(([key, tags]) => {
+      const existing = next[key] || [];
+      const merged = mode === "merge"
+        ? (window.CISTagCatalog ? window.CISTagCatalog.normalizeTags([...existing, ...(tags || [])]) : [...new Set([...existing, ...(tags || [])])])
+        : (window.CISTagCatalog ? window.CISTagCatalog.normalizeTags(tags || []) : (tags || []));
+      if (merged.length) next[key] = merged;
+    });
+    return next;
+  }
+
+  function setupBackupRestore() {
+    if (!window.CISBackupRestore) return;
+    window.CISBackupRestore.configure({
+      escapeHtml,
+      modalRoot: els.modalRoot,
+      setNotice,
+      render,
+      gatherSnapshot: async () => ({
+        worshipPlan,
+        songService,
+        favorites: [...favorites],
+        recents,
+        customTemplates,
+        importedLanguagePacks: importedPacks,
+        songTags: songTagMap,
+        tagFilters: state.tagFilters,
+        languageCode: state.languageCode,
+        settings: {
+          displayMode: state.displayMode,
+          fontScale: state.fontScale,
+          timerSeconds: state.timerSeconds,
+        },
+        ui: {
+          searchScope: state.searchScope,
+          category: state.category,
+          indexRange: state.indexRange,
+        },
+      }),
+      describeCurrentData: async () => ({
+        components: {
+          "worship-plans": `${assignedSlots().length} builder items · ${assignedSongServiceSlots().length} opening songs`,
+          favorites: `${favorites.size} favorites · ${recents.length} recent hymns`,
+          "language-packs": `${importedPacks.length} imported packs`,
+          templates: `${customTemplates.length} templates`,
+          tags: `${Object.keys(songTagMap).length} tagged hymns`,
+          settings: "current preferences",
+        },
+      }),
+      applyRestore: async (parsed, conflictMap) => {
+        const lines = [];
+        const data = parsed.data || {};
+        const mode = (id) => conflictMap[id] || "merge";
+
+        if (data["worship-plans"] && mode("worship-plans") !== "skip") {
+          worshipPlan = normalizeWorshipPlan(data["worship-plans"].worshipPlan || []);
+          songService = normalizeSongService(data["worship-plans"].songService || []);
+          saveJson("worshipPlan", worshipPlan);
+          saveJson("songService", songService);
+          lines.push("Worship builders and service plans restored.");
+        }
+
+        if (data.favorites && mode("favorites") !== "skip") {
+          const incomingFavorites = data.favorites.favorites || [];
+          const incomingRecents = data.favorites.recents || [];
+          if (mode("favorites") === "merge") {
+            favorites = new Set([...favorites, ...incomingFavorites]);
+            recents = [...new Set([...incomingRecents, ...recents])].slice(0, 16);
+          } else {
+            favorites = new Set(incomingFavorites);
+            recents = incomingRecents.slice(0, 16);
+          }
+          saveJson("favorites", [...favorites]);
+          saveJson("recents", recents);
+          lines.push("Favorites and recent hymns restored.");
+        }
+
+        if (data["language-packs"] && mode("language-packs") !== "skip") {
+          importedPacks = mergeImportedPacks(
+            data["language-packs"].importedLanguagePacks || [],
+            mode("language-packs") === "replace" ? "replace" : "merge",
+          );
+          refreshLanguageLibrary();
+          await persistImportedLanguagePacks();
+          lines.push(`Imported language packs restored (${importedPacks.length} packs).`);
+        }
+
+        if (data.templates && mode("templates") !== "skip") {
+          customTemplates = mergeTemplates(
+            data.templates.customTemplates || [],
+            mode("templates") === "replace" ? "replace" : "merge",
+          );
+          saveJson("customTemplates", customTemplates);
+          await persistCustomTemplates();
+          lines.push("Custom templates restored.");
+        }
+
+        if (data.tags && mode("tags") !== "skip") {
+          songTagMap = mergeTagMap(data.tags.songTags || {}, mode("tags"));
+          if (mode("tags") === "replace" && Array.isArray(data.tags.tagFilters)) {
+            state.tagFilters = data.tags.tagFilters;
+          } else if (Array.isArray(data.tags.tagFilters) && data.tags.tagFilters.length) {
+            state.tagFilters = [...new Set([...(state.tagFilters || []), ...data.tags.tagFilters])];
+          }
+          saveJson("songTags", songTagMap);
+          saveJson("tagFilters", state.tagFilters);
+          Object.keys(songTagMap).forEach((key) => syncTagsToSongMetadata(key, songTagMap[key]));
+          await persistSongTags();
+          lines.push("Hymn tags and categories restored.");
+        }
+
+        if (data.settings && mode("settings") !== "skip") {
+          const incomingSettings = data.settings.settings || {};
+          if (incomingSettings.displayMode) {
+            state.displayMode = incomingSettings.displayMode;
+            saveValue("displayMode", state.displayMode);
+          }
+          if (incomingSettings.fontScale) {
+            state.fontScale = Number(incomingSettings.fontScale) || state.fontScale;
+            saveValue("fontScale", state.fontScale);
+          }
+          if (incomingSettings.timerSeconds) {
+            state.timerSeconds = Number(incomingSettings.timerSeconds) || state.timerSeconds;
+            saveValue("timerSeconds", state.timerSeconds);
+          }
+          if (data.settings.languageCode) {
+            state.languageCode = data.settings.languageCode;
+            saveValue("language", state.languageCode);
+          }
+          const ui = data.settings.ui || {};
+          if (ui.searchScope) {
+            state.searchScope = ui.searchScope;
+            saveValue("searchScope", state.searchScope);
+          }
+          if (ui.category) {
+            state.category = ui.category;
+            saveValue("category", state.category);
+          }
+          if (ui.indexRange) {
+            state.indexRange = ui.indexRange;
+            saveValue("range", state.indexRange);
+          }
+          lines.push("Settings restored.");
+        }
+
+        await loadAutoBackupList();
+        return { lines };
+      },
+    });
+  }
+
+  function bindBackupSettings() {
+    if (state.view !== "settings" || !window.CISBackupRestore) return;
+    const panel = document.querySelector(".backup-center");
+    if (panel) window.CISBackupRestore.bindSettingsEvents(panel);
+  }
+
   function setupSongTags() {
     if (window.CISSongTagsUI) {
       window.CISSongTagsUI.configure({ escapeHtml, getTagMeta });
@@ -796,6 +1001,7 @@
     renderPresenterAV();
     renderEmergencyOverlay();
     if (state.view === "builder") bindBuilderInteractions();
+    bindBackupSettings();
     document.body.classList.add("app-ready");
   }
 
@@ -1807,59 +2013,68 @@
   }
 
   function renderSettings() {
+    const backupPanel = window.CISBackupRestore ? window.CISBackupRestore.renderSettingsPanel({
+      favorites: favorites.size,
+      builderItems: assignedSlots().length,
+      importedPacks: importedPacks.length,
+      templates: customTemplates.length,
+      taggedHymns: Object.keys(songTagMap).length,
+      autoBackups: autoBackupList,
+    }) : `
+      <section class="section">
+        <h3>Local Worship Data</h3>
+        <div class="button-row">
+          <button class="action-button" type="button" data-command="export-backup">Export Backup</button>
+          <button class="secondary-button" type="button" data-command="restore-backup">Restore Backup</button>
+        </div>
+      </section>`;
     return `
-      <div class="dashboard-grid">
-        <section class="section">
-          <h2>Language Packs</h2>
-          <div class="import-zone" data-command="import-language-pack">
-            <strong>Import Language Pack</strong>
-            <span>Add hymns in a new language from a JSON pack or PowerPoint file. Drag-and-drop, validation, and duplicate handling are built in.</span>
-            <button class="action-button" type="button" data-command="import-language-pack">Import Language Pack</button>
-            <span class="muted">Test pack: <code>app/data/sample-packs/ndebele-sample.json</code> (5 Ndebele hymns)</span>
-          </div>
-          <div class="import-zone tag-tools-zone">
-            <strong>Tag & Categorize Hymns</strong>
-            <span>Apply worship categories to imported packs in bulk, or refine tags hymn by hymn from the song reader.</span>
-            <button class="secondary-button" type="button" data-command="open-bulk-tag">Bulk Tag Hymns</button>
-            <span class="muted">${Object.keys(songTagMap).length} hymns tagged across all languages</span>
-          </div>
-          <div class="language-status">
-            ${data.languagePacks.map((pack) => `
-              <div class="language-row">
-                <strong>${escapeHtml(pack.name)}</strong>
-                <span class="status-pill ${pack.status === "ready" ? "ready" : "awaiting"}">${pack.status === "ready" ? `${pack.songCount} hymns` : "Awaiting upload"}</span>
-                <span class="muted">${escapeHtml(compactSource(pack.source))}</span>
-              </div>
-            `).join("")}
-          </div>
-        </section>
-        <aside class="panel">
-          <h3>Local Worship Data</h3>
-          <p class="muted">Favorites: ${favorites.size} · Recent hymns: ${recents.length} · Builder items: ${assignedSlots().length} · Opening songs: ${assignedSongServiceSlots().length}</p>
-          <div class="button-row">
-            <button class="action-button" type="button" data-command="export-backup">Export Backup</button>
-            <button class="secondary-button" type="button" data-command="restore-backup">Restore Backup</button>
-            <button class="danger-button" type="button" data-command="reset-local-data">Reset Local Data</button>
-            <input id="backupImport" class="hidden" type="file" accept="application/json,.json">
-          </div>
-          <hr>
-          <h3>Install & Offline</h3>
-          <p class="muted">This app includes a web app manifest and service worker so it can be installed by supported browsers and cached for offline worship use.</p>
-          <div class="button-row">
-            <button class="secondary-button" type="button" data-command="install-app">Install App</button>
-          </div>
-          ${desktopBridge ? `
-            <hr>
-            <h3>Desktop App</h3>
-            <p class="muted">Native desktop mode is active${state.desktopInfo ? ` · Version ${escapeHtml(state.desktopInfo.version)} · ${escapeHtml(state.desktopInfo.platform)}` : ""}.</p>
-            <div class="button-row">
-              <button class="secondary-button" type="button" data-command="check-updates">Check Updates</button>
+      <div class="settings-page">
+        <div class="dashboard-grid">
+          <section class="section">
+            <h2>Language Packs</h2>
+            <div class="import-zone" data-command="import-language-pack">
+              <strong>Import Language Pack</strong>
+              <span>Add hymns in a new language from a JSON pack or PowerPoint file. Drag-and-drop, validation, and duplicate handling are built in.</span>
+              <button class="action-button" type="button" data-command="import-language-pack">Import Language Pack</button>
+              <span class="muted">Test pack: <code>app/data/sample-packs/ndebele-sample.json</code> (5 Ndebele hymns)</span>
             </div>
-          ` : ""}
-          <hr>
-          <h3>Source Integration</h3>
-          <p class="muted">${escapeHtml((data.meta.generatedFrom || []).join(" + "))}</p>
-        </aside>
+            <div class="import-zone tag-tools-zone">
+              <strong>Tag & Categorize Hymns</strong>
+              <span>Apply worship categories to imported packs in bulk, or refine tags hymn by hymn from the song reader.</span>
+              <button class="secondary-button" type="button" data-command="open-bulk-tag">Bulk Tag Hymns</button>
+              <span class="muted">${Object.keys(songTagMap).length} hymns tagged across all languages</span>
+            </div>
+            <div class="language-status">
+              ${data.languagePacks.map((pack) => `
+                <div class="language-row">
+                  <strong>${escapeHtml(pack.name)}</strong>
+                  <span class="status-pill ${pack.status === "ready" ? "ready" : "awaiting"}">${pack.status === "ready" ? `${pack.songCount} hymns` : "Awaiting upload"}</span>
+                  <span class="muted">${escapeHtml(compactSource(pack.source))}</span>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+          <aside class="panel">
+            <h3>Install & Offline</h3>
+            <p class="muted">This app includes a web app manifest and service worker so it can be installed by supported browsers and cached for offline worship use.</p>
+            <div class="button-row">
+              <button class="secondary-button" type="button" data-command="install-app">Install App</button>
+            </div>
+            ${desktopBridge ? `
+              <hr>
+              <h3>Desktop App</h3>
+              <p class="muted">Native desktop mode is active${state.desktopInfo ? ` · Version ${escapeHtml(state.desktopInfo.version)} · ${escapeHtml(state.desktopInfo.platform)}` : ""}.</p>
+              <div class="button-row">
+                <button class="secondary-button" type="button" data-command="check-updates">Check Updates</button>
+              </div>
+            ` : ""}
+            <hr>
+            <h3>Source Integration</h3>
+            <p class="muted">${escapeHtml((data.meta.generatedFrom || []).join(" + "))}</p>
+          </aside>
+        </div>
+        ${backupPanel}
       </div>
     `;
   }
@@ -2403,6 +2618,7 @@
   }
 
   function exportBackup() {
+    if (window.CISBackupRestore) return window.CISBackupRestore.exportFullBackup();
     const stamp = new Date().toISOString().slice(0, 10);
     const payload = {
       app: "Christ in Song Worship App",
@@ -2494,6 +2710,9 @@
 
   function restoreBackupFromFile(file) {
     if (!file) return;
+    if (window.CISBackupRestore && window.CISBackupRestore.restoreFromFile) {
+      return window.CISBackupRestore.restoreFromFile(file);
+    }
     const reader = new FileReader();
     reader.onload = () => {
       try {
@@ -2548,7 +2767,10 @@
     saveJson("tagFilters", []);
     saveJson("worshipPlan", worshipPlan);
     saveJson("songService", songService);
-    Promise.all([persistImportedLanguagePacks(), persistCustomTemplates(), persistSongTags()]).finally(() => render());
+    const clearAutoBackups = window.CISBackupStore
+      ? window.CISBackupStore.listAutoBackups().then((items) => Promise.all(items.map((item) => window.CISBackupStore.deleteAutoBackup(item.id)))).then(() => loadAutoBackupList())
+      : Promise.resolve();
+    Promise.all([persistImportedLanguagePacks(), persistCustomTemplates(), persistSongTags(), clearAutoBackups]).finally(() => render());
   }
 
   function persistTimer() {
@@ -2914,8 +3136,7 @@
     if (command === "export-backup") return exportBackup();
     if (command === "export-bulletin") return exportBulletin();
     if (command === "restore-backup") {
-      const input = document.getElementById("backupImport");
-      if (input) input.click();
+      if (window.CISBackupRestore) return window.CISBackupRestore.openRestoreDialog();
       return;
     }
     if (command === "import-language-pack") return openLanguagePackImportModal();
@@ -3062,11 +3283,21 @@
   setupBuilderSlides();
   setupPresenterSystem();
   setupSongTags();
+  setupBackupRestore();
 
-  Promise.all([loadImportedLanguagePacks(), loadCustomTemplates(), loadSongTags()]).finally(() => {
+  Promise.all([loadImportedLanguagePacks(), loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(() => {
     render();
     if (!data.languagePacks.length) {
       setNotice("Hymn library failed to load. Check app/data/songs.js.");
+    }
+    if (window.CISBackupRestore) {
+      window.CISBackupRestore.maybeRunDailyBackup().then((result) => {
+        if (result) {
+          loadAutoBackupList().finally(() => {
+            setNotice(`Daily backup saved on this device (${result.id}).`);
+          });
+        }
+      }).catch(() => {});
     }
   });
   setInterval(() => {
