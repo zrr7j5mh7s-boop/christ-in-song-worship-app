@@ -33,7 +33,7 @@ const APP_SHELL = [
   "./presenter-screen.js?v=1",
   "./app.js?v=19",
   "./data/songs.js?v=2",
-  "./data/sda-hymnal-pack.js?v=1",
+  "./data/sda-hymnal-pack.js?v=2",
   "./data/extra-packs.js",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
