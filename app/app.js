@@ -32,92 +32,7 @@
     ["special", "Special Music"],
     ["note", "Service Note"],
   ];
-  const serviceTemplates = [
-    {
-      id: "sabbath",
-      name: "Sabbath Worship",
-      detail: "Opening, doxology, prayer, scripture, offering, sermon, closing.",
-      slots: [
-        { role: "Opening Hymn" },
-        { role: "Doxology" },
-        { role: "Invocation", type: "custom", itemType: "prayer", title: "Opening Prayer", body: "Opening prayer" },
-        { role: "Scripture Reading", type: "custom", itemType: "scripture", title: "Scripture Reading", body: "Scripture reading" },
-        { role: "Offering Hymn" },
-        { role: "Special Music", type: "custom", itemType: "special", title: "Special Music", body: "Special music" },
-        { role: "Sermon", type: "custom", itemType: "sermon", title: "Sermon Title", body: "Sermon title" },
-        { role: "Closing Hymn" },
-      ],
-    },
-    {
-      id: "prayer",
-      name: "Prayer Meeting",
-      detail: "Simple evening flow for hymns, scripture, requests, and prayer.",
-      slots: [
-        { role: "Opening Hymn" },
-        { role: "Scripture Reading", type: "custom", itemType: "scripture", title: "Scripture Reading", body: "Scripture reading" },
-        { role: "Prayer Requests", type: "custom", itemType: "prayer", title: "Prayer Requests", body: "Prayer requests" },
-        { role: "Prayer Hymn" },
-        { role: "Closing Prayer", type: "custom", itemType: "prayer", title: "Closing Prayer", body: "Closing prayer" },
-      ],
-    },
-    {
-      id: "communion",
-      name: "Communion",
-      detail: "Reverent service pattern for communion Sabbath.",
-      slots: [
-        { role: "Opening Hymn" },
-        { role: "Doxology" },
-        { role: "Scripture Reading", type: "custom", itemType: "scripture", title: "Communion Scripture", body: "Communion scripture" },
-        { role: "Prayer Hymn" },
-        { role: "Ordinance", type: "custom", itemType: "note", title: "Ordinance of Humility", body: "Ordinance of humility" },
-        { role: "Communion Hymn" },
-        { role: "Closing Hymn" },
-      ],
-    },
-    {
-      id: "funeral",
-      name: "Funeral",
-      detail: "Comfort-focused order with scripture, tribute, message, and closing.",
-      slots: [
-        { role: "Processional Hymn" },
-        { role: "Opening Prayer", type: "custom", itemType: "prayer", title: "Opening Prayer", body: "Opening prayer" },
-        { role: "Scripture Reading", type: "custom", itemType: "scripture", title: "Scripture Reading", body: "Scripture reading" },
-        { role: "Tribute", type: "custom", itemType: "note", title: "Tribute", body: "Tribute" },
-        { role: "Sermon", type: "custom", itemType: "sermon", title: "Message of Hope", body: "Message of hope" },
-        { role: "Closing Hymn" },
-      ],
-    },
-    {
-      id: "youth",
-      name: "Youth Service",
-      detail: "Flexible, music-forward youth programme.",
-      slots: [
-        { role: "Opening Song" },
-        { role: "Welcome", type: "custom", itemType: "announcement", title: "Welcome", body: "Welcome" },
-        { role: "Praise Hymn" },
-        { role: "Scripture Reading", type: "custom", itemType: "scripture", title: "Scripture Reading", body: "Scripture reading" },
-        { role: "Special Music", type: "custom", itemType: "special", title: "Special Music", body: "Special music" },
-        { role: "Message", type: "custom", itemType: "sermon", title: "Message", body: "Message" },
-        { role: "Closing Song" },
-      ],
-    },
-    {
-      id: "camp",
-      name: "Camp Meeting",
-      detail: "Larger service with song service, announcements, appeal, and sermon.",
-      slots: [
-        { role: "Opening Hymn" },
-        { role: "Doxology" },
-        { role: "Welcome", type: "custom", itemType: "announcement", title: "Welcome", body: "Welcome" },
-        { role: "Announcements", type: "custom", itemType: "announcement", title: "Announcements", body: "Announcements" },
-        { role: "Offering Appeal", type: "custom", itemType: "offering", title: "Offering Appeal", body: "Offering appeal" },
-        { role: "Special Music", type: "custom", itemType: "special", title: "Special Music", body: "Special music" },
-        { role: "Sermon", type: "custom", itemType: "sermon", title: "Sermon Title", body: "Sermon title" },
-        { role: "Appeal Hymn" },
-        { role: "Closing Hymn" },
-      ],
-    },
-  ];
+  const builtinTemplates = window.CIS_BUILTIN_TEMPLATES || [];
   const categoryDefinitions = [
     { id: "all", label: "All", keywords: [] },
     { id: "opening", label: "Opening", keywords: ["opening", "come", "worship", "praise", "sing", "joy"] },
@@ -188,7 +103,8 @@
 
   let favorites = new Set(loadJson("favorites", []));
   let recents = loadJson("recents", []);
-  let customTemplates = loadJson("customTemplates", []);
+  let customTemplates = [];
+  let templateEditorDraft = null;
   let worshipPlan = normalizeWorshipPlan(loadJson("worshipPlan", null));
   let songService = normalizeSongService(loadJson("songService", null));
   state.activeSlot = Math.min(state.activeSlot, worshipPlan.length - 1);
@@ -630,6 +546,7 @@
     els.content.innerHTML = `${renderNotice()}${renderView()}`;
     renderPresenterAV();
     renderEmergencyOverlay();
+    if (state.view === "builder") bindBuilderInteractions();
     document.body.classList.add("app-ready");
   }
 
@@ -946,13 +863,182 @@
     `;
   }
 
+  function getAllServiceTemplates() {
+    return [...builtinTemplates, ...customTemplates];
+  }
+
+  function getTemplateById(templateId) {
+    return getAllServiceTemplates().find((template) => template.id === templateId) || null;
+  }
+
+  async function loadCustomTemplates() {
+    try {
+      if (window.CISTemplateStore) {
+        customTemplates = await window.CISTemplateStore.migrateLegacyStorage();
+      } else {
+        customTemplates = loadJson("customTemplates", []);
+      }
+    } catch (_error) {
+      customTemplates = loadJson("customTemplates", []);
+    }
+  }
+
+  function persistCustomTemplates() {
+    saveJson("customTemplates", customTemplates);
+    if (window.CISTemplateStore && window.CISTemplateStore.saveTemplates) {
+      return window.CISTemplateStore.saveTemplates(customTemplates).catch(() => {});
+    }
+    return Promise.resolve();
+  }
+
+  function setupTemplateSystem() {
+    if (window.CISTemplateUI) {
+      window.CISTemplateUI.configure({ escapeHtml, plain, itemTypeLabel });
+    }
+  }
+
+  function bindBuilderInteractions() {
+    const list = document.querySelector(".set-list");
+    if (list && window.CISTemplateUI) {
+      window.CISTemplateUI.bindPlanDragDrop(list, reorderPlanSlots);
+    }
+  }
+
+  function reorderPlanSlots(fromIndex, toIndex) {
+    if (fromIndex === toIndex) return;
+    const item = worshipPlan.splice(fromIndex, 1)[0];
+    worshipPlan.splice(toIndex, 0, item);
+    state.activeSlot = toIndex;
+    saveValue("activeSlot", state.activeSlot);
+    saveJson("worshipPlan", worshipPlan);
+    render();
+  }
+
+  function openTemplatePreview(templateId) {
+    const template = getTemplateById(templateId);
+    if (!template || !window.CISTemplateUI) return;
+    els.modalRoot.innerHTML = window.CISTemplateUI.renderPreviewModal(template);
+  }
+
+  function openTemplateEditor(templateId = null, fromCurrentPlan = false) {
+    if (!window.CISTemplateUI) return;
+    if (templateId) {
+      const template = customTemplates.find((item) => item.id === templateId);
+      if (!template) return;
+      templateEditorDraft = {
+        id: template.id,
+        name: template.name,
+        detail: template.detail,
+        icon: template.icon || "★",
+        slots: template.slots.map((slot) => ({ ...slot })),
+      };
+    } else if (fromCurrentPlan) {
+      templateEditorDraft = {
+        id: null,
+        name: "",
+        detail: `${worshipPlan.length} service items`,
+        icon: "★",
+        slots: worshipPlan.map((slot) => ({
+          role: slot.role,
+          type: slot.type || "song",
+          itemType: slot.itemType || "",
+          title: slot.title || "",
+          body: slot.body || "",
+        })),
+      };
+    } else {
+      templateEditorDraft = {
+        id: null,
+        name: "",
+        detail: "",
+        icon: "★",
+        slots: [{ role: "Opening Hymn", type: "song" }],
+      };
+    }
+    renderTemplateEditorModal();
+  }
+
+  function renderTemplateEditorModal() {
+    if (!templateEditorDraft || !window.CISTemplateUI) return;
+    const mode = templateEditorDraft.id ? "edit" : "create";
+    els.modalRoot.innerHTML = window.CISTemplateUI.renderEditorModal(templateEditorDraft, customItemTypes, mode);
+    window.CISTemplateUI.bindEditorDragDrop(els.modalRoot, (fromIndex, toIndex) => {
+      const item = templateEditorDraft.slots.splice(fromIndex, 1)[0];
+      templateEditorDraft.slots.splice(toIndex, 0, item);
+      renderTemplateEditorModal();
+    });
+    els.modalRoot.querySelectorAll('[data-editor-field="type"]').forEach((select) => {
+      select.addEventListener("change", () => {
+        const row = Number(select.dataset.editorRow);
+        const slot = templateEditorDraft.slots[row];
+        if (!slot) return;
+        slot.type = select.value;
+        if (slot.type === "custom") {
+          slot.itemType = slot.itemType || customItemTypes[0][0];
+          slot.title = slot.title || slot.role;
+          slot.body = slot.body || slot.title;
+        }
+        renderTemplateEditorModal();
+      });
+    });
+  }
+
+  async function saveTemplateEditor() {
+    if (!templateEditorDraft || !window.CISTemplateUI) return;
+    const payload = window.CISTemplateUI.readEditorState(els.modalRoot, customItemTypes);
+    if (!payload.name) {
+      setNotice("Enter a template name before saving.");
+      return;
+    }
+    if (!payload.slots.length) {
+      setNotice("Add at least one service item to the template.");
+      return;
+    }
+    const id = templateEditorDraft.id || `custom-${Date.now()}`;
+    const nextTemplate = {
+      id,
+      name: payload.name,
+      detail: payload.detail || `${payload.slots.length} service items`,
+      icon: payload.icon || "★",
+      category: "custom",
+      builtin: false,
+      slots: payload.slots,
+      updatedAt: Date.now(),
+    };
+    customTemplates = [
+      ...customTemplates.filter((template) => template.id !== id),
+      nextTemplate,
+    ];
+    await persistCustomTemplates();
+    templateEditorDraft = null;
+    closeModal();
+    setNotice(`Saved template “${nextTemplate.name}”.`);
+    render();
+  }
+
+  async function deleteCustomTemplate(templateId) {
+    const template = customTemplates.find((item) => item.id === templateId);
+    if (!template) return;
+    if (!window.confirm(`Delete template “${template.name}”?`)) return;
+    customTemplates = customTemplates.filter((item) => item.id !== templateId);
+    if (window.CISTemplateStore && window.CISTemplateStore.deleteTemplate) {
+      await window.CISTemplateStore.deleteTemplate(templateId).catch(() => {});
+    }
+    await persistCustomTemplates();
+    setNotice(`Deleted template “${template.name}”.`);
+    render();
+  }
+
   function renderBuilder() {
     const pack = getPack();
     const current = selectedSong();
     const results = pack.status === "ready" ? searchSongs(state.builderQuery, 32) : [];
     const songServiceAssigned = assignedSongServiceSlots();
-    const allTemplates = [...serviceTemplates, ...customTemplates];
+    const templateGallery = window.CISTemplateUI
+      ? window.CISTemplateUI.renderGallery(builtinTemplates, customTemplates)
+      : "";
     return `
+      ${templateGallery}
       <section class="section opens-service">
         <div class="song-header">
           <div>
@@ -980,7 +1066,7 @@
             </div>
             <div class="song-actions">
               <button class="action-button" type="button" data-command="open-custom-item">Add Item</button>
-              <button class="secondary-button" type="button" data-command="save-template">Save Template</button>
+              <button class="secondary-button" type="button" data-command="save-template">Save as Template</button>
               <button class="secondary-button" type="button" data-command="copy-plan">Copy Builder</button>
               <button class="secondary-button" type="button" data-command="export-plan">Export Builder</button>
               <button class="secondary-button" type="button" data-command="export-bulletin">Export Bulletin</button>
@@ -990,21 +1076,12 @@
               <input id="worshipPlanImport" class="hidden" type="file" accept="application/json">
             </div>
           </div>
+          <p class="muted drag-hint">Drag the ⋮⋮ handle to reorder service items.</p>
           <div class="set-list">
             ${worshipPlan.map(renderPlanRow).join("")}
           </div>
         </section>
         <aside class="panel">
-          <h3>Service Templates</h3>
-          <div class="template-list">
-            ${allTemplates.map((template) => `
-              <button class="template-button" type="button" data-command="load-template" data-template="${escapeHtml(template.id)}">
-                <strong>${escapeHtml(template.name)}</strong>
-                <span>${escapeHtml(template.detail || `${template.slots.length} service items`)}</span>
-              </button>
-            `).join("")}
-          </div>
-          <hr>
           <h3>Assign Hymn</h3>
           <p class="muted">Builder: ${escapeHtml(worshipPlan[state.activeSlot]?.role || worshipPlan[0].role)} · Song Service: ${escapeHtml(songService[state.activeSongServiceSlot]?.role || songService[0].role)}</p>
           ${current ? `<button class="action-button" type="button" data-command="assign-current">Use Hymn ${escapeHtml(current.number)}</button>` : ""}
@@ -1035,7 +1112,8 @@
     const custom = isCustomSlot(slot);
     const active = state.activeSlot === index ? "active" : "";
     return `
-      <div class="set-row ${active} ${custom ? "custom-row" : ""}">
+      <div class="set-row ${active} ${custom ? "custom-row" : ""}" data-slot="${index}">
+        <button class="drag-handle" type="button" draggable="true" data-drag-slot="${index}" aria-label="Drag to reorder">⋮⋮</button>
         <div class="set-number">${index + 1}</div>
         <button class="slot-button ${active}" type="button" data-command="activate-slot" data-slot="${index}">${escapeHtml(slot.role)}</button>
         <div class="set-song ${slotHasContent(slot) ? "assigned" : ""}">
@@ -1643,30 +1721,19 @@
   }
 
   function loadTemplate(templateId) {
-    const template = [...serviceTemplates, ...customTemplates].find((item) => item.id === templateId);
+    const template = getTemplateById(templateId);
     if (!template) return;
     worshipPlan = normalizeWorshipPlan(template.slots);
     state.activeSlot = 0;
     saveValue("activeSlot", state.activeSlot);
     saveJson("worshipPlan", worshipPlan);
+    closeModal();
+    setNotice(`Loaded “${template.name}” template.`);
     render();
   }
 
   function saveCurrentTemplate() {
-    const name = window.prompt("Template name", "Custom Worship Service");
-    if (!name) return;
-    const id = `custom-${Date.now()}`;
-    customTemplates = [
-      ...customTemplates.filter((template) => template.name !== name),
-      {
-        id,
-        name,
-        detail: `${worshipPlan.length} service items`,
-        slots: worshipPlan,
-      },
-    ];
-    saveJson("customTemplates", customTemplates);
-    render();
+    openTemplateEditor(null, true);
   }
 
   function assignSongToServiceSlot(index, song) {
@@ -2029,7 +2096,8 @@
         saveJson("favorites", [...favorites]);
         saveJson("recents", recents);
         saveJson("customTemplates", customTemplates);
-        render();
+        persistCustomTemplates().finally(() => render());
+        return;
       } catch (error) {
         window.alert("That worship builder file could not be imported.");
       }
@@ -2057,7 +2125,7 @@
         saveJson("favorites", [...favorites]);
         saveJson("recents", recents);
         saveJson("customTemplates", customTemplates);
-        persistImportedLanguagePacks().finally(() => render());
+        persistCustomTemplates().finally(() => render());
         return;
       } catch (error) {
         window.alert("That backup file could not be restored.");
@@ -2080,7 +2148,7 @@
     saveJson("importedLanguagePacks", []);
     saveJson("worshipPlan", worshipPlan);
     saveJson("songService", songService);
-    persistImportedLanguagePacks().finally(() => render());
+    Promise.all([persistImportedLanguagePacks(), persistCustomTemplates()]).finally(() => render());
   }
 
   function persistTimer() {
@@ -2306,8 +2374,32 @@
     if (command === "open-custom-item") return openCustomItemEditor();
     if (command === "edit-custom-item") return openCustomItemEditor(slotIndex);
     if (command === "save-custom-item") return saveCustomItemFromModal();
+    if (command === "preview-template") return openTemplatePreview(target.dataset.template);
     if (command === "load-template") return loadTemplate(target.dataset.template);
     if (command === "save-template") return saveCurrentTemplate();
+    if (command === "edit-template") return openTemplateEditor(target.dataset.template);
+    if (command === "delete-template") return deleteCustomTemplate(target.dataset.template);
+    if (command === "open-template-editor") return openTemplateEditor();
+    if (command === "save-template-editor") return saveTemplateEditor();
+    if (command === "add-editor-row") {
+      if (!templateEditorDraft) return;
+      templateEditorDraft.slots.push({
+        role: `Item ${templateEditorDraft.slots.length + 1}`,
+        type: "song",
+      });
+      renderTemplateEditorModal();
+      return;
+    }
+    if (command === "remove-editor-row") {
+      if (!templateEditorDraft) return;
+      const rowIndex = Number(target.dataset.editorRow);
+      templateEditorDraft.slots.splice(rowIndex, 1);
+      if (!templateEditorDraft.slots.length) {
+        templateEditorDraft.slots.push({ role: "Opening Hymn", type: "song" });
+      }
+      renderTemplateEditorModal();
+      return;
+    }
     if (command === "slot-add") return assignSongToSlot(slotIndex, selectedSong());
     if (command === "set-search-scope") {
       state.searchScope = target.dataset.scope || "current";
@@ -2525,9 +2617,10 @@
   }
 
   setupDesktopBridge();
+  setupTemplateSystem();
   setupPresenterSystem();
 
-  loadImportedLanguagePacks().finally(() => {
+  Promise.all([loadImportedLanguagePacks(), loadCustomTemplates()]).finally(() => {
     render();
     if (!data.languagePacks.length) {
       setNotice("Hymn library failed to load. Check app/data/songs.js.");
