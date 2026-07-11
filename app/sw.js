@@ -2,7 +2,7 @@ const CACHE_NAME = "christ-in-song-worship-v19";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=18",
+  "./styles.css?v=19",
   "./slide-content.js?v=1",
   "./builder-slides.js?v=1",
   "./service-templates.js?v=1",
@@ -31,7 +31,7 @@ const APP_SHELL = [
   "./presenter-control.js?v=1",
   "./presenter-screen.html",
   "./presenter-screen.js?v=1",
-  "./app.js?v=18",
+  "./app.js?v=19",
   "./data/songs.js?v=2",
   "./data/sda-hymnal-pack.js?v=1",
   "./data/extra-packs.js",
