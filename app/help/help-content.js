@@ -33,7 +33,7 @@
     ["projector-nothing", "Nothing appears on the projector", "Output not opened or wrong monitor", ["Open Presenter → Open Projector Screen", "Confirm external display is connected", "Use Emergency → Restart projector output"]],
     ["projector-wrong-monitor", "Wrong monitor is displaying content", "Projector window opened on primary display", ["Disconnect and reconnect projector cable", "Re-open projector from Presenter dashboard", "Drag projector window to external display if windowed"]],
     ["projector-frozen", "Projector output is frozen", "Presenter paused or display stuck", ["Press P to resume if paused", "Press C to clear emergency overlay", "Restart projector output from Emergency Help"]],
-    ["projector-black", "Projector is black", "Blackout or emergency black active", ["Press C or Clear to return to lyrics", "Check presenter is active with a hymn selected", "Confirm emergency black is not active"]],
+    ["projector-black", "Projector is black", "Blackout or emergency black active", ["Press C or Clear to return to lyrics", "Check presenter is active with a hymn selected", "Confirm emergency black is not active"], ["projector blank", "blank projector"]],
     ["text-too-small", "Text is too small", "Font scale too low in settings", ["Increase font scale in Settings", "Use full-screen hymn layout on projector", "Adjust OBS Browser Source font in overlay settings"]],
     ["text-cut-off", "Text is cut off", "Long verse or too many lines", ["Split long passages into smaller ranges", "Reduce max lines in OBS overlay layout", "Use full-screen scripture layout"]],
     ["obs-disconnected", "OBS is disconnected", "OBS closed or WebSocket disabled", ["Open OBS Studio", "Enable WebSocket on port 4455", "Reconnect in Settings → OBS Studio"]],
@@ -477,13 +477,15 @@
     }),
   ];
 
-  TROUBLE_ITEMS.forEach(([id, title, cause, steps]) => {
+  TROUBLE_ITEMS.forEach((entry) => {
+    const [id, title, cause, steps, extraAliases] = entry;
     ARTICLES.push(article({
       id,
       category: "troubleshooting",
       title,
       description: cause,
       keywords: [title.toLowerCase(), cause.toLowerCase()],
+      aliases: extraAliases || [],
       troubleshooting: [{
         problem: title,
         cause,

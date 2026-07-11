@@ -64,3 +64,14 @@ ok(`publish https://github.com/${publish.owner}/${publish.repo}/releases`);
 ok('icons and entitlements present');
 ok('notarize hook wired (set APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID for macOS release builds)');
 ok('dist commands ready: dist:mac, dist:win, dist:linux, dist:all');
+
+const { spawnSync } = require('node:child_process');
+const helpTest = spawnSync(process.execPath, [path.join(__dirname, 'test-help-centre.js')], {
+  cwd: root,
+  stdio: 'pipe',
+  encoding: 'utf8',
+});
+if (helpTest.status !== 0) {
+  fail(`Help Centre tests failed:\n${helpTest.stdout || ''}${helpTest.stderr || ''}`);
+}
+ok('help centre tests passed');

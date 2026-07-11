@@ -4,11 +4,13 @@
   let escapeHtml = (value) => String(value || "");
   let plain = (value) => String(value || "").trim();
   let formatDuration = (seconds) => String(seconds || 0);
+  let helpTrigger = () => "";
 
   function configure(options) {
     if (options.escapeHtml) escapeHtml = options.escapeHtml;
     if (options.plain) plain = options.plain;
     if (options.formatDuration) formatDuration = options.formatDuration;
+    if (options.helpTrigger) helpTrigger = options.helpTrigger;
   }
 
   function previewBlock(label, title, body, emptyText) {
@@ -60,7 +62,7 @@
         <button type="button" data-command="emergency-black" title="Black screen (B)">Black</button>
         <button type="button" data-command="emergency-white" title="White screen (W)">White</button>
         <button type="button" data-command="emergency-logo" title="Logo screen (L)">Logo</button>
-        <button type="button" data-command="emergency-clear" title="Return to lyrics (C)">Clear</button>
+        <button type="button" data-command="emergency-clear" title="Return to lyrics (C)">Clear${helpTrigger("clear", "Clear")}</button>
         <button type="button" class="${paused}" data-command="presenter-pause" title="Pause display (P)">${snapshot.paused ? "Resume" : "Pause"}</button>
       </div>
     `;

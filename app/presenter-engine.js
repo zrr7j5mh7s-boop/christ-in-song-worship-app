@@ -121,7 +121,9 @@
       title: item ? item.title : "",
       shortTitle: item ? item.shortTitle : "",
       hymnTitle,
-      contentKind: item ? (item.contentKind || item.type || "hymn") : "hymn",
+      contentKind: item
+        ? (item.contentKind || (item.type === "song" ? "hymn" : item.type) || "hymn")
+        : "hymn",
       subtitle: item ? item.subtitle : "",
       slide: slide
         ? {

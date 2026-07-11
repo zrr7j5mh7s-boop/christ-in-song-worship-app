@@ -2,9 +2,11 @@
   "use strict";
 
   let escapeHtml = (value) => String(value || "");
+  let helpTrigger = () => "";
 
   function configure(options) {
     if (options.escapeHtml) escapeHtml = options.escapeHtml;
+    if (options.helpTrigger) helpTrigger = options.helpTrigger;
   }
 
   function sceneOptions(scenes, selected) {
@@ -45,7 +47,7 @@
     return `
       <section class="section obs-scene-panel">
         <div class="section-heading-row">
-          <h3>Scene Mapping</h3>
+          <h3>Scene Mapping${helpTrigger("obs-mapping", "Scene mapping")}</h3>
           <button class="secondary-button" type="button" data-command="obs-refresh-scenes" ${status?.connected ? "" : "disabled"}>Refresh Scenes</button>
         </div>
         <p class="muted">Map worship functions to existing OBS scenes. Mappings are preserved when OBS disconnects.</p>
@@ -130,7 +132,7 @@
 
     return `
       <section class="section obs-setup-guide">
-        <h3>OBS Browser Source URLs</h3>
+        <h3>OBS Browser Source URLs${helpTrigger("obs-url", "Browser Source URLs")}</h3>
         <p class="muted">Add Browser Sources in OBS at 1920×1080 with transparency enabled. Desktop app serves these on localhost only.</p>
         <div class="obs-url-list">${rows}</div>
         <details class="obs-guide-details">

@@ -13,6 +13,7 @@
 //   hidden in the background -> once its content is actually ready to
 //   paint ('ready-to-show'), we swap: show main window, destroy splash.
 
+const fs = require('node:fs');
 const path = require('node:path');
 const { app, BrowserWindow, ipcMain, shell, Menu, screen } = require('electron');
 const log = require('electron-log/main');
@@ -42,6 +43,12 @@ let projectorWindow = null;
 let updater = null;
 
 const isDev = process.argv.includes('--dev') || !app.isPackaged;
+
+function resolveIndexHtml() {
+  const prodIndex = path.join(__dirname, '..', 'app', 'index.prod.html');
+  if (app.isPackaged && fs.existsSync(prodIndex)) return 'index.prod.html';
+  return 'index.html';
+}
 
 app.on('second-instance', () => {
   if (mainWindow) {
@@ -102,7 +109,7 @@ function createMainWindow() {
     },
   });
 
-  win.loadFile(path.join(__dirname, '..', 'app', 'index.html'));
+  win.loadFile(path.join(__dirname, '..', 'app', resolveIndexHtml()));
 
   win.once('ready-to-show', () => {
     win.show();

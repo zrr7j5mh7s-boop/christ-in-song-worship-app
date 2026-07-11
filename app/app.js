@@ -108,6 +108,7 @@
     timerEndsAt: Number(loadValue("timerEndsAt", 0)) || 0,
     emergencyMode: "",
     showAddContent: false,
+    showOrderPreview: loadValue("showOrderPreview", "false") === "true",
     practiceMode: false,
     obsUrls: {},
     obsHeartbeat: {},
@@ -150,10 +151,91 @@
     return [...byCode.values()];
   }
 
-  function refreshLanguageLibrary() {
+  function refreshLanguageLibrary(options = {}) {
     data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
-    if (window.CISSearchEngine) {
-      window.CISSearchEngine.rebuildIndex(data.languagePacks);
+    if (!window.CISSearchEngine) return;
+    if (options.fullIndex) {
+      window.CISSearchEngine.rebuildIndex(data.languagePacks, { clear: true });
+      return;
+    }
+    if (options.packCode) {
+      const pack = data.languagePacks.find((item) => item.code === options.packCode);
+      if (pack) window.CISSearchEngine.ensurePackIndexed(pack);
+      return;
+    }
+    if (options.invalidateCode) {
+      window.CISSearchEngine.invalidatePack(options.invalidateCode);
+    }
+  }
+
+  function indexReadyPacks(codes) {
+    if (!window.CISSearchEngine) return;
+    const targets = codes && codes.length
+      ? data.languagePacks.filter((pack) => codes.includes(pack.code))
+      : data.languagePacks;
+    for (const pack of targets) {
+      if (pack.status === "ready") window.CISSearchEngine.ensurePackIndexed(pack);
+    }
+  }
+
+  function scheduleBackgroundWarmup() {
+    if (!window.CISLazyLoader) return;
+    window.CISLazyLoader.scheduleIdlePreload(() => {
+      window.CISLazyLoader.preloadDeferredPacks(["sda"]).then(() => {
+        refreshLanguageLibrary();
+        indexReadyPacks(["sda"]);
+      }).catch(() => {});
+    });
+    window.CISLazyLoader.scheduleIdlePreload(() => {
+      const pending = data.languagePacks
+        .filter((pack) => pack.status === "ready")
+        .map((pack) => pack.code)
+        .filter((code) => !window.CISSearchEngine.getIndexedPackCodes().includes(code));
+      if (pending.length) indexReadyPacks(pending);
+    }, 8000);
+  }
+
+  async function ensureLanguagePackLoaded(code) {
+    if (!window.CISLazyLoader || !window.CISLazyLoader.isPackDeferred(code)) return true;
+    if (window.CISLazyLoader.isPackLoaded(code)) {
+      refreshLanguageLibrary();
+      return true;
+    }
+    try {
+      await window.CISLazyLoader.ensurePackLoaded(code);
+      refreshLanguageLibrary();
+      return true;
+    } catch (_error) {
+      setNotice("Could not load that language pack. Check your connection and try again.");
+      return false;
+    }
+  }
+
+  async function ensureSearchIndexReady() {
+    if (window.CISLazyLoader) {
+      await window.CISLazyLoader.preloadDeferredPacks(["sda"]).catch(() => {});
+      refreshLanguageLibrary();
+    }
+    indexReadyPacks();
+  }
+
+  async function ensurePdfToolsReady() {
+    if (!window.CISLazyLoader) return Boolean(window.CISBulletinExport);
+    try {
+      await window.CISLazyLoader.ensureBundle("pdfmake");
+      return Boolean(window.CISBulletinExport);
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  async function ensureMidiReady() {
+    if (!window.CISLazyLoader) return typeof window.Midi !== "undefined";
+    try {
+      await window.CISLazyLoader.ensureBundle("midi");
+      return typeof window.Midi !== "undefined";
+    } catch (_error) {
+      return false;
     }
   }
 
@@ -280,9 +362,9 @@
       audioDockState = { ...hymnAudioPlayer.getState(), currentTime: 0 };
       if (window.CISHymnAudioUI) window.CISHymnAudioUI.closeUploadModal();
       paintAudioDock(true);
-      setNotice(`Audio saved for Hymn ${song.number}.`);
+      setNotice(t("notice.audioSaved", { number: song.number }));
     } catch (error) {
-      setNotice(error && error.message ? error.message : "Audio upload failed.");
+      setNotice(error && error.message ? error.message : t("notice.audioUploadFailed"));
     }
   }
 
@@ -296,7 +378,7 @@
     loadedAudioSongKey = "";
     audioDockState = { currentTime: 0 };
     paintAudioDock(true);
-    setNotice(`Audio removed from Hymn ${song.number}.`);
+    setNotice(t("notice.audioRemoved", { number: song.number }));
   }
 
   function setupSearchEngine() {
@@ -371,7 +453,7 @@
       isBuiltinPack: isBuiltinLanguagePack,
       onImported: async ({ importedPacks: nextImported, summaryItems }) => {
         importedPacks = nextImported;
-        refreshLanguageLibrary();
+        refreshLanguageLibrary({ fullIndex: true });
         await persistImportedLanguagePacks();
         const primary = summaryItems && summaryItems[0];
         if (primary && primary.code) {
@@ -384,7 +466,7 @@
           if (item.updated) return `Updated ${item.updated} hymns in ${item.name}`;
           return `${item.name} now has ${item.total} hymns`;
         }).join(" · ");
-        setNotice(message || "Language pack imported.");
+        setNotice(message || t("notice.packImported"));
         if (window.CISTagCatalog && summaryItems && summaryItems.some((item) => item.isNew || item.added)) {
           openBulkTagModal(primary && primary.code ? primary.code : state.languageCode);
         } else {
@@ -514,6 +596,40 @@
       return false;
     }
     return true;
+  }
+
+  function saveWorshipPlan(immediate) {
+    if (immediate) {
+      if (window.CISBuilderSave) window.CISBuilderSave.flush();
+      saveJson("worshipPlan", worshipPlan);
+      return;
+    }
+    if (window.CISBuilderSave) {
+      window.CISBuilderSave.schedule("worshipPlan", worshipPlan);
+      return;
+    }
+    saveJson("worshipPlan", worshipPlan);
+  }
+
+  function saveSongService(immediate) {
+    if (immediate) {
+      if (window.CISBuilderSave) window.CISBuilderSave.flush();
+      saveJson("songService", songService);
+      return;
+    }
+    if (window.CISBuilderSave) {
+      window.CISBuilderSave.schedule("songService", songService);
+      return;
+    }
+    saveJson("songService", songService);
+  }
+
+  function paintBuilderSaveStatus() {
+    if (state.view !== "builder" || !window.CISBuilderSave) return;
+    const indicator = document.querySelector(".builder-save-status");
+    if (!indicator) return;
+    indicator.dataset.status = window.CISBuilderSave.getStatus();
+    indicator.textContent = window.CISBuilderSave.getStatusLabel();
   }
 
   function escapeHtml(value) {
@@ -758,6 +874,7 @@
         songTags: songTagMap,
         tagFilters: state.tagFilters,
         languageCode: state.languageCode,
+        uiLocale: state.uiLocale,
         settings: {
           displayMode: state.displayMode,
           fontScale: state.fontScale,
@@ -789,8 +906,8 @@
         if (data["worship-plans"] && mode("worship-plans") !== "skip") {
           worshipPlan = normalizeWorshipPlan(data["worship-plans"].worshipPlan || []);
           songService = normalizeSongService(data["worship-plans"].songService || []);
-          saveJson("worshipPlan", worshipPlan);
-          saveJson("songService", songService);
+          saveWorshipPlan(true);
+          saveSongService(true);
           lines.push("Worship builders and service plans restored.");
         }
 
@@ -814,7 +931,7 @@
             data["language-packs"].importedLanguagePacks || [],
             mode("language-packs") === "replace" ? "replace" : "merge",
           );
-          refreshLanguageLibrary();
+          refreshLanguageLibrary({ fullIndex: true });
           await persistImportedLanguagePacks();
           lines.push(`Imported language packs restored (${importedPacks.length} packs).`);
         }
@@ -864,6 +981,10 @@
           if (data.settings.languageCode) {
             state.languageCode = data.settings.languageCode;
             saveValue("language", state.languageCode);
+          }
+          if (data.settings.uiLocale && window.CISI18n) {
+            window.CISI18n.setLocale(data.settings.uiLocale, { force: true });
+            state.uiLocale = window.CISI18n.getLocale();
           }
           const ui = data.settings.ui || {};
           if (ui.searchScope) {
@@ -978,7 +1099,7 @@
     syncTagsToSongMetadata(songKey, songTagMap[songKey]);
     await persistSongTags();
     closeModal();
-    setNotice("Hymn tags saved.");
+    setNotice(t("notice.tagsSaved"));
     render();
   }
 
@@ -999,7 +1120,7 @@
     const tags = window.CISSongTagsUI.readCheckedTags(els.modalRoot, "#bulkTagPicker");
     const pack = data.languagePacks.find((item) => item.code === packCode);
     if (!pack || !tags.length) {
-      setNotice("Choose a pack and at least one tag.");
+      setNotice(t("notice.choosePackAndTag"));
       return;
     }
     const keys = (pack.songs || []).map((song) => makeSongKey(pack.code, song.number));
@@ -1016,7 +1137,7 @@
     }
     keys.forEach((key) => syncTagsToSongMetadata(key, songTagMap[key]));
     closeModal();
-    setNotice(`Applied tags to ${keys.length} hymns in ${pack.name}.`);
+    setNotice(t("notice.tagsApplied", { count: keys.length, name: pack.name }));
     render();
   }
 
@@ -1035,7 +1156,7 @@
       }
     }
     await persistSongTags();
-    setNotice(`Auto-suggested tags for ${keys.length} hymns in ${pack.name}.`);
+    setNotice(t("notice.tagsSuggested", { count: keys.length, name: pack.name }));
     render();
   }
 
@@ -1204,6 +1325,7 @@
     ensureSelectedSong();
     renderNav();
     renderLanguageSwitcher();
+    renderTopbarLabels();
     els.title.textContent = viewTitle();
     if (state.view !== "song" && hymnAudioPlayer) hymnAudioPlayer.pause();
     els.content.innerHTML = `${renderNotice()}${renderView()}`;
@@ -1242,18 +1364,121 @@
     els.nav.innerHTML = navItems.map((item) => `
       <button class="rail-btn ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}">
         <span class="ico" aria-hidden="true">${item.icon}</span>
-        <span>${escapeHtml(item.label)}</span>
+        <span>${escapeHtml(navLabel(item.id))}</span>
       </button>
     `).join("");
   }
 
+  function setupI18n() {
+    if (!window.CISI18n) return;
+    state.uiLocale = window.CISI18n.getLocale();
+    window.CISI18n.onChange((code) => {
+      state.uiLocale = code;
+      render();
+    });
+  }
+
+  function renderTopbarLabels() {
+    if (els.topbarEyebrow) els.topbarEyebrow.textContent = t("topbar.eyebrow");
+    if (els.topbarPresenterBtn) els.topbarPresenterBtn.textContent = t("topbar.presenter");
+    if (els.topbarHelpBtn) els.topbarHelpBtn.textContent = t("topbar.help");
+    if (els.topbarEmergencyBtn) {
+      els.topbarEmergencyBtn.textContent = t("presenter.emergencyHelp");
+      els.topbarEmergencyBtn.title = t("presenter.emergencyHelp");
+    }
+  }
+
+  function renderLocaleDropdown(root, options) {
+    if (!root) return;
+    const {
+      open,
+      triggerClass,
+      ariaLabel,
+      currentFlag,
+      currentLabel,
+      currentMeta,
+      toggleCommand,
+      items,
+    } = options;
+    root.innerHTML = `
+      <div class="locale-dropdown ${open ? "open" : ""} ${triggerClass || ""}">
+        <button
+          class="locale-dropdown-trigger ${triggerClass || ""}"
+          type="button"
+          data-command="${toggleCommand}"
+          aria-haspopup="menu"
+          aria-expanded="${open ? "true" : "false"}"
+          aria-label="${escapeHtml(ariaLabel)}"
+        >
+          <span class="locale-flag" aria-hidden="true">${currentFlag}</span>
+          <span class="locale-label">${escapeHtml(currentLabel)}</span>
+          ${currentMeta ? `<span class="locale-meta-inline muted">${escapeHtml(currentMeta)}</span>` : ""}
+          <span class="locale-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="locale-dropdown-menu" role="menu">
+          ${items}
+        </div>
+      </div>
+    `;
+  }
+
   function renderLanguageSwitcher() {
-    els.languageSwitcher.innerHTML = data.languagePacks.map((pack) => {
-      const active = pack.code === state.languageCode ? "active" : "";
-      const status = pack.status === "ready" ? "ready" : "awaiting";
-      const label = pack.status === "ready" ? `${pack.name} (${pack.songCount})` : `${pack.name}`;
-      return `<button class="language-button ${status} ${active}" type="button" data-lang="${escapeHtml(pack.code)}">${escapeHtml(label)}</button>`;
-    }).join("");
+    if (window.CISI18n && els.uiLocaleSwitcher) {
+      const currentMeta = window.CISI18n.getLocaleMeta(state.uiLocale);
+      const localeItems = window.CISI18n.SUPPORTED_LOCALES.map((code) => {
+        const meta = window.CISI18n.getLocaleMeta(code);
+        const active = code === state.uiLocale ? "active" : "";
+        return `
+          <button class="locale-dropdown-item ${active}" type="button" role="menuitem" data-ui-locale="${escapeHtml(code)}">
+            <span class="locale-flag" aria-hidden="true">${meta.flag}</span>
+            <span>
+              ${escapeHtml(meta.nativeLabel)}
+              <span class="locale-meta">${escapeHtml(meta.label)}</span>
+            </span>
+          </button>
+        `;
+      }).join("");
+      renderLocaleDropdown(els.uiLocaleSwitcher, {
+        open: uiLocaleMenuOpen,
+        ariaLabel: t("topbar.uiLanguage"),
+        currentFlag: currentMeta.flag,
+        currentLabel: currentMeta.nativeLabel,
+        toggleCommand: "toggle-ui-locale-menu",
+        items: localeItems,
+      });
+    }
+
+    if (els.hymnPackSwitcher) {
+      const activePack = getPack();
+      const packItems = data.languagePacks.map((pack) => {
+        const active = pack.code === state.languageCode ? "active" : "";
+        const status = pack.status === "ready" ? "ready" : "awaiting";
+        const countLabel = pack.status === "ready"
+          ? t("topbar.hymns", { count: pack.songCount || 0 })
+          : t("common.awaiting");
+        return `
+          <button class="locale-dropdown-item ${active}" type="button" role="menuitem" data-lang="${escapeHtml(pack.code)}">
+            <span>
+              ${escapeHtml(pack.name)}
+              <span class="locale-meta">${escapeHtml(pack.code.toUpperCase())}</span>
+            </span>
+            <span class="locale-count ${status}">${escapeHtml(countLabel)}</span>
+          </button>
+        `;
+      }).join("");
+      renderLocaleDropdown(els.hymnPackSwitcher, {
+        open: hymnPackMenuOpen,
+        triggerClass: activePack.status === "ready" ? "ready" : "awaiting",
+        ariaLabel: t("topbar.hymnLibrary"),
+        currentFlag: "📖",
+        currentLabel: activePack.name || t("topbar.hymnLibrary"),
+        currentMeta: activePack.status === "ready"
+          ? t("topbar.hymns", { count: activePack.songCount || 0 })
+          : t("common.awaiting"),
+        toggleCommand: "toggle-hymn-pack-menu",
+        items: packItems,
+      });
+    }
   }
 
   function renderView() {
@@ -1279,59 +1504,59 @@
     const assignedCount = assignedSlots().length;
     return `
       <section class="hero worship-hero">
-        <p class="eyebrow">Christ in Song · VaChinoda Edition</p>
-        <h2>Your worship, ready to lead.</h2>
-        <p>Search, build a Sabbath order of service, and present any hymn full-screen in the navy and gold worship theme.</p>
+        <p class="eyebrow">${escapeHtml(t("home.eyebrow"))}</p>
+        <h2>${escapeHtml(t("home.title"))}</h2>
+        <p>${escapeHtml(t("home.subtitle"))}</p>
         <label class="hero-search">
           <span aria-hidden="true">⌕</span>
-          <input id="homeSearchInput" type="search" value="" placeholder="Search by number, title, or a line of lyrics...">
+          <input id="homeSearchInput" type="search" value="" placeholder="${escapeHtml(t("home.searchPlaceholder"))}">
         </label>
         <div class="stat-row">
-          <div class="stat-chip"><strong>${pack.songCount || 0}</strong><span>${escapeHtml(pack.name || "Language")} hymns</span></div>
-          <div class="stat-chip"><strong>${favoriteCount}</strong><span>Favorites</span></div>
-          <div class="stat-chip"><strong>${assignedCount}</strong><span>In today's set</span></div>
+          <div class="stat-chip"><strong>${pack.songCount || 0}</strong><span>${escapeHtml(t("home.hymnsIn", { name: pack.name || t("topbar.hymnLibrary") }))}</span></div>
+          <div class="stat-chip"><strong>${favoriteCount}</strong><span>${escapeHtml(t("home.favorites"))}</span></div>
+          <div class="stat-chip"><strong>${assignedCount}</strong><span>${escapeHtml(t("home.inTodaysSet"))}</span></div>
         </div>
       </section>
       ${recent ? `
         <div class="continue-strip">
           <div>
-            <span>Continue reading</span>
-            <strong>${escapeHtml(getPack(parseSongKey(recent.key).code).name)} · Hymn ${escapeHtml(recent.song.number)} · ${escapeHtml(recent.song.title)}</strong>
+            <span>${escapeHtml(t("home.continueReading"))}</span>
+            <strong>${escapeHtml(getPack(parseSongKey(recent.key).code).name)} · ${escapeHtml(t("notice.hymnPrefix", { number: recent.song.number }))} · ${escapeHtml(recent.song.title)}</strong>
           </div>
-          <button type="button" data-song="${escapeHtml(recent.song.number)}" data-lang-jump="${escapeHtml(parseSongKey(recent.key).code)}">Open</button>
+          <button type="button" data-song="${escapeHtml(recent.song.number)}" data-lang-jump="${escapeHtml(parseSongKey(recent.key).code)}">${escapeHtml(t("common.open"))}</button>
         </div>
       ` : ""}
       <div class="dashboard-grid">
         <section class="section">
           <div class="metric-row">
-            <div class="metric"><strong>${pack.songCount || 0}</strong><span>${escapeHtml(pack.name || "Language")} hymns</span></div>
-            <div class="metric"><strong>${data.meta.deckSlideCount || 0}</strong><span>Source slides integrated</span></div>
-            <div class="metric"><strong>${readyPacks}/${data.languagePacks.length}</strong><span>Language packs ready</span></div>
+            <div class="metric"><strong>${pack.songCount || 0}</strong><span>${escapeHtml(t("home.hymnsIn", { name: pack.name || t("topbar.hymnLibrary") }))}</span></div>
+            <div class="metric"><strong>${data.meta.deckSlideCount || 0}</strong><span>${escapeHtml(t("home.sourceSlides"))}</span></div>
+            <div class="metric"><strong>${readyPacks}/${data.languagePacks.length}</strong><span>${escapeHtml(t("home.packsReady"))}</span></div>
           </div>
           <div class="command-grid">
-            ${commandCard("index", "☰", "Hymn Index", "Browse by 50-hymn ranges")}
-            ${commandCard("search", "⌕", "Search Centre", "Find titles, numbers, and lyrics")}
-            ${commandCard("builder", "+", "Worship Builder", "Prepare the service order")}
-            ${commandCard("favorites", "★", "Favorites", "Open saved hymns")}
-            ${commandCard("presenter", "▶", "Presenter Dashboard", "Run the current worship flow")}
-            ${commandCard("help", "?", "Help Centre", "Setup guides, troubleshooting, and emergency help")}
-            ${commandCard("settings", "⚙", "Language Packs", "Manage multilingual hymn libraries")}
+            ${commandCard("index", "☰", t("home.hymnIndex"), t("home.hymnIndexDetail"))}
+            ${commandCard("search", "⌕", t("home.searchCentre"), t("home.searchCentreDetail"))}
+            ${commandCard("builder", "+", t("home.worshipBuilder"), t("home.worshipBuilderDetail"))}
+            ${commandCard("favorites", "★", t("home.favorites"), t("home.favoritesDetail"))}
+            ${commandCard("presenter", "▶", t("home.presenterDashboard"), t("home.presenterDashboardDetail"))}
+            ${commandCard("help", "?", t("home.helpCentre"), t("home.helpCentreDetail"))}
+            ${commandCard("settings", "⚙", t("home.languagePacks"), t("home.languagePacksDetail"))}
           </div>
         </section>
         <aside class="panel">
-          <h2>Quick Jump</h2>
+          <h2>${escapeHtml(t("home.quickJump"))}</h2>
           <div class="range-grid">
             ${ranges.map((range) => `<button class="range-button" type="button" data-command="range-open" data-range="${range[0]}">${range[0]}</button>`).join("")}
           </div>
           <hr>
-          <h3>Live Service</h3>
+          <h3>${escapeHtml(t("home.liveService"))}</h3>
           ${firstAssigned ? renderCurrentSlot(firstAssigned) : renderCurrentSong(current)}
           ${window.CISObsSettingsUI && window.CISObsConnectionService
             ? window.CISObsSettingsUI.renderDashboardStatus(window.CISObsConnectionService.getStatus())
             : ""}
           <div class="button-row">
-            <button class="action-button" type="button" data-command="present-current">Present</button>
-            <button class="secondary-button" type="button" data-view="builder">Worship Builder</button>
+            <button class="action-button" type="button" data-command="present-current">${escapeHtml(t("common.present"))}</button>
+            <button class="secondary-button" type="button" data-view="builder">${escapeHtml(t("home.worshipBuilderBtn"))}</button>
           </div>
         </aside>
       </div>
@@ -1582,6 +1807,21 @@
     }
   }
 
+  function setupBuilderSystems() {
+    if (window.CISBuilderOrderPreview) {
+      window.CISBuilderOrderPreview.configure({ escapeHtml });
+    }
+    if (!window.CISBuilderSave) return;
+    window.CISBuilderSave.configure({
+      saveJson,
+      debounceMs: 500,
+      onStatusChange: paintBuilderSaveStatus,
+    });
+    window.addEventListener("beforeunload", () => {
+      if (window.CISBuilderSave.hasPending()) window.CISBuilderSave.flush();
+    });
+  }
+
   function setupTemplateSystem() {
     if (window.CISTemplateUI) {
       window.CISTemplateUI.configure({ escapeHtml, plain, itemTypeLabel });
@@ -1593,16 +1833,69 @@
     if (list && window.CISTemplateUI) {
       window.CISTemplateUI.bindPlanDragDrop(list, reorderPlanSlots);
     }
+    const serviceList = document.querySelector(".song-service-list");
+    if (serviceList && window.CISTemplateUI) {
+      window.CISTemplateUI.bindServiceDragDrop(serviceList, reorderServiceSlots);
+    }
+    paintBuilderSaveStatus();
   }
 
   function reorderPlanSlots(fromIndex, toIndex) {
-    if (fromIndex === toIndex) return;
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    if (fromIndex >= worshipPlan.length || toIndex >= worshipPlan.length) return;
     const item = worshipPlan.splice(fromIndex, 1)[0];
     worshipPlan.splice(toIndex, 0, item);
     state.activeSlot = toIndex;
     saveValue("activeSlot", state.activeSlot);
-    saveJson("worshipPlan", worshipPlan);
+    saveWorshipPlan();
     render();
+  }
+
+  function reorderServiceSlots(fromIndex, toIndex) {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    if (fromIndex >= songService.length || toIndex >= songService.length) return;
+    const item = songService.splice(fromIndex, 1)[0];
+    songService.splice(toIndex, 0, item);
+    state.activeSongServiceSlot = toIndex;
+    saveValue("activeSongServiceSlot", state.activeSongServiceSlot);
+    saveSongService();
+    render();
+  }
+
+  function buildOrderPreviewItem(slot, isSongService) {
+    const ready = isSongService
+      ? !!(slot.songKey && getSongByKey(slot.songKey))
+      : slotHasContent(slot);
+    const type = resolveSlotType(slot);
+    const meta = window.CISSlideContent ? window.CISSlideContent.getSlideType(type) : null;
+    const slides = isSongService
+      ? (slot.songKey && getSongByKey(slot.songKey) ? getSongByKey(slot.songKey).slides.length : 0)
+      : (ready ? slotSlides(slot).length : 0);
+    const song = slotSong(slot);
+    let detail = ready ? slotTitle(slot) : "Not configured";
+    if (song) detail = `Hymn ${song.number} · ${song.title}`;
+    return {
+      role: slot.role || "Service item",
+      detail,
+      typeBadge: meta ? meta.label : "",
+      slideCount: slides,
+      ready,
+    };
+  }
+
+  function buildOrderPreviewModel() {
+    const songServiceItems = songService.map((slot) => buildOrderPreviewItem(slot, true));
+    const worshipItems = worshipPlan.map((slot) => buildOrderPreviewItem(slot, false));
+    const totalSlides = [...songServiceItems, ...worshipItems].reduce((sum, item) => sum + (item.slideCount || 0), 0);
+    const assignedCount = assignedSongServiceSlots().length + assignedSlots().length;
+    return {
+      expanded: state.showOrderPreview,
+      songServiceItems,
+      worshipItems,
+      totalSlides,
+      assignedCount,
+      totalItems: songService.length + worshipPlan.length,
+    };
   }
 
   function openTemplatePreview(templateId) {
@@ -1678,11 +1971,11 @@
     if (!templateEditorDraft || !window.CISTemplateUI) return;
     const payload = window.CISTemplateUI.readEditorState(els.modalRoot, customItemTypes);
     if (!payload.name) {
-      setNotice("Enter a template name before saving.");
+      setNotice(t("notice.templateNameRequired"));
       return;
     }
     if (!payload.slots.length) {
-      setNotice("Add at least one service item to the template.");
+      setNotice(t("notice.templateItemsRequired"));
       return;
     }
     const id = templateEditorDraft.id || `custom-${Date.now()}`;
@@ -1703,7 +1996,7 @@
     await persistCustomTemplates();
     templateEditorDraft = null;
     closeModal();
-    setNotice(`Saved template “${nextTemplate.name}”.`);
+    setNotice(t("notice.templateSaved", { name: nextTemplate.name }));
     render();
   }
 
@@ -1716,7 +2009,7 @@
       await window.CISTemplateStore.deleteTemplate(templateId).catch(() => {});
     }
     await persistCustomTemplates();
-    setNotice(`Deleted template “${template.name}”.`);
+    setNotice(t("notice.templateDeleted", { name: template.name }));
     render();
   }
 
@@ -1756,27 +2049,34 @@
       <section class="section opens-service">
         <div class="song-header">
           <div>
-            <p class="eyebrow">Opens the Service</p>
-            <h2>Song Service</h2>
-            <p class="muted">Up to fifteen hymns sung to gather the congregation before the main order begins.</p>
+            <p class="eyebrow">${escapeHtml(t("builder.opensService"))}</p>
+            <h2>${escapeHtml(t("builder.songService"))}</h2>
+            <p class="muted">${escapeHtml(t("builder.songServiceDesc"))}</p>
           </div>
           <div class="song-actions">
-            ${current ? `<button class="secondary-button" type="button" data-command="assign-current-service">Use Hymn ${escapeHtml(current.number)}</button>` : ""}
-            <button class="action-button" type="button" data-command="present-song-service">Present Song Service</button>
-            <button class="secondary-button" type="button" data-command="clear-song-service">Clear Song Service</button>
+            ${current ? `<button class="secondary-button" type="button" data-command="assign-current-service">${escapeHtml(t("notice.hymnPrefix", { number: current.number }))}</button>` : ""}
+            <button class="action-button" type="button" data-command="present-song-service">${escapeHtml(t("builder.presentSongService"))}</button>
+            <button class="secondary-button" type="button" data-command="clear-song-service">${escapeHtml(t("builder.clearSongService"))}</button>
           </div>
         </div>
-        <div class="service-summary">${songServiceAssigned.length} of ${songService.length} opening songs assigned</div>
+        <div class="service-summary">${escapeHtml(t("builder.openingAssigned", { assigned: songServiceAssigned.length, total: songService.length }))}</div>
+        <p class="muted drag-hint">Drag the ⋮⋮ handle to reorder opening songs. Use ↑↓ keys when the handle is focused.</p>
         <div class="song-service-list">
           ${songService.map(renderSongServiceRow).join("")}
         </div>
       </section>
+      ${window.CISBuilderOrderPreview ? window.CISBuilderOrderPreview.renderOrderPreview(buildOrderPreviewModel()) : ""}
       <div class="builder-grid">
         <section class="section">
           <div class="song-header">
             <div>
-              <h2>Worship Builder</h2>
-              <p class="muted">${assignedSlots().length} of ${worshipPlan.length} service items ready</p>
+              <h2>${escapeHtml(t("builder.worshipBuilder"))}</h2>
+              <p class="muted builder-status-line">
+                ${escapeHtml(t("builder.itemsReady", { assigned: assignedSlots().length, total: worshipPlan.length }))}
+                ${window.CISBuilderOrderPreview && window.CISBuilderSave
+    ? window.CISBuilderOrderPreview.renderSaveIndicator(window.CISBuilderSave.getStatus(), window.CISBuilderSave.getStatusLabel())
+    : ""}
+              </p>
             </div>
             <div class="song-actions">
               <button class="action-button" type="button" data-command="toggle-add-content">Add Content</button>
@@ -1791,7 +2091,7 @@
             </div>
           </div>
           ${state.showAddContent && window.CISBuilderSlides ? window.CISBuilderSlides.renderAddContentMenu() : ""}
-          <p class="muted drag-hint">Drag the ⋮⋮ handle to reorder any item — hymns, scripture, prayers, and more.</p>
+          <p class="muted drag-hint">Drag the ⋮⋮ handle to reorder any item — hymns, scripture, prayers, and more. Use ↑↓ keys when the handle is focused.</p>
           <div class="set-list">
             ${worshipPlan.map(renderPlanRow).join("")}
           </div>
@@ -1861,7 +2161,8 @@
     const song = getSongByKey(slot.songKey);
     const active = state.activeSongServiceSlot === index ? "active" : "";
     return `
-      <div class="set-row song-service-row ${active}">
+      <div class="set-row song-service-row ${active}" data-service-slot="${index}">
+        <button class="drag-handle" type="button" draggable="true" data-drag-service-slot="${index}" aria-label="Drag to reorder song service item">⋮⋮</button>
         <div class="set-number">${index + 1}</div>
         <button class="slot-button ${active}" type="button" data-command="activate-service-slot" data-service-slot="${index}">${escapeHtml(slot.role)}</button>
         <div class="set-song ${song ? "assigned" : ""}">${song ? `Hymn ${escapeHtml(song.number)} · ${escapeHtml(song.title)}` : "No hymn assigned"}</div>
@@ -2042,7 +2343,7 @@
 
   function setupPresenterSystem() {
     if (!window.CISPresenterEngine) return;
-    window.CISPresenterControl.configure({ escapeHtml, plain, formatDuration });
+    window.CISPresenterControl.configure({ escapeHtml, plain, formatDuration, helpTrigger });
     window.CISPresenterOutput.configure({ escapeHtml, lyricHtml });
     window.CISPresenterEngine.configure({
       currentPresenterItem: () => {
@@ -2316,7 +2617,7 @@
     renderObsTopbar();
     if (state.view === "settings") render();
     const status = window.CISObsConnectionService.getStatus();
-    setNotice(status.connected ? "Connected to OBS." : (status.lastError || "OBS connection failed."));
+    setNotice(status.connected ? t("notice.connectedObs") : (status.lastError || t("notice.obsConnectionFailed")));
   }
 
   async function disconnectObsFromPage() {
@@ -2324,7 +2625,7 @@
     await window.CISObsConnectionService.disconnect();
     renderObsTopbar();
     if (state.view === "settings") render();
-    setNotice("Disconnected from OBS.");
+    setNotice(t("notice.disconnectedObs"));
   }
 
   async function refreshObsScenesFromPage() {
@@ -2363,7 +2664,7 @@
       sceneMappings,
       sourceMappings,
     });
-    setNotice("OBS mappings saved.");
+    setNotice(t("notice.obsMappingsSaved"));
     if (state.view === "settings") render();
   }
 
@@ -2378,13 +2679,13 @@
   function setupObsIntegration() {
     if (!window.CISObsConnectionService) return;
     if (window.CISObsSettingsUI) {
-      window.CISObsSettingsUI.configure({ escapeHtml });
+      window.CISObsSettingsUI.configure({ escapeHtml, helpTrigger });
     }
     if (window.CISObsMappingUI) {
-      window.CISObsMappingUI.configure({ escapeHtml });
+      window.CISObsMappingUI.configure({ escapeHtml, helpTrigger });
     }
     if (window.CISObsControlUI) {
-      window.CISObsControlUI.configure({ escapeHtml });
+      window.CISObsControlUI.configure({ escapeHtml, helpTrigger });
     }
     if (window.CISObsEventService) {
       window.CISObsEventService.subscribe(() => {
@@ -2649,10 +2950,12 @@
     `;
   }
 
-  function openSong(number, code) {
+  async function openSong(number, code) {
     if (code && code !== state.languageCode) {
+      if (!(await ensureLanguagePackLoaded(code))) return;
       state.languageCode = code;
       saveValue("language", code);
+      indexReadyPacks([code]);
     }
     const song = getSong(number);
     if (!song) return;
@@ -2723,7 +3026,7 @@
     });
     state.activeSlot = index;
     saveValue("activeSlot", state.activeSlot);
-    saveJson("worshipPlan", worshipPlan);
+    saveWorshipPlan();
     closeModal();
     render();
   }
@@ -2771,7 +3074,7 @@
       state.activeSlot = Number(target);
     }
     saveValue("activeSlot", state.activeSlot);
-    saveJson("worshipPlan", worshipPlan);
+    saveWorshipPlan();
     closeModal();
     render();
   }
@@ -2789,7 +3092,7 @@
     state.activeSlot = worshipPlan.length - 1;
     state.showAddContent = false;
     saveValue("activeSlot", state.activeSlot);
-    saveJson("worshipPlan", worshipPlan);
+    saveWorshipPlan();
     openSlideItemEditor(state.activeSlot, contentType);
   }
 
@@ -2869,7 +3172,7 @@
       state.activeSlot = Number(target);
     }
     saveValue("activeSlot", state.activeSlot);
-    saveJson("worshipPlan", worshipPlan);
+    saveWorshipPlan();
     closeModal();
     render();
   }
@@ -2880,9 +3183,9 @@
     worshipPlan = normalizeWorshipPlan(template.slots);
     state.activeSlot = 0;
     saveValue("activeSlot", state.activeSlot);
-    saveJson("worshipPlan", worshipPlan);
+    saveWorshipPlan();
     closeModal();
-    setNotice(`Loaded “${template.name}” template.`);
+    setNotice(t("notice.templateLoaded", { name: template.name }));
     render();
   }
 
@@ -2895,7 +3198,7 @@
     songService[index].songKey = songKey(song);
     state.activeSongServiceSlot = index;
     saveValue("activeSongServiceSlot", state.activeSongServiceSlot);
-    saveJson("songService", songService);
+    saveSongService();
     render();
   }
 
@@ -2907,7 +3210,7 @@
     worshipPlan[next] = temp;
     state.activeSlot = next;
     saveValue("activeSlot", state.activeSlot);
-    saveJson("worshipPlan", worshipPlan);
+    saveWorshipPlan();
     render();
   }
 
@@ -2919,7 +3222,7 @@
     songService[next] = temp;
     state.activeSongServiceSlot = next;
     saveValue("activeSongServiceSlot", state.activeSongServiceSlot);
-    saveJson("songService", songService);
+    saveSongService();
     render();
   }
 
@@ -3039,6 +3342,7 @@
   }
 
   function presentCurrent() {
+    if (!confirmTrainingLiveAction("Present Current")) return;
     const assigned = firstAssignedSlot();
     if (assigned) {
       presentPlanSlot(assigned.index);
@@ -3278,8 +3582,8 @@
         if (Array.isArray(payload.favorites)) favorites = new Set(payload.favorites);
         if (Array.isArray(payload.recents)) recents = payload.recents.slice(0, 16);
         if (Array.isArray(payload.customTemplates)) customTemplates = payload.customTemplates;
-        saveJson("worshipPlan", worshipPlan);
-        saveJson("songService", songService);
+        saveWorshipPlan(true);
+        saveSongService(true);
         saveJson("favorites", [...favorites]);
         saveJson("recents", recents);
         saveJson("customTemplates", customTemplates);
@@ -3319,8 +3623,8 @@
           state.tagFilters = payload.tagFilters;
           saveJson("tagFilters", state.tagFilters);
         }
-        saveJson("worshipPlan", worshipPlan);
-        saveJson("songService", songService);
+        saveWorshipPlan(true);
+        saveSongService(true);
         saveJson("favorites", [...favorites]);
         saveJson("recents", recents);
         saveJson("customTemplates", customTemplates);
@@ -3349,8 +3653,8 @@
     saveJson("importedLanguagePacks", []);
     saveJson("songTags", {});
     saveJson("tagFilters", []);
-    saveJson("worshipPlan", worshipPlan);
-    saveJson("songService", songService);
+    saveWorshipPlan(true);
+    saveSongService(true);
     const clearAutoBackups = window.CISBackupStore
       ? window.CISBackupStore.listAutoBackups().then((items) => Promise.all(items.map((item) => window.CISBackupStore.deleteAutoBackup(item.id)))).then(() => loadAutoBackupList())
       : Promise.resolve();
@@ -3461,12 +3765,16 @@
 
     const lang = target.dataset.lang;
     if (lang) {
-      state.languageCode = lang;
-      state.slideIndex = 0;
-      state.indexRange = activeRangeKey(getPack(lang));
-      saveValue("language", lang);
-      saveValue("range", state.indexRange);
-      render();
+      void (async () => {
+        if (!(await ensureLanguagePackLoaded(lang))) return;
+        state.languageCode = lang;
+        state.slideIndex = 0;
+        state.indexRange = activeRangeKey(getPack(lang));
+        saveValue("language", lang);
+        saveValue("range", state.indexRange);
+        indexReadyPacks([lang]);
+        render();
+      })();
       return;
     }
 
@@ -3502,8 +3810,16 @@
       render();
       return;
     }
-    if (target.dataset.helpContext) {
-      state.help.contextKey = target.dataset.helpContext;
+    if (target.dataset.helpContext || target.dataset.helpTopic) {
+      state.help.contextKey = target.dataset.helpContext || target.dataset.helpTopic;
+      render();
+      return;
+    }
+    if (target.dataset.helpSearch) {
+      state.view = "help";
+      state.help.searchQuery = target.dataset.helpSearch;
+      resetHelpNav();
+      saveValue("view", state.view);
       render();
       return;
     }
@@ -3512,7 +3828,7 @@
       progress.trainingMode = true;
       progress.activeLesson = target.dataset.helpTrainingStart;
       window.CISHelpStore.saveTrainingProgress(progress);
-      setNotice("Training lesson started.");
+      setNotice(t("notice.trainingStarted"));
       openHelpCategory("training");
       return;
     }
@@ -3521,7 +3837,7 @@
       progress.lessons = progress.lessons || {};
       progress.lessons[target.dataset.helpTrainingComplete] = true;
       window.CISHelpStore.saveTrainingProgress(progress);
-      setNotice("Lesson marked complete.");
+      setNotice(t("notice.lessonComplete"));
       render();
       return;
     }
@@ -3744,14 +4060,14 @@
         if (isCustomSlot(worshipPlan[slotIndex]) || worshipPlan.length > defaultSlots.length) worshipPlan.splice(slotIndex, 1);
         else worshipPlan[slotIndex] = createPlanSlot(worshipPlan[slotIndex].role, slotIndex);
       }
-      saveJson("worshipPlan", worshipPlan);
+      saveWorshipPlan();
       state.activeSlot = Math.max(0, Math.min(state.activeSlot, worshipPlan.length - 1));
       render();
       return;
     }
     if (command === "remove-service-song") {
       if (songService[serviceSlotIndex]) songService[serviceSlotIndex].songKey = "";
-      saveJson("songService", songService);
+      saveSongService();
       render();
       return;
     }
@@ -3795,13 +4111,13 @@
     if (command === "print-set") return window.print();
     if (command === "clear-plan") {
       worshipPlan = createDefaultPlan();
-      saveJson("worshipPlan", worshipPlan);
+      saveWorshipPlan(true);
       render();
       return;
     }
     if (command === "clear-song-service") {
       songService = createDefaultSongService();
-      saveJson("songService", songService);
+      saveSongService(true);
       render();
       return;
     }
@@ -3914,7 +4230,7 @@
         ? window.CISHelpDiagnostics.formatReportText(gatherHelpDiagnosticsReport())
         : "";
       if (report && navigator.clipboard) {
-        navigator.clipboard.writeText(report).then(() => setNotice("Diagnostic report copied.")).catch(() => setNotice("Could not copy report."));
+        navigator.clipboard.writeText(report).then(() => setNotice(t("notice.diagnosticCopied"))).catch(() => setNotice(t("notice.diagnosticCopyFailed")));
       }
       return;
     }
@@ -3928,7 +4244,7 @@
       const progress = window.CISHelpStore.getTrainingProgress();
       progress.trainingMode = !progress.trainingMode;
       window.CISHelpStore.saveTrainingProgress(progress);
-      setNotice(progress.trainingMode ? "Training Mode enabled." : "Training Mode exited.");
+      setNotice(progress.trainingMode ? t("notice.trainingModeOn") : t("notice.trainingModeOff"));
       state.view = "help";
       openHelpCategory("training");
       return;
@@ -3973,7 +4289,7 @@
     if (command === "obs-copy-url") {
       const url = target.dataset.url || "";
       if (url && navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(() => setNotice("Browser Source URL copied.")).catch(() => {});
+        navigator.clipboard.writeText(url).then(() => setNotice(t("notice.urlCopied"))).catch(() => {});
       }
       return;
     }
@@ -4035,6 +4351,7 @@
       return;
     }
     if (command === "obs-clear-overlays" && window.CISObsOutputService) {
+      if (target?.dataset?.confirm === "true" && !window.confirm("Clear all worship overlays on OBS? Streaming will continue.")) return;
       window.CISObsOutputService.clearWorshipOverlays()
         .then(() => setNotice("Worship overlays cleared on OBS."))
         .catch((error) => setNotice(error?.message || "Failed to clear overlays."));
@@ -4117,6 +4434,7 @@
   setupDesktopBridge();
   setupTemplateSystem();
   setupBuilderSlides();
+  setupBuilderSystems();
   setupPresenterSystem();
   setupObsIntegration();
   setupHelpCentre();

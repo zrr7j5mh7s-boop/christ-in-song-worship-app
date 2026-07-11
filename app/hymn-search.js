@@ -11,10 +11,24 @@
 
   const FIELD_PRIORITY = ["verses", "chorus", "title", "number", "lyrics"];
 
+  const FUSE_OPTIONS = {
+    keys: [
+      { name: "number", weight: 0.2 },
+      { name: "title", weight: 0.28 },
+      { name: "verses", weight: 0.28 },
+      { name: "chorus", weight: 0.24 },
+    ],
+    threshold: 0.38,
+    ignoreLocation: true,
+    includeMatches: true,
+    minMatchCharLength: 2,
+    distance: 120,
+  };
+
   let escapeHtml = (value) => String(value || "");
   let filterRecord = () => true;
-  let fuse = null;
-  let records = [];
+  const packIndexes = new Map();
+  let searchCache = { key: "", result: null };
 
   function configure(options) {
     if (options && typeof options.escapeHtml === "function") escapeHtml = options.escapeHtml;
@@ -55,32 +69,67 @@
     };
   }
 
-  function rebuildIndex(packs) {
-    records = [];
+  function createFuse(records) {
+    if (typeof window.Fuse === "undefined" || !records.length) return null;
+    return new window.Fuse(records, FUSE_OPTIONS);
+  }
+
+  function buildPackIndex(pack) {
+    const records = [];
+    for (const song of pack.songs || []) {
+      records.push(buildRecord(song, pack));
+    }
+    packIndexes.set(pack.code, {
+      code: pack.code,
+      records,
+      fuse: createFuse(records),
+      songCount: (pack.songs || []).length,
+    });
+    searchCache = { key: "", result: null };
+    return records.length;
+  }
+
+  function ensurePackIndexed(pack) {
+    if (!pack || pack.status !== "ready") return 0;
+    const existing = packIndexes.get(pack.code);
+    if (existing && existing.songCount === (pack.songs || []).length) {
+      return existing.records.length;
+    }
+    return buildPackIndex(pack);
+  }
+
+  function rebuildIndex(packs, options = {}) {
+    if (options.clear) {
+      packIndexes.clear();
+      searchCache = { key: "", result: null };
+    }
+    let total = 0;
+    const onlyCodes = options.onlyCodes;
     for (const pack of packs || []) {
       if (!pack || pack.status !== "ready") continue;
-      for (const song of pack.songs || []) {
-        records.push(buildRecord(song, pack));
+      if (onlyCodes && !onlyCodes.includes(pack.code)) continue;
+      if (options.incremental && packIndexes.has(pack.code)) {
+        total += packIndexes.get(pack.code).records.length;
+        continue;
       }
+      total += ensurePackIndexed(pack);
     }
-    if (typeof window.Fuse === "undefined") {
-      fuse = null;
-      return records.length;
-    }
-    fuse = new window.Fuse(records, {
-      keys: [
-        { name: "number", weight: 0.2 },
-        { name: "title", weight: 0.28 },
-        { name: "verses", weight: 0.28 },
-        { name: "chorus", weight: 0.24 },
-      ],
-      threshold: 0.38,
-      ignoreLocation: true,
-      includeMatches: true,
-      minMatchCharLength: 2,
-      distance: 120,
-    });
-    return records.length;
+    return total;
+  }
+
+  function invalidatePack(code) {
+    packIndexes.delete(code);
+    searchCache = { key: "", result: null };
+  }
+
+  function getIndexedPackCodes() {
+    return [...packIndexes.keys()];
+  }
+
+  function getRecordCount() {
+    let total = 0;
+    packIndexes.forEach((entry) => { total += entry.records.length; });
+    return total;
   }
 
   function mergeIndices(indices) {
@@ -168,7 +217,7 @@
     };
   }
 
-  function fallbackNumberSearch(query) {
+  function fallbackNumberSearch(query, records) {
     const q = String(query || "").trim();
     if (!/^\d+$/.test(q)) return [];
     return records
@@ -181,26 +230,54 @@
       }));
   }
 
+  function collectPackResults(query, entry, limit) {
+    const merged = [];
+    const seen = new Set();
+    fallbackNumberSearch(query, entry.records).forEach((result) => {
+      if (seen.has(result.item.id)) return;
+      seen.add(result.item.id);
+      merged.push(result);
+    });
+    if (entry.fuse) {
+      entry.fuse.search(query, { limit }).forEach((result) => {
+        if (seen.has(result.item.id)) return;
+        seen.add(result.item.id);
+        merged.push(result);
+      });
+    }
+    return merged;
+  }
+
   function search(query, options = {}) {
     const q = String(query || "").trim();
     const limit = options.limit || 120;
+    const packCodes = options.packCodes;
     if (!q) return { groups: [], total: 0, flat: [] };
-    if (!fuse) {
-      return { groups: [], total: 0, flat: [] };
+
+    const cacheKey = `${q}::${limit}::${(packCodes || []).join(",")}`;
+    if (searchCache.key === cacheKey) return searchCache.result;
+
+    const entries = packCodes
+      ? packCodes.map((code) => packIndexes.get(code)).filter(Boolean)
+      : [...packIndexes.values()];
+
+    if (!entries.length) {
+      const empty = { groups: [], total: 0, flat: [] };
+      searchCache = { key: cacheKey, result: empty };
+      return empty;
     }
 
-    const seen = new Set();
     const merged = [];
-    fallbackNumberSearch(q).forEach((result) => {
-      if (seen.has(result.item.id)) return;
-      seen.add(result.item.id);
-      merged.push(result);
-    });
-    fuse.search(q, { limit }).forEach((result) => {
-      if (seen.has(result.item.id)) return;
-      seen.add(result.item.id);
-      merged.push(result);
-    });
+    const seen = new Set();
+    for (const entry of entries) {
+      collectPackResults(q, entry, limit).forEach((result) => {
+        if (seen.has(result.item.id)) return;
+        seen.add(result.item.id);
+        merged.push(result);
+      });
+    }
+
+    merged.sort((a, b) => a.score - b.score);
 
     const filtered = merged
       .filter((result) => filterRecord(result.item))
@@ -219,18 +296,22 @@
       groupMap.get(entry.code).results.push(entry);
     });
 
-    const groups = [...groupMap.values()];
-    return {
-      groups,
+    const result = {
+      groups: [...groupMap.values()],
       total: filtered.length,
       flat: filtered,
     };
+    searchCache = { key: cacheKey, result };
+    return result;
   }
 
   window.CISSearchEngine = {
     configure,
     rebuildIndex,
+    ensurePackIndexed,
+    invalidatePack,
+    getIndexedPackCodes,
     search,
-    getRecordCount: () => records.length,
+    getRecordCount,
   };
 })();

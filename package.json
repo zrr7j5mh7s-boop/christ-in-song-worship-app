@@ -28,22 +28,25 @@
     "test:obs-integration": "node scripts/test-obs-integration.js",
     "test:obs": "npm run test:obs-settings && npm run test:obs-integration",
     "test:help": "node scripts/test-help-centre.js",
+    "test:performance": "node scripts/test-performance.js",
+    "build:web-assets": "node scripts/build-production-assets.js",
     "pack": "electron-builder --dir",
-    "dist": "npm run verify:release && electron-builder --publish=never",
-    "dist:mac": "npm run verify:release && electron-builder --mac --publish=never",
-    "dist:mac:unsigned": "npm run verify:release && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish=never",
-    "dist:win": "npm run verify:release && electron-builder --win --publish=never",
-    "dist:linux": "npm run verify:release && electron-builder --linux --publish=never",
-    "dist:all": "npm run verify:release && electron-builder --mac --win --linux --publish=never",
-    "release": "npm run verify:release && electron-builder --publish=always",
-    "release:mac": "npm run verify:release && electron-builder --mac --publish=always",
-    "release:win": "npm run verify:release && electron-builder --win --publish=always",
-    "release:linux": "npm run verify:release && electron-builder --linux --publish=always"
+    "dist": "npm run build:web-assets && npm run verify:release && electron-builder --publish=never",
+    "dist:mac": "npm run build:web-assets && npm run verify:release && electron-builder --mac --publish=never",
+    "dist:mac:unsigned": "npm run build:web-assets && npm run verify:release && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish=never",
+    "dist:win": "npm run build:web-assets && npm run verify:release && electron-builder --win --publish=never",
+    "dist:linux": "npm run build:web-assets && npm run verify:release && electron-builder --linux --publish=never",
+    "dist:all": "npm run build:web-assets && npm run verify:release && electron-builder --mac --win --linux --publish=never",
+    "release": "npm run build:web-assets && npm run verify:release && electron-builder --publish=always",
+    "release:mac": "npm run build:web-assets && npm run verify:release && electron-builder --mac --publish=always",
+    "release:win": "npm run build:web-assets && npm run verify:release && electron-builder --win --publish=always",
+    "release:linux": "npm run build:web-assets && npm run verify:release && electron-builder --linux --publish=always"
   },
   "devDependencies": {
     "@electron/notarize": "^2.5.0",
     "electron": "^31.3.0",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "esbuild": "^0.25.12"
   },
   "dependencies": {
     "electron-log": "^5.1.7",

@@ -2,9 +2,11 @@
   "use strict";
 
   let escapeHtml = (value) => String(value || "");
+  let helpTrigger = () => "";
 
   function configure(options) {
     if (options.escapeHtml) escapeHtml = options.escapeHtml;
+    if (options.helpTrigger) helpTrigger = options.helpTrigger;
   }
 
   function formatBool(value) {
@@ -104,7 +106,7 @@
           <button class="secondary-button" type="button" data-command="obs-stop-record" ${runtime.recording ? "" : "disabled"}>Stop Record</button>
           <button class="secondary-button" type="button" data-command="obs-start-vcam" ${runtime.virtualCamera ? "disabled" : ""}>Start Virtual Cam</button>
           <button class="secondary-button" type="button" data-command="obs-stop-vcam" ${runtime.virtualCamera ? "" : "disabled"}>Stop Virtual Cam</button>
-          <button class="secondary-button" type="button" data-command="obs-clear-overlays">Clear Worship Overlays</button>
+          <button class="secondary-button" type="button" data-command="obs-clear-overlays">Clear Worship Overlays${helpTrigger("clear", "Clear overlays")}</button>
         </div>
         <div class="obs-source-toggles">
           <span class="muted">Source visibility</span>

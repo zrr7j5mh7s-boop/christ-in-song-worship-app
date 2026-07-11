@@ -2,9 +2,11 @@
   "use strict";
 
   let escapeHtml = (value) => String(value || "");
+  let helpTrigger = () => "";
 
   function configure(options) {
     if (options.escapeHtml) escapeHtml = options.escapeHtml;
+    if (options.helpTrigger) helpTrigger = options.helpTrigger;
   }
 
   function isFailureState(state) {
@@ -130,7 +132,7 @@
       <section class="section obs-settings-panel">
         <div class="section-heading-row">
           <div>
-            <h2>OBS Studio</h2>
+            <h2>OBS Studio${helpTrigger("obs-mapping", "OBS settings")}</h2>
             <p class="muted">Connect to OBS WebSocket 5.x for live streaming and recording. Worship output continues normally when OBS is off.</p>
           </div>
           <span class="status-pill ${stateClass(status?.state || "disabled")}">${escapeHtml(stateLabel(status || { state: "disabled" }))}</span>
@@ -171,7 +173,7 @@
             <input id="obsConnectionTimeout" type="number" min="3" max="60" value="${Math.round((settings.connectionTimeoutMs || 10000) / 1000)}" autocomplete="off">
           </label>
           <label class="field">
-            <span>Browser Source port</span>
+            <span>Browser Source port${helpTrigger("obs-url", "Browser Source URL")}</span>
             <input id="obsBrowserSourcePort" type="number" min="1024" max="65535" value="${escapeHtml(settings.browserSourcePort || 47823)}" autocomplete="off">
           </label>
           <label class="field compact">

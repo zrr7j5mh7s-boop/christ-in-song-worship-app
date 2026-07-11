@@ -1,13 +1,17 @@
 const CACHE_NAME = "christ-in-song-worship-v25";
+
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css?v=25",
+  "./data/songs.js?v=2",
+  "./data/extra-packs.js",
+  "./lazy-pack-loader.js?v=1",
   "./slide-content.js?v=1",
-  "./builder-slides.js?v=1",
-  "./service-templates.js?v=1",
+  "./builder-slides.js?v=2",
+  "./service-templates.js?v=2",
   "./template-store.js?v=1",
-  "./template-ui.js?v=1",
+  "./template-ui.js?v=2",
   "./pack-store.js?v=1",
   "./pack-import.js?v=1",
   "./tag-catalog.js?v=1",
@@ -16,19 +20,15 @@ const APP_SHELL = [
   "./backup-zip.js?v=1",
   "./backup-store.js?v=1",
   "./backup-restore.js?v=1",
-  "./vendor/pdfmake.min.js",
-  "./vendor/vfs_fonts.js",
-  "./bulletin-export.js?v=1",
   "./vendor/fuse.min.js",
-  "./hymn-search.js?v=1",
+  "./hymn-search.js?v=2",
   "./hymn-search-ui.js?v=1",
-  "./vendor/Midi.js",
   "./song-audio-store.js?v=1",
   "./song-audio-player.js?v=1",
   "./song-audio-ui.js?v=1",
-  "./presenter-engine.js?v=2",
-  "./presenter-output.js?v=2",
-  "./presenter-control.js?v=2",
+  "./presenter-engine.js?v=1",
+  "./presenter-output.js?v=1",
+  "./presenter-control.js?v=1",
   "./obs/obs-constants.js?v=2",
   "./obs/obs-sanitize.js?v=1",
   "./obs/obs-settings-store.js?v=2",
@@ -43,34 +43,46 @@ const APP_SHELL = [
   "./obs/obs-control-ui.js?v=1",
   "./obs/obs-settings-ui.js?v=2",
   "./presenter-screen.html",
-  "./presenter-screen.js?v=2",
-  "./help/help-icons.js?v=1",
-  "./help/help-content.js?v=1",
-  "./help/help-store.js?v=1",
-  "./help/help-search.js?v=1",
-  "./help/help-checklists.js?v=1",
-  "./help/help-diagnostics.js?v=1",
-  "./help/help-training.js?v=1",
-  "./help/help-contextual.js?v=1",
-  "./help/help-ui.js?v=1",
+  "./presenter-screen.js?v=1",
+  "./help/help-icons.js?v=2",
+  "./help/help-content.js?v=2",
+  "./help/help-store.js?v=2",
+  "./help/help-search.js?v=2",
+  "./help/help-checklists.js?v=2",
+  "./help/help-diagnostics.js?v=2",
+  "./help/help-training.js?v=2",
+  "./help/help-contextual.js?v=2",
+  "./help/help-ui.js?v=2",
   "./app.js?v=25",
-  "./data/songs.js?v=2",
-  "./data/sda-hymnal-pack.js?v=2",
-  "./data/extra-packs.js",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",
-  "./icons/app-icon-512.png"
+  "./icons/app-icon-512.png",
+];
+
+const LAZY_CACHE = [
+  "./data/sda-hymnal-pack.js?v=2",
+  "./vendor/pdfmake.min.js",
+  "./vendor/vfs_fonts.js",
+  "./bulletin-export.js?v=2",
+  "./builder-save.js?v=1",
+  "./builder-order-preview.js?v=1",
+  "./vendor/Midi.js",
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await cache.addAll(APP_SHELL);
+      await Promise.allSettled(LAZY_CACHE.map((url) => cache.add(url)));
+    }),
+  );
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))),
   );
   self.clients.claim();
 });
@@ -82,6 +94,6 @@ self.addEventListener("fetch", (event) => {
       const copy = response.clone();
       caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
       return response;
-    }).catch(() => caches.match("./index.html")))
+    }).catch(() => caches.match("./index.html"))),
   );
 });
