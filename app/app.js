@@ -134,6 +134,43 @@
 
   function refreshLanguageLibrary() {
     data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
+    if (window.CISSearchEngine) {
+      window.CISSearchEngine.rebuildIndex(data.languagePacks);
+    }
+  }
+
+  function setupSearchEngine() {
+    refreshLanguageLibrary();
+    if (!window.CISSearchEngine) return;
+    window.CISSearchEngine.configure({
+      escapeHtml,
+      filterRecord: (record) => {
+        if ((state.tagFilters || []).length) return matchesTagFilters(record.song, record.code);
+        if (state.category !== "all") return matchesCategory(record.song, state.category, record.code);
+        return true;
+      },
+    });
+    if (window.CISSearchUI) {
+      window.CISSearchUI.configure({
+        escapeHtml,
+        getQuery: () => state.query,
+        setQuery: (value) => { state.query = value; },
+        getIndexedCount: () => (window.CISSearchEngine ? window.CISSearchEngine.getRecordCount() : 0),
+        onOpenSong: (number, code) => openSong(number, code),
+        renderFilterRow: () => (
+          window.CISTagCatalog && window.CISSongTagsUI
+            ? window.CISSongTagsUI.renderFilterRow(window.CISTagCatalog.getAllTags(), state.tagFilters)
+            : categoryDefinitions.map((category) => `<button class="filter-chip ${state.category === category.id ? "active" : ""}" type="button" data-command="set-category" data-category="${category.id}">${escapeHtml(category.label)}</button>`).join("")
+        ),
+        renderSongTags: (song, code) => renderSongTags(song, code),
+      });
+    }
+    window.CISSearchEngine.rebuildIndex(data.languagePacks);
+  }
+
+  function bindGlobalSearch() {
+    if (state.view !== "search" || !window.CISSearchUI) return;
+    window.CISSearchUI.bind();
   }
 
   function isBuiltinLanguagePack(code) {
@@ -1001,6 +1038,7 @@
     renderPresenterAV();
     renderEmergencyOverlay();
     if (state.view === "builder") bindBuilderInteractions();
+    bindGlobalSearch();
     bindBackupSettings();
     document.body.classList.add("app-ready");
   }
@@ -1193,11 +1231,9 @@
   }
 
   function renderSearch() {
+    if (window.CISSearchUI) return window.CISSearchUI.renderPage(state.query);
     const pack = getPack();
-    if (pack.status !== "ready" && state.searchScope !== "all") return renderAwaitingPack(pack);
-    const results = state.searchScope === "all"
-      ? allSearchResults(state.query, 120)
-      : searchSongs(state.query, 80, state.languageCode, true).map((song) => ({ song, code: state.languageCode, pack }));
+    const results = allSearchResults(state.query, 120);
     return `
       <section class="section">
         <div class="toolbar">
@@ -1205,16 +1241,7 @@
             <span aria-hidden="true">⌕</span>
             <input id="globalSearchInput" type="search" value="${escapeHtml(state.query)}" placeholder="Search number, title, verse, or chorus">
           </label>
-          <div class="segmented-control" aria-label="Search scope">
-            <button class="${state.searchScope === "current" ? "active" : ""}" type="button" data-command="set-search-scope" data-scope="current">Current</button>
-            <button class="${state.searchScope === "all" ? "active" : ""}" type="button" data-command="set-search-scope" data-scope="all">All Languages</button>
-          </div>
           <span class="muted">${results.length} result${results.length === 1 ? "" : "s"}</span>
-        </div>
-        <div class="filter-row tag-filter-section">
-          ${window.CISTagCatalog && window.CISSongTagsUI
-            ? window.CISSongTagsUI.renderFilterRow(window.CISTagCatalog.getAllTags(), state.tagFilters)
-            : categoryDefinitions.map((category) => `<button class="filter-chip ${state.category === category.id ? "active" : ""}" type="button" data-command="set-category" data-category="${category.id}">${escapeHtml(category.label)}</button>`).join("")}
         </div>
         <div class="result-list">
           ${results.map((item) => renderSearchResult(item.song, item.code, item.pack)).join("") || `<div class="empty-state">No hymns match this search.</div>`}
@@ -2943,7 +2970,7 @@
       render();
       return;
     }
-    if (target.id === "indexSearchInput" || target.id === "globalSearchInput") {
+    if (target.id === "indexSearchInput") {
       state.query = target.value;
       rerenderKeepingFocus(target);
     }
@@ -3070,6 +3097,7 @@
       saveValue("category", state.category);
       saveJson("tagFilters", state.tagFilters);
       render();
+      if (state.view === "search" && window.CISSearchUI) window.CISSearchUI.refresh();
       return;
     }
     if (command === "toggle-tag-filter") {
@@ -3081,6 +3109,7 @@
       saveJson("tagFilters", state.tagFilters);
       saveValue("category", state.category);
       render();
+      if (state.view === "search" && window.CISSearchUI) window.CISSearchUI.refresh();
       return;
     }
     if (command === "clear-tag-filters") {
@@ -3089,6 +3118,7 @@
       saveJson("tagFilters", []);
       saveValue("category", "all");
       render();
+      if (state.view === "search" && window.CISSearchUI) window.CISSearchUI.refresh();
       return;
     }
     if (command === "edit-song-tags") {
@@ -3309,6 +3339,7 @@
   setupSongTags();
   setupBackupRestore();
   setupBulletinExport();
+  setupSearchEngine();
 
   Promise.all([loadImportedLanguagePacks(), loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(() => {
     render();
