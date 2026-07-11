@@ -1,0 +1,121 @@
+{
+  "code": "nd",
+  "name": "Ndebele",
+  "status": "ready",
+  "source": "Christ in Song sample pack (testing)",
+  "songCount": 5,
+  "songs": [
+    {
+      "number": "001",
+      "title": "NKULULEKO EPHAKATHI",
+      "language": "Ndebele",
+      "languageCode": "nd",
+      "slides": [
+        {
+          "kind": "verse",
+          "label": "Verse 1",
+          "marker": "1",
+          "body": "Nkululeko ephakathi,\nNgithanda ukukubonga;\nWena wedwa ungumusa,\nNgiyakuthanda wena."
+        },
+        {
+          "kind": "chorus",
+          "label": "Chorus",
+          "marker": "",
+          "body": "Halala, halala!\nUyingcwele uJehova;\nHalala, halala!\nSimakade esihle."
+        },
+        {
+          "kind": "verse",
+          "label": "Verse 2",
+          "marker": "2",
+          "body": "Lapho ngizithola lingenalutho,\nUngisiza ngamandla akho;\nLapho ngiyawa phansi,\nUngiphakamisa wena."
+        }
+      ]
+    },
+    {
+      "number": "002",
+      "title": "MASIYE EMPHAKATHINI",
+      "language": "Ndebele",
+      "languageCode": "nd",
+      "slides": [
+        {
+          "kind": "verse",
+          "label": "Verse 1",
+          "marker": "1",
+          "body": "Masiye emphakathini,\nSimeme igama leNkosi;\nMasiye emphakathini,\nSibonge uMusa wayo."
+        },
+        {
+          "kind": "verse",
+          "label": "Verse 2",
+          "marker": "2",
+          "body": "Izulu nomhlaba ziyabonga,\nIzidalwa zonke ziyakhala;\nMasiye emphakathini,\nSimeme igama leNkosi."
+        }
+      ]
+    },
+    {
+      "number": "003",
+      "title": "NGIYAKUTHANDA JESU",
+      "language": "Ndebele",
+      "languageCode": "nd",
+      "slides": [
+        {
+          "kind": "verse",
+          "label": "Verse 1",
+          "marker": "1",
+          "body": "Ngiyakuthanda Jesu,\nNgoba wangisindisa;\nWangifela ephahleni,\nWangihlanza ngomusa."
+        },
+        {
+          "kind": "chorus",
+          "label": "Chorus",
+          "marker": "",
+          "body": "Jesu, Jesu, Jesu!\nUngumusa wami;\nJesu, Jesu, Jesu!\nNgiyakuthanda wena."
+        }
+      ]
+    },
+    {
+      "number": "004",
+      "title": "KUSASA KUYABHADALA",
+      "language": "Ndebele",
+      "languageCode": "nd",
+      "slides": [
+        {
+          "kind": "verse",
+          "label": "Verse 1",
+          "marker": "1",
+          "body": "Kusasa kuyabhadala,\nIzinkanyezi ziyacwila;\nSiyalindela iNkosi,\nIze ibuyele khona."
+        },
+        {
+          "kind": "verse",
+          "label": "Verse 2",
+          "marker": "2",
+          "body": "Masihlale sivukile,\nMasigcine izibuko zethu;\nKusasa kuyabhadala,\nSimeme igama leNkosi."
+        }
+      ]
+    },
+    {
+      "number": "005",
+      "title": "NGIYAKUTHOKOZA",
+      "language": "Ndebele",
+      "languageCode": "nd",
+      "slides": [
+        {
+          "kind": "verse",
+          "label": "Verse 1",
+          "marker": "1",
+          "body": "Ngiyakuthokoza,\nNgoba ungiphethe;\nNgiyakuthokoza,\nNgoba ungihlalisa."
+        },
+        {
+          "kind": "verse",
+          "label": "Verse 2",
+          "marker": "2",
+          "body": "Emini nasebusuku,\nUngumhlengi wami;\nNgiyakuthokoza,\nNgoba ungiphethe."
+        },
+        {
+          "kind": "verse",
+          "label": "Verse 3",
+          "marker": "3",
+          "body": "Nxa ngihamba endleleni,\nUngikhanya phambili;\nNgiyakuthokoza,\nNgoba ungiphethe."
+        }
+      ]
+    }
+  ]
+}

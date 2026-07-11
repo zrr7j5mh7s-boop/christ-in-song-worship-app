@@ -7,10 +7,10 @@
   const desktopBridge = electronBridge || legacyDesktopBridge;
   const baseData = window.CIS_DATA || { meta: {}, languagePacks: [] };
   const extraPacks = window.CIS_EXTRA_LANGUAGE_PACKS || [];
-  let importedPacks = loadJson("importedLanguagePacks", []);
+  let importedPacks = [];
   const data = {
     meta: baseData.meta || {},
-    languagePacks: mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]),
+    languagePacks: [],
   };
   const rangeSize = 50;
   const defaultSlots = [
@@ -202,6 +202,72 @@
       });
     }
     return [...byCode.values()];
+  }
+
+  function refreshLanguageLibrary() {
+    data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
+  }
+
+  function isBuiltinLanguagePack(code) {
+    return [...(baseData.languagePacks || []), ...extraPacks].some((pack) => pack.code === code);
+  }
+
+  async function loadImportedLanguagePacks() {
+    try {
+      if (window.CISPackStore) {
+        importedPacks = await window.CISPackStore.migrateLegacyStorage();
+      } else {
+        importedPacks = loadJson("importedLanguagePacks", []);
+      }
+    } catch (_error) {
+      importedPacks = loadJson("importedLanguagePacks", []);
+    }
+    refreshLanguageLibrary();
+  }
+
+  function persistImportedLanguagePacks() {
+    saveJson("importedLanguagePacks", importedPacks);
+    if (window.CISPackStore && window.CISPackStore.savePacks) {
+      return window.CISPackStore.savePacks(importedPacks).catch(() => {});
+    }
+    return Promise.resolve();
+  }
+
+  function openLanguagePackImportModal() {
+    if (!window.CISPackImport) {
+      setNotice("Import module failed to load. Refresh the app and try again.");
+      return;
+    }
+    window.CISPackImport.openModal({
+      modalRoot: els.modalRoot,
+      escapeHtml,
+      getImportedPacks: () => importedPacks,
+      getAllPacks: () => data.languagePacks,
+      isBuiltinPack: isBuiltinLanguagePack,
+      onImported: async ({ importedPacks: nextImported, summaryItems }) => {
+        importedPacks = nextImported;
+        refreshLanguageLibrary();
+        await persistImportedLanguagePacks();
+        const primary = summaryItems && summaryItems[0];
+        if (primary && primary.code) {
+          state.languageCode = primary.code;
+          saveValue("language", state.languageCode);
+        }
+        const message = (summaryItems || []).map((item) => {
+          if (item.isNew) return `Imported ${item.added} new hymns in ${item.name}`;
+          if (item.added) return `Added ${item.added} new hymns in ${item.name}`;
+          if (item.updated) return `Updated ${item.updated} hymns in ${item.name}`;
+          return `${item.name} now has ${item.total} hymns`;
+        }).join(" · ");
+        setNotice(message || "Language pack imported.");
+        render();
+      },
+      onClose: () => {
+        if (window.CISPackImport && !window.CISPackImport.isOpen()) {
+          els.modalRoot.innerHTML = "";
+        }
+      },
+    });
   }
 
   function createPlanSlot(role, index, overrides = {}) {
@@ -1133,9 +1199,9 @@
           <h2>Language Packs</h2>
           <div class="import-zone" data-command="import-language-pack">
             <strong>Import Language Pack</strong>
-            <span>Drop a Christ in Song JSON pack here, or choose a file. PowerPoint packs can be converted by Codex and added as JSON.</span>
-            <button class="secondary-button" type="button" data-command="import-language-pack">Choose JSON Pack</button>
-            <input id="languagePackImport" class="hidden" type="file" accept=".json,application/json,.pptx">
+            <span>Add hymns in a new language from a JSON pack or PowerPoint file. Drag-and-drop, validation, and duplicate handling are built in.</span>
+            <button class="action-button" type="button" data-command="import-language-pack">Import Language Pack</button>
+            <span class="muted">Test pack: <code>app/data/sample-packs/ndebele-sample.json</code> (5 Ndebele hymns)</span>
           </div>
           <div class="language-status">
             ${data.languagePacks.map((pack) => `
@@ -1250,6 +1316,10 @@
   }
 
   function closeModal() {
+    if (window.CISPackImport && window.CISPackImport.isOpen()) {
+      window.CISPackImport.closeModal();
+      return;
+    }
     els.modalRoot.innerHTML = "";
   }
 
@@ -1862,46 +1932,17 @@
         if (Array.isArray(payload.customTemplates)) customTemplates = payload.customTemplates;
         if (Array.isArray(payload.importedLanguagePacks)) {
           importedPacks = payload.importedLanguagePacks;
-          data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
+          refreshLanguageLibrary();
         }
         saveJson("worshipPlan", worshipPlan);
         saveJson("songService", songService);
         saveJson("favorites", [...favorites]);
         saveJson("recents", recents);
         saveJson("customTemplates", customTemplates);
-        saveJson("importedLanguagePacks", importedPacks);
-        render();
+        persistImportedLanguagePacks().finally(() => render());
+        return;
       } catch (error) {
         window.alert("That backup file could not be restored.");
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  function importLanguagePackFromFile(file) {
-    if (!file) return;
-    if (/\.pptx$/i.test(file.name)) {
-      window.alert("PowerPoint language packs need to be converted to Christ in Song JSON before browser import. Send the PPTX through Codex and import the generated JSON pack here.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const payload = JSON.parse(String(reader.result || "{}"));
-        const packs = Array.isArray(payload.languagePacks) ? payload.languagePacks : Array.isArray(payload.songs) ? [payload] : [];
-        const valid = packs.filter((pack) => pack && pack.code && pack.name && Array.isArray(pack.songs));
-        if (!valid.length) throw new Error("No valid packs");
-        importedPacks = mergeLanguagePacks([...importedPacks, ...valid.map((pack) => ({
-          ...pack,
-          status: "ready",
-          songCount: pack.songs.length,
-          source: pack.source || file.name,
-        }))]);
-        data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
-        saveJson("importedLanguagePacks", importedPacks);
-        render();
-      } catch (error) {
-        window.alert("That language pack JSON could not be imported.");
       }
     };
     reader.readAsText(file);
@@ -1912,7 +1953,7 @@
     recents = [];
     customTemplates = [];
     importedPacks = [];
-    data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks]);
+    refreshLanguageLibrary();
     worshipPlan = createDefaultPlan();
     songService = createDefaultSongService();
     saveJson("favorites", []);
@@ -1921,7 +1962,7 @@
     saveJson("importedLanguagePacks", []);
     saveJson("worshipPlan", worshipPlan);
     saveJson("songService", songService);
-    render();
+    persistImportedLanguagePacks().finally(() => render());
   }
 
   function persistTimer() {
@@ -2078,30 +2119,6 @@
       restoreBackupFromFile(target.files && target.files[0]);
       target.value = "";
     }
-    if (target.id === "languagePackImport") {
-      importLanguagePackFromFile(target.files && target.files[0]);
-      target.value = "";
-    }
-  });
-
-  document.addEventListener("dragover", (event) => {
-    const zone = event.target.closest(".import-zone");
-    if (!zone) return;
-    event.preventDefault();
-    zone.classList.add("dragging");
-  });
-
-  document.addEventListener("dragleave", (event) => {
-    const zone = event.target.closest(".import-zone");
-    if (zone) zone.classList.remove("dragging");
-  });
-
-  document.addEventListener("drop", (event) => {
-    const zone = event.target.closest(".import-zone");
-    if (!zone) return;
-    event.preventDefault();
-    zone.classList.remove("dragging");
-    importLanguagePackFromFile(event.dataTransfer.files && event.dataTransfer.files[0]);
   });
 
   document.addEventListener("keydown", (event) => {
@@ -2234,11 +2251,7 @@
       if (input) input.click();
       return;
     }
-    if (command === "import-language-pack") {
-      const input = document.getElementById("languagePackImport");
-      if (input) input.click();
-      return;
-    }
+    if (command === "import-language-pack") return openLanguagePackImportModal();
     if (command === "import-plan") {
       const input = document.getElementById("worshipPlanImport");
       if (input) input.click();
@@ -2367,10 +2380,12 @@
 
   setupDesktopBridge();
 
-  render();
-  if (!data.languagePacks.length) {
-    setNotice("Hymn library failed to load. Check app/data/songs.js.");
-  }
+  loadImportedLanguagePacks().finally(() => {
+    render();
+    if (!data.languagePacks.length) {
+      setNotice("Hymn library failed to load. Check app/data/songs.js.");
+    }
+  });
   setInterval(() => {
     if (state.timerRunning && timerRemaining() <= 0) {
       state.timerRunning = false;

@@ -12,7 +12,7 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=9">
+    <link rel="stylesheet" href="./styles.css?v=10">
   </head>
   <body>
     <div id="launchSplash" class="launch-splash" aria-hidden="true">
@@ -61,7 +61,9 @@
 
     <script src="./data/songs.js?v=2"></script>
     <script src="./data/extra-packs.js"></script>
-    <script src="./app.js?v=9"></script>
+    <script src="./pack-store.js?v=1"></script>
+    <script src="./pack-import.js?v=1"></script>
+    <script src="./app.js?v=10"></script>
     <script>
       if ("serviceWorker" in navigator && !window.electronAPI) {
         window.addEventListener("load", () => {
