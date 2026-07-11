@@ -12,7 +12,7 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=10">
+    <link rel="stylesheet" href="./styles.css?v=11">
   </head>
   <body>
     <div id="launchSplash" class="launch-splash" aria-hidden="true">
@@ -56,6 +56,8 @@
     </div>
 
     <div id="modalRoot"></div>
+    <div id="presenterControlRoot" class="presenter-control-root hidden" aria-hidden="true"></div>
+    <div id="presenterOutputRoot" class="presenter-output-root hidden" aria-hidden="true"></div>
     <div id="presenterOverlay" class="presenter-overlay hidden" aria-hidden="true"></div>
     <div id="emergencyOverlay" class="emergency-overlay hidden" aria-hidden="true"></div>
 
@@ -63,7 +65,10 @@
     <script src="./data/extra-packs.js"></script>
     <script src="./pack-store.js?v=1"></script>
     <script src="./pack-import.js?v=1"></script>
-    <script src="./app.js?v=10"></script>
+    <script src="./presenter-engine.js?v=1"></script>
+    <script src="./presenter-output.js?v=1"></script>
+    <script src="./presenter-control.js?v=1"></script>
+    <script src="./app.js?v=11"></script>
     <script>
       if ("serviceWorker" in navigator && !window.electronAPI) {
         window.addEventListener("load", () => {

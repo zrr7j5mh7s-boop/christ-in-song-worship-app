@@ -148,9 +148,13 @@
     title: document.getElementById("pageTitle"),
     languageSwitcher: document.getElementById("languageSwitcher"),
     modalRoot: document.getElementById("modalRoot"),
+    presenterControlRoot: document.getElementById("presenterControlRoot"),
+    presenterOutputRoot: document.getElementById("presenterOutputRoot"),
     presenterOverlay: document.getElementById("presenterOverlay"),
     emergencyOverlay: document.getElementById("emergencyOverlay"),
   };
+
+  let embeddedProjectorActive = false;
 
   const state = {
     view: initialView,
@@ -624,7 +628,7 @@
     renderLanguageSwitcher();
     els.title.textContent = viewTitle();
     els.content.innerHTML = `${renderNotice()}${renderView()}`;
-    renderPresenterOverlay();
+    renderPresenterAV();
     renderEmergencyOverlay();
     document.body.classList.add("app-ready");
   }
@@ -1084,6 +1088,227 @@
     return assignedSlots()[0] || null;
   }
 
+  function applyEnginePresenterState(engineState) {
+    state.presenter.open = engineState.active;
+    state.presenter.slideIndex = engineState.slideIndex;
+    state.presenter.songKey = engineState.songKey;
+    state.presenter.planIndex = engineState.planIndex;
+    state.presenter.queueKeys = engineState.queueKeys || [];
+    state.presenter.queueIndex = engineState.queueIndex;
+  }
+
+  function buildPresenterNextContext(item) {
+    if (!item) return { nextSlide: null, nextHymn: null };
+    const index = Math.max(0, Math.min(item.slides.length - 1, state.presenter.slideIndex));
+    const nextSlide = item.slides[index + 1]
+      ? { label: item.slides[index + 1].label, body: item.slides[index + 1].body }
+      : null;
+    const queuedNextKey = state.presenter.queueIndex !== null ? state.presenter.queueKeys[state.presenter.queueIndex + 1] : "";
+    const queuedNextSong = queuedNextKey ? getSongByKey(queuedNextKey) : null;
+    const nextSlot = queuedNextSong ? null : nextAssignedSlot(state.presenter.planIndex);
+    const nextItem = queuedNextSong
+      ? { title: `Hymn ${queuedNextSong.number} · ${queuedNextSong.title}`, slides: queuedNextSong.slides }
+      : nextSlot
+        ? presenterItemFromSlot(nextSlot.slot, nextSlot.index)
+        : null;
+    const nextHymn = nextItem
+      ? {
+          title: nextItem.title,
+          firstLine: nextItem.slides && nextItem.slides[0] ? nextItem.slides[0].body : "",
+        }
+      : null;
+    return { nextSlide, nextHymn };
+  }
+
+  function presenterCanGoPrev(item) {
+    if (!item) return false;
+    const index = state.presenter.slideIndex;
+    return index > 0
+      || (state.presenter.queueIndex !== null && state.presenter.queueIndex > 0)
+      || (typeof state.presenter.planIndex === "number" && previousAssignedSlot(state.presenter.planIndex));
+  }
+
+  function presenterCanGoNext(item) {
+    if (!item) return false;
+    const index = state.presenter.slideIndex;
+    return index < item.slides.length - 1
+      || (state.presenter.queueIndex !== null && state.presenter.queueKeys[state.presenter.queueIndex + 1])
+      || nextAssignedSlot(state.presenter.planIndex);
+  }
+
+  function presenterMoveCore(delta) {
+    const item = currentPresenterItem();
+    if (!item) return false;
+    const beforeKey = `${state.presenter.songKey}-${state.presenter.slideIndex}-${state.presenter.planIndex}`;
+    const next = state.presenter.slideIndex + delta;
+    if (next >= 0 && next < item.slides.length) {
+      state.presenter.slideIndex = next;
+      return beforeKey !== `${state.presenter.songKey}-${state.presenter.slideIndex}-${state.presenter.planIndex}`;
+    }
+    if (delta > 0) {
+      if (state.presenter.queueIndex !== null) {
+        const nextKey = state.presenter.queueKeys[state.presenter.queueIndex + 1];
+        const nextSong = nextKey ? getSongByKey(nextKey) : null;
+        if (nextSong) {
+          state.presenter.songKey = nextKey;
+          state.presenter.slideIndex = 0;
+          state.presenter.queueIndex += 1;
+          return true;
+        }
+        return false;
+      }
+      const nextSlot = nextAssignedSlot(state.presenter.planIndex);
+      if (nextSlot) {
+        const nextItem = presenterItemFromSlot(nextSlot.slot, nextSlot.index);
+        if (nextItem) {
+          state.presenter.songKey = nextSlot.slot.songKey;
+          state.presenter.slideIndex = 0;
+          state.presenter.planIndex = nextSlot.index;
+          state.activeSlot = nextSlot.index;
+          saveValue("activeSlot", state.activeSlot);
+          return true;
+        }
+      }
+      return false;
+    }
+    if (state.presenter.queueIndex !== null) {
+      const prevKey = state.presenter.queueKeys[state.presenter.queueIndex - 1];
+      const prevSong = prevKey ? getSongByKey(prevKey) : null;
+      if (prevSong) {
+        state.presenter.songKey = prevKey;
+        state.presenter.slideIndex = prevSong.slides.length - 1;
+        state.presenter.queueIndex -= 1;
+        return true;
+      }
+      return false;
+    }
+    const prevSlot = previousAssignedSlot(state.presenter.planIndex);
+    if (prevSlot) {
+      const prevItem = presenterItemFromSlot(prevSlot.slot, prevSlot.index);
+      if (prevItem) {
+        state.presenter.songKey = prevSlot.slot.songKey;
+        state.presenter.slideIndex = prevItem.slides.length - 1;
+        state.presenter.planIndex = prevSlot.index;
+        state.activeSlot = prevSlot.index;
+        saveValue("activeSlot", state.activeSlot);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function buildPresenterSessionPatch(overrides = {}) {
+    return {
+      active: true,
+      paused: false,
+      displayMode: "lyrics",
+      slideIndex: 0,
+      songKey: state.presenter.songKey,
+      planIndex: state.presenter.planIndex,
+      queueKeys: state.presenter.queueKeys,
+      queueIndex: state.presenter.queueIndex,
+      fontScale: state.fontScale,
+      timerSeconds: state.timerSeconds,
+      timerRunning: state.timerRunning,
+      timerEndsAt: state.timerEndsAt,
+      ...overrides,
+    };
+  }
+
+  function renderPresenterAV() {
+    if (!window.CISPresenterEngine || !window.CISPresenterOutput || !window.CISPresenterControl) return;
+    applyEnginePresenterState(window.CISPresenterEngine.getState());
+    const snapshot = window.CISPresenterEngine.buildSnapshot();
+    window.CISPresenterControl.render(els.presenterControlRoot, snapshot);
+    if (embeddedProjectorActive) {
+      window.CISPresenterOutput.render(els.presenterOutputRoot, snapshot);
+    } else {
+      window.CISPresenterOutput.render(els.presenterOutputRoot, { active: false });
+    }
+    document.body.classList.toggle("presenter-live", snapshot.active);
+  }
+
+  function setupPresenterSystem() {
+    if (!window.CISPresenterEngine) return;
+    window.CISPresenterControl.configure({ escapeHtml, plain, formatDuration });
+    window.CISPresenterOutput.configure({ escapeHtml, lyricHtml });
+    window.CISPresenterEngine.configure({
+      currentPresenterItem: () => {
+        applyEnginePresenterState(window.CISPresenterEngine.getState());
+        return currentPresenterItem();
+      },
+      nextContext: (_engineState, item) => buildPresenterNextContext(item),
+      canGoPrev: (_engineState, item) => presenterCanGoPrev(item),
+      canGoNext: (_engineState, item) => presenterCanGoNext(item),
+      movePresenter: (engineState, delta) => {
+        applyEnginePresenterState(engineState);
+        const changed = presenterMoveCore(delta);
+        if (changed) {
+          engineState.slideIndex = state.presenter.slideIndex;
+          engineState.songKey = state.presenter.songKey;
+          engineState.planIndex = state.presenter.planIndex;
+          engineState.queueKeys = state.presenter.queueKeys;
+          engineState.queueIndex = state.presenter.queueIndex;
+        }
+        return changed;
+      },
+      onEmbeddedOutput: (enabled) => {
+        embeddedProjectorActive = enabled;
+        if (enabled) {
+          els.presenterOutputRoot.classList.remove("hidden");
+          window.CISPresenterOutput.requestFullscreen(els.presenterOutputRoot);
+        } else {
+          els.presenterOutputRoot.classList.add("hidden");
+          if (document.fullscreenElement === els.presenterOutputRoot && document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          }
+        }
+        renderPresenterAV();
+      },
+      toggleOutputFullscreen: () => {
+        if (embeddedProjectorActive) {
+          window.CISPresenterOutput.requestFullscreen(els.presenterOutputRoot);
+          return;
+        }
+        if (window.CISPresenterOutput) window.CISPresenterOutput.requestFullscreen(document.documentElement);
+      },
+      electronOpenProjector: desktopBridge && desktopBridge.openProjector
+        ? async () => {
+            embeddedProjectorActive = false;
+            await desktopBridge.openProjector();
+          }
+        : null,
+      electronCloseProjector: desktopBridge && desktopBridge.closeProjector
+        ? () => desktopBridge.closeProjector()
+        : null,
+      electronPublish: desktopBridge && desktopBridge.publishPresenterState
+        ? (payload) => desktopBridge.publishPresenterState(payload)
+        : null,
+    });
+    window.CISPresenterEngine.subscribe(() => renderPresenterAV());
+    if (desktopBridge && desktopBridge.onPresenterClosed) {
+      desktopBridge.onPresenterClosed(() => {
+        embeddedProjectorActive = true;
+        renderPresenterAV();
+      });
+    }
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data && event.data.type === "cis-presenter:closed") {
+        embeddedProjectorActive = true;
+        renderPresenterAV();
+      }
+    });
+  }
+
+  function startPresenterSession(patch) {
+    if (!window.CISPresenterEngine) return;
+    state.presenter.open = true;
+    window.CISPresenterEngine.openSession(buildPresenterSessionPatch(patch));
+    applyEnginePresenterState(window.CISPresenterEngine.getState());
+    renderPresenterAV();
+  }
+
   function renderPresenterDashboard() {
     const assigned = assignedSlots();
     const currentInfo = assigned.find((item) => item.index === state.activeSlot) || assigned[0] || null;
@@ -1099,6 +1324,7 @@
           <p class="muted">${nextInfo ? `Next: ${escapeHtml(slotTitle(nextInfo.slot))}` : "Next: Not assigned"}</p>
           <div class="button-row">
             <button class="action-button" type="button" data-command="present-current">Present Current</button>
+            <button class="secondary-button" type="button" data-command="presenter-open-output">Open Projector Screen</button>
             <button class="secondary-button" type="button" data-command="emergency-black">Black Screen</button>
             <button class="secondary-button" type="button" data-command="emergency-white">White Screen</button>
             <button class="secondary-button" type="button" data-command="emergency-logo">Logo Screen</button>
@@ -1530,32 +1756,38 @@
 
   function openPresenter(song, planIndex) {
     if (!song) return;
-    state.presenter.open = true;
     state.presenter.songKey = songKey(song);
     state.presenter.slideIndex = 0;
     state.presenter.planIndex = typeof planIndex === "number" ? planIndex : null;
     state.presenter.queueKeys = [];
     state.presenter.queueIndex = null;
     addRecent(song);
+    startPresenterSession({
+      songKey: state.presenter.songKey,
+      planIndex: state.presenter.planIndex,
+      queueKeys: [],
+      queueIndex: null,
+      slideIndex: 0,
+    });
     render();
-    if (els.presenterOverlay.requestFullscreen) {
-      els.presenterOverlay.requestFullscreen().catch(() => {});
-    }
   }
 
   function openCustomPresenter(planIndex) {
     const item = presenterItemFromSlot(worshipPlan[planIndex], planIndex);
     if (!item) return;
-    state.presenter.open = true;
     state.presenter.songKey = "";
     state.presenter.slideIndex = 0;
     state.presenter.planIndex = planIndex;
     state.presenter.queueKeys = [];
     state.presenter.queueIndex = null;
+    startPresenterSession({
+      songKey: "",
+      planIndex,
+      queueKeys: [],
+      queueIndex: null,
+      slideIndex: 0,
+    });
     render();
-    if (els.presenterOverlay.requestFullscreen) {
-      els.presenterOverlay.requestFullscreen().catch(() => {});
-    }
   }
 
   function openPresenterQueue(keys, startIndex = 0) {
@@ -1563,7 +1795,6 @@
     if (!queueKeys.length) return;
     const boundedIndex = Math.max(0, Math.min(queueKeys.length - 1, startIndex));
     const song = getSongByKey(queueKeys[boundedIndex]);
-    state.presenter.open = true;
     state.presenter.songKey = queueKeys[boundedIndex];
     state.presenter.slideIndex = 0;
     state.presenter.planIndex = null;
@@ -1573,10 +1804,14 @@
     state.languageCode = parsed.code;
     state.songNumber = parsed.number;
     addRecent(song, parsed.code);
+    startPresenterSession({
+      songKey: state.presenter.songKey,
+      planIndex: null,
+      queueKeys,
+      queueIndex: boundedIndex,
+      slideIndex: 0,
+    });
     render();
-    if (els.presenterOverlay.requestFullscreen) {
-      els.presenterOverlay.requestFullscreen().catch(() => {});
-    }
   }
 
   function presentCurrent() {
@@ -1612,86 +1847,51 @@
   }
 
   function togglePresenterFullscreen() {
-    const target = els.presenterOverlay;
-    if (!target || !state.presenter.open) return;
-    if (document.fullscreenElement === target && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-      return;
-    }
-    if (target.requestFullscreen) {
-      target.requestFullscreen().catch(() => {});
+    if (!window.CISPresenterEngine || !window.CISPresenterEngine.getState().active) return;
+    if (window.CISPresenterEngine.handleCommand("presenter-fullscreen")) return;
+  }
+
+  function presenterMove(delta) {
+    if (!window.CISPresenterEngine) return;
+    if (window.CISPresenterEngine.moveSlide(delta)) {
+      applyEnginePresenterState(window.CISPresenterEngine.getState());
+      window.CISPresenterEngine.publishState();
+      renderPresenterAV();
     }
   }
 
-  function renderPresenterOverlay() {
-    if (!state.presenter.open) {
-      els.presenterOverlay.className = "presenter-overlay hidden";
-      els.presenterOverlay.setAttribute("aria-hidden", "true");
-      els.presenterOverlay.innerHTML = "";
+  function closePresenter() {
+    if (window.CISPresenterEngine) window.CISPresenterEngine.closeSession();
+    state.presenter.open = false;
+    state.emergencyMode = "";
+    embeddedProjectorActive = false;
+    render();
+  }
+
+  function setEmergency(mode) {
+    if (window.CISPresenterEngine && window.CISPresenterEngine.getState().active) {
+      window.CISPresenterEngine.setDisplayMode(mode);
+      renderPresenterAV();
       return;
     }
-    const item = currentPresenterItem();
-    if (!item || !item.slides.length) {
-      state.presenter.open = false;
-      renderPresenterOverlay();
+    state.emergencyMode = mode;
+    renderEmergencyOverlay();
+    if (els.emergencyOverlay.requestFullscreen) {
+      els.emergencyOverlay.requestFullscreen().catch(() => {});
+    }
+  }
+
+  function clearEmergency() {
+    if (window.CISPresenterEngine && window.CISPresenterEngine.getState().active) {
+      window.CISPresenterEngine.setDisplayMode("lyrics");
+      renderPresenterAV();
       return;
     }
-    const index = Math.max(0, Math.min(item.slides.length - 1, state.presenter.slideIndex));
-    const slide = item.slides[index];
-    const queuedNextKey = state.presenter.queueIndex !== null ? state.presenter.queueKeys[state.presenter.queueIndex + 1] : "";
-    const queuedNextSong = queuedNextKey ? getSongByKey(queuedNextKey) : null;
-    const nextSlot = queuedNextSong ? null : nextAssignedSlot(state.presenter.planIndex);
-    const nextItem = queuedNextSong
-      ? { title: `Hymn ${queuedNextSong.number} · ${queuedNextSong.title}`, shortTitle: `Hymn ${queuedNextSong.number}`, slides: queuedNextSong.slides }
-      : nextSlot
-        ? presenterItemFromSlot(nextSlot.slot, nextSlot.index)
-        : null;
-    const nextSlide = item.slides[index + 1];
-    const nextText = nextSlide
-      ? `Next: ${nextSlide.label}`
-      : nextItem
-        ? `Next: ${nextItem.shortTitle}`
-        : "End of queue";
-    const nextPreview = nextSlide ? nextSlide.body : nextItem && nextItem.slides[0] ? nextItem.slides[0].body : "";
-    const progress = item.slides.map((_, dotIndex) => `<span class="presenter-dot ${dotIndex === index ? "on" : ""}"></span>`).join("");
-    const presenterFont = Math.round(58 * state.fontScale);
-    const canPrev = index > 0
-      || (state.presenter.queueIndex !== null && state.presenter.queueIndex > 0)
-      || (typeof state.presenter.planIndex === "number" && previousAssignedSlot(state.presenter.planIndex));
-    const canNext = index < item.slides.length - 1
-      || (state.presenter.queueIndex !== null && state.presenter.queueKeys[state.presenter.queueIndex + 1])
-      || nextAssignedSlot(state.presenter.planIndex);
-    els.presenterOverlay.className = "presenter-overlay";
-    els.presenterOverlay.setAttribute("aria-hidden", "false");
-    els.presenterOverlay.innerHTML = `
-      <div class="presenter-top">
-        <div><strong>${escapeHtml(item.shortTitle)}</strong> · ${escapeHtml(item.title.replace(item.shortTitle, "").replace(/^ · /, ""))}</div>
-        <div class="stage-count">${index + 1} of ${item.slides.length}</div>
-      </div>
-      <div class="presenter-body">
-        <button class="presenter-arrow" type="button" data-command="presenter-prev" ${canPrev ? "" : "disabled"} aria-label="Previous slide">‹</button>
-        <div class="presenter-stage" style="--presenter-font: ${presenterFont}px">${lyricHtml(slide.body)}</div>
-        <button class="presenter-arrow" type="button" data-command="presenter-next" ${canNext ? "" : "disabled"} aria-label="Next slide">›</button>
-      </div>
-      <div class="presenter-bottom">
-        <div>
-          <span class="stage-label">${escapeHtml(slide.label)}</span>
-          ${nextItem ? `<span class="stage-count"> · ${escapeHtml(nextText)}</span>` : ""}
-        </div>
-        <div class="presenter-progress" aria-label="Slide progress">${progress}</div>
-        <div class="presenter-next-info"><strong>${escapeHtml(nextText)}</strong><span>${escapeHtml(plain(nextPreview).slice(0, 120))}</span></div>
-        <div class="presenter-controls">
-          <button type="button" data-command="presenter-prev">‹ Prev</button>
-          <button type="button" data-command="presenter-next">Next ›</button>
-          <button type="button" data-command="presenter-fullscreen">Fullscreen</button>
-          <button type="button" data-command="emergency-black">Black</button>
-          <button type="button" data-command="emergency-white">White</button>
-          <button type="button" data-command="emergency-logo">Logo</button>
-          <button type="button" data-command="close-presenter">Close</button>
-        </div>
-      </div>
-      <div class="presenter-hint">Use ← → or Space · F fullscreen · B / W / L blank screen · H home · Esc exit</div>
-    `;
+    state.emergencyMode = "";
+    if (document.fullscreenElement === els.emergencyOverlay && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+    renderEmergencyOverlay();
   }
 
   function nextAssignedSlot(index) {
@@ -1702,88 +1902,6 @@
   function previousAssignedSlot(index) {
     if (typeof index !== "number") return null;
     return [...assignedSlots()].reverse().find((item) => item.index < index) || null;
-  }
-
-  function presenterMove(delta) {
-    const item = currentPresenterItem();
-    if (!item) return;
-    const next = state.presenter.slideIndex + delta;
-    if (next >= 0 && next < item.slides.length) {
-      state.presenter.slideIndex = next;
-      renderPresenterOverlay();
-      return;
-    }
-    if (delta > 0) {
-      if (state.presenter.queueIndex !== null) {
-        const nextKey = state.presenter.queueKeys[state.presenter.queueIndex + 1];
-        const nextSong = nextKey ? getSongByKey(nextKey) : null;
-        if (nextSong) {
-          state.presenter.songKey = nextKey;
-          state.presenter.slideIndex = 0;
-          state.presenter.queueIndex += 1;
-          renderPresenterOverlay();
-        }
-        return;
-      }
-      const nextSlot = nextAssignedSlot(state.presenter.planIndex);
-      if (nextSlot) {
-        const nextItem = presenterItemFromSlot(nextSlot.slot, nextSlot.index);
-        if (nextItem) {
-          state.presenter.songKey = nextSlot.slot.songKey;
-          state.presenter.slideIndex = 0;
-          state.presenter.planIndex = nextSlot.index;
-          state.activeSlot = nextSlot.index;
-          renderPresenterOverlay();
-        }
-      }
-      return;
-    }
-    if (state.presenter.queueIndex !== null) {
-      const prevKey = state.presenter.queueKeys[state.presenter.queueIndex - 1];
-      const prevSong = prevKey ? getSongByKey(prevKey) : null;
-      if (prevSong) {
-        state.presenter.songKey = prevKey;
-        state.presenter.slideIndex = prevSong.slides.length - 1;
-        state.presenter.queueIndex -= 1;
-        renderPresenterOverlay();
-      }
-      return;
-    }
-      const prevSlot = previousAssignedSlot(state.presenter.planIndex);
-      if (prevSlot) {
-      const prevItem = presenterItemFromSlot(prevSlot.slot, prevSlot.index);
-      if (prevItem) {
-        state.presenter.songKey = prevSlot.slot.songKey;
-        state.presenter.slideIndex = prevItem.slides.length - 1;
-        state.presenter.planIndex = prevSlot.index;
-        state.activeSlot = prevSlot.index;
-        renderPresenterOverlay();
-      }
-    }
-  }
-
-  function closePresenter() {
-    state.presenter.open = false;
-    if (document.fullscreenElement === els.presenterOverlay && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    }
-    render();
-  }
-
-  function setEmergency(mode) {
-    state.emergencyMode = mode;
-    renderEmergencyOverlay();
-    if (els.emergencyOverlay.requestFullscreen) {
-      els.emergencyOverlay.requestFullscreen().catch(() => {});
-    }
-  }
-
-  function clearEmergency() {
-    state.emergencyMode = "";
-    if (document.fullscreenElement === els.emergencyOverlay && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    }
-    renderEmergencyOverlay();
   }
 
   function renderEmergencyOverlay() {
@@ -1971,11 +2089,21 @@
     saveValue("timerEndsAt", state.timerEndsAt);
   }
 
+  function syncTimerToPresenter() {
+    if (!window.CISPresenterEngine || !window.CISPresenterEngine.getState().active) return;
+    window.CISPresenterEngine.patchState({
+      timerSeconds: state.timerSeconds,
+      timerRunning: state.timerRunning,
+      timerEndsAt: state.timerEndsAt,
+    });
+  }
+
   function adjustTimer(delta) {
     const next = Math.max(60, timerRemaining() + delta);
     state.timerSeconds = next;
     state.timerEndsAt = state.timerRunning ? Date.now() + next * 1000 : 0;
     persistTimer();
+    syncTimerToPresenter();
     render();
   }
 
@@ -1989,6 +2117,7 @@
       state.timerEndsAt = Date.now() + Math.max(1, state.timerSeconds) * 1000;
     }
     persistTimer();
+    syncTimerToPresenter();
     render();
   }
 
@@ -1997,6 +2126,7 @@
     state.timerSeconds = 600;
     state.timerEndsAt = 0;
     persistTimer();
+    syncTimerToPresenter();
     render();
   }
 
@@ -2126,7 +2256,7 @@
       if (event.key === "Escape") clearEmergency();
       return;
     }
-    if (state.presenter.open) {
+    if (state.presenter.open || (window.CISPresenterEngine && window.CISPresenterEngine.getState().active)) {
       if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
         event.preventDefault();
         presenterMove(1);
@@ -2141,7 +2271,11 @@
       if (event.key.toLowerCase() === "b") setEmergency("black");
       if (event.key.toLowerCase() === "w") setEmergency("white");
       if (event.key.toLowerCase() === "l") setEmergency("logo");
-      if (event.key.toLowerCase() === "c") closePresenter();
+      if (event.key.toLowerCase() === "c") clearEmergency();
+      if (event.key.toLowerCase() === "p") {
+        if (window.CISPresenterEngine) window.CISPresenterEngine.togglePause();
+        renderPresenterAV();
+      }
       return;
     }
     if (state.view === "song") {
@@ -2311,6 +2445,18 @@
     }
     if (command === "next-slide") return moveSlide(1);
     if (command === "prev-slide") return moveSlide(-1);
+    if (command === "presenter-pause") {
+      if (window.CISPresenterEngine) window.CISPresenterEngine.togglePause();
+      renderPresenterAV();
+      return;
+    }
+    if (command === "presenter-open-output") {
+      if (window.CISPresenterEngine) {
+        window.CISPresenterEngine.openOutputSurface();
+        renderPresenterAV();
+      }
+      return;
+    }
     if (command === "present-song") return openPresenter(selectedSong(), null);
     if (command === "present-current" || command === "open-presenter") return presentCurrent();
     if (command === "presenter-next") return presenterMove(1);
@@ -2379,6 +2525,7 @@
   }
 
   setupDesktopBridge();
+  setupPresenterSystem();
 
   loadImportedLanguagePacks().finally(() => {
     render();
@@ -2391,6 +2538,13 @@
       state.timerRunning = false;
       state.timerSeconds = 0;
       persistTimer();
+      syncTimerToPresenter();
+    }
+    if (window.CISPresenterEngine && window.CISPresenterEngine.getState().active) {
+      syncTimerToPresenter();
+      window.CISPresenterEngine.publishState();
+      renderPresenterAV();
+      return;
     }
     if (state.view === "presenter" || state.presenter.open) render();
   }, 1000);
