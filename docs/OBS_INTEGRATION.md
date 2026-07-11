@@ -98,7 +98,7 @@ npm run test:obs
 
 ## Manual testing
 
-See [OBS_MANUAL_CHECKLIST.md](./OBS_MANUAL_CHECKLIST.md) and [OBS_SETUP_GUIDE.md](./OBS_SETUP_GUIDE.md).
+See [OBS_MANUAL_QA.md](./OBS_MANUAL_QA.md) and [OBS_SETUP.md](./OBS_SETUP.md).
 
 ## Modified / added files (summary)
 

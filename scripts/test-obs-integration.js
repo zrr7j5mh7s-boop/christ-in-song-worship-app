@@ -80,6 +80,12 @@ function validateSceneMappings(sceneMappings, sceneList) {
     .map(([key, sceneName]) => ({ key, sceneName }));
 }
 
+function shouldSyncFromPresenter(snapshot, engineState) {
+  if (!snapshot || !engineState?.active || engineState.paused) return false;
+  if (engineState.displayMode && engineState.displayMode !== 'lyrics') return false;
+  return true;
+}
+
 function run() {
   const sanitize = loadSanitizeLogic();
 
@@ -113,6 +119,16 @@ function run() {
   assert.equal(missing.length, 1);
   assert.equal(missing[0].sceneName, 'Missing Scene');
 
+  assert.equal(shouldSyncFromPresenter({ slide: { body: 'text' } }, { active: false }), false);
+  assert.equal(shouldSyncFromPresenter({ slide: { body: 'text' } }, { active: true, paused: true }), false);
+  assert.equal(shouldSyncFromPresenter({ slide: { body: 'text' } }, { active: true, paused: false, displayMode: 'black' }), false);
+  assert.equal(shouldSyncFromPresenter({ slide: { body: 'text' } }, { active: true, paused: false, displayMode: 'lyrics' }), true);
+
+  const outputSource = fs.readFileSync(path.join(ROOT, 'app/obs/obs-output-service.js'), 'utf8');
+  assert.ok(outputSource.includes('if (!snapshot || !engineState?.active || engineState.paused) return null'));
+  assert.ok(outputSource.includes('stagePreview'));
+  assert.ok(outputSource.includes('commitPreview'));
+
   const overlayFiles = [
     'app/obs/overlays/obs-overlay.html',
     'app/obs/overlays/obs-overlay.css',
@@ -124,6 +140,11 @@ function run() {
   ];
   overlayFiles.forEach((file) => {
     assert.ok(fs.existsSync(path.join(ROOT, file)), `missing file: ${file}`);
+  });
+
+  const docFiles = ['docs/OBS_SETUP.md', 'docs/OBS_MANUAL_QA.md', 'docs/OBS_INTEGRATION.md'];
+  docFiles.forEach((file) => {
+    assert.ok(fs.existsSync(path.join(ROOT, file)), `missing doc: ${file}`);
   });
 
   const httpSource = fs.readFileSync(path.join(ROOT, 'src/obs/obs-http-server.js'), 'utf8');

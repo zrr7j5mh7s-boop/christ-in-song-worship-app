@@ -2,6 +2,15 @@
   "use strict";
 
   const STORAGE_PREFIX = "cis-va-chinoda:";
+
+  function t(key, params) {
+    return window.CISI18n ? window.CISI18n.t(key, params) : key;
+  }
+
+  function navLabel(id) {
+    return t(`nav.${id}`);
+  }
+
   const electronBridge = window.electronAPI || null;
   const legacyDesktopBridge = window.ChristInSongDesktop || null;
   const desktopBridge = electronBridge || legacyDesktopBridge;
@@ -66,7 +75,12 @@
     content: document.getElementById("content"),
     nav: document.getElementById("primaryNav"),
     title: document.getElementById("pageTitle"),
-    languageSwitcher: document.getElementById("languageSwitcher"),
+    topbarEyebrow: document.querySelector(".topbar .eyebrow"),
+    uiLocaleSwitcher: document.getElementById("uiLocaleSwitcher"),
+    hymnPackSwitcher: document.getElementById("hymnPackSwitcher"),
+    topbarPresenterBtn: document.getElementById("topbarPresenterBtn"),
+    topbarHelpBtn: document.getElementById("topbarHelpBtn"),
+    topbarEmergencyBtn: document.getElementById("topbarEmergencyBtn"),
     modalRoot: document.getElementById("modalRoot"),
     helpContextRoot: document.getElementById("helpContextRoot"),
     presenterControlRoot: document.getElementById("presenterControlRoot"),
@@ -77,9 +91,12 @@
   };
 
   let embeddedProjectorActive = false;
+  let uiLocaleMenuOpen = false;
+  let hymnPackMenuOpen = false;
 
   const state = {
     view: initialView,
+    uiLocale: window.CISI18n ? window.CISI18n.getLocale() : "en",
     languageCode: loadValue("language", "zu"),
     songNumber: loadValue("songNumber", "001"),
     indexRange: loadValue("range", "001-050"),
@@ -732,13 +749,13 @@
   }
 
   function viewTitle() {
-    if (state.view === "help") return "Help Centre";
+    if (state.view === "help") return navLabel("help");
     if (state.view === "song") {
       const song = selectedSong();
-      return song ? `Hymn ${song.number}` : "Hymn";
+      return song ? `${t("nav.song")} ${song.number}` : t("nav.song");
     }
     const item = navItems.find((nav) => nav.id === state.view);
-    return item ? item.label : "Home Dashboard";
+    return item ? navLabel(item.id) : navLabel("home");
   }
 
   function songKey(song, code = state.languageCode) {
@@ -2888,29 +2905,29 @@
             </div>
           </section>
           <aside class="panel">
-            <h3>Install & Offline</h3>
-            <p class="muted">This app includes a web app manifest and service worker so it can be installed by supported browsers and cached for offline worship use.</p>
+            <h3>${escapeHtml(t("settings.installOffline"))}</h3>
+            <p class="muted">${escapeHtml(t("settings.installOfflineDesc"))}</p>
             <div class="button-row">
-              <button class="secondary-button" type="button" data-command="install-app">Install App</button>
+              <button class="secondary-button" type="button" data-command="install-app">${escapeHtml(t("settings.installApp"))}</button>
             </div>
             ${desktopBridge ? `
               <hr>
-              <h3>Desktop App</h3>
-              <p class="muted">Native desktop mode is active${state.desktopInfo ? ` · Version ${escapeHtml(state.desktopInfo.version)} · ${escapeHtml(state.desktopInfo.platform)}` : ""}.</p>
+              <h3>${escapeHtml(t("settings.desktopApp"))}</h3>
+              <p class="muted">${escapeHtml(t("settings.desktopActive"))}${state.desktopInfo ? ` · Version ${escapeHtml(state.desktopInfo.version)} · ${escapeHtml(state.desktopInfo.platform)}` : ""}.</p>
               <div class="button-row">
-                <button class="secondary-button" type="button" data-command="check-updates">Check Updates</button>
+                <button class="secondary-button" type="button" data-command="check-updates">${escapeHtml(t("settings.checkUpdates"))}</button>
               </div>
             ` : ""}
             <hr>
-            <h3>Help Centre</h3>
-            <p class="muted">Offline setup guides, troubleshooting, emergency tools, and pre-service checklists.</p>
+            <h3>${escapeHtml(t("nav.help"))}</h3>
+            <p class="muted">${escapeHtml(t("home.helpCentreDetail"))}</p>
             <div class="button-row">
-              <button class="secondary-button" type="button" data-view="help">Open Help Centre</button>
-              <button class="secondary-button" type="button" data-command="help-open-emergency">Emergency Help</button>
+              <button class="secondary-button" type="button" data-view="help">${escapeHtml(t("nav.help"))}</button>
+              <button class="secondary-button" type="button" data-command="help-open-emergency">${escapeHtml(t("presenter.emergencyHelp"))}</button>
               <button class="secondary-button" type="button" data-command="help-open-diagnostics">Diagnostics</button>
             </div>
             <hr>
-            <h3>Source Integration</h3>
+            <h3>${escapeHtml(t("settings.sourceIntegration"))}</h3>
             <p class="muted">${escapeHtml((data.meta.generatedFrom || []).join(" + "))}</p>
           </aside>
         </div>
@@ -4465,6 +4482,7 @@
     }
   }
 
+  setupI18n();
   setupDesktopBridge();
   setupTemplateSystem();
   setupBuilderSlides();
@@ -4485,13 +4503,13 @@
     }
     render();
     if (!data.languagePacks.length) {
-      setNotice("Hymn library failed to load. Check app/data/songs.js.");
+      setNotice(t("notice.libraryFailed"));
     }
     if (window.CISBackupRestore) {
       window.CISBackupRestore.maybeRunDailyBackup().then((result) => {
         if (result) {
           loadAutoBackupList().finally(() => {
-            setNotice(`Daily backup saved on this device (${result.id}).`);
+            setNotice(t("notice.dailyBackup", { id: result.id }));
           });
         }
       }).catch(() => {});
