@@ -45,8 +45,11 @@ Open `app/index.html` in a browser, or serve the `app/` folder with any static s
 npm install
 npm start          # launch desktop app
 npm run dev        # launch with DevTools
+npm run build      # unpackaged desktop build (quick smoke test)
 npm run dist:mac   # build macOS installer (see BUILD_GUIDE.md)
 ```
+
+Open `app/index.html` directly in a browser for PWA/offline testing without Electron.
 
 ## Features
 

@@ -4,6 +4,11 @@ release/
 out/
 build/icon.iconset/*.png.tmp
 
+# Local source archives (already imported into app/data/)
+Christ_in_Song_Multi_Language_Pack/
+*.zip
+*.app/
+
 # OS
 .DS_Store
 Thumbs.db

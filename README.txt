@@ -19,5 +19,6 @@ Included:
 Desktop packaging:
 - npm install
 - npm start (desktop)
+- npm run build (unpackaged desktop smoke test)
 - npm run dist:mac / dist:win / dist:linux
 - See BUILD_GUIDE.md and CODE_SIGNING.md
