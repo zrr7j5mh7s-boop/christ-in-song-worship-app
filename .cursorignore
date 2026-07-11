@@ -1,0 +1,24 @@
+# Bulk runtime data — avoid loading ~16MB+ of JSON into agent context
+app/data/bibles/
+app/data/sda-hymnal-pack.json
+
+# Local source archives (already imported into app/data/)
+Christ_in_Song_Multi_Language_Pack/
+Bible_App_Ready_Public_Domain_Set/
+data/source/
+
+# Build output and dependencies
+node_modules/
+dist/
+release/
+out/
+build/icon.iconset/*.png.tmp
+
+# Archives and packaged apps
+*.zip
+*.app/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
