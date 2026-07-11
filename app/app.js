@@ -2079,14 +2079,14 @@
               </p>
             </div>
             <div class="song-actions">
-              <button class="action-button" type="button" data-command="toggle-add-content">Add Content</button>
-              <button class="secondary-button" type="button" data-command="save-template">Save as Template</button>
-              <button class="secondary-button" type="button" data-command="copy-plan">Copy Builder</button>
-              <button class="secondary-button" type="button" data-command="export-plan">Export Builder</button>
-              <button class="secondary-button" type="button" data-command="export-bulletin">Service Bulletin</button>
-              <button class="secondary-button" type="button" data-command="import-plan">Import Builder</button>
-              <button class="secondary-button" type="button" data-command="print-set">Print</button>
-              <button class="danger-button" type="button" data-command="clear-plan">Clear</button>
+              <button class="action-button" type="button" data-command="toggle-add-content">${escapeHtml(t("builder.addContent"))}</button>
+              <button class="secondary-button" type="button" data-command="save-template">${escapeHtml(t("builder.saveTemplate"))}</button>
+              <button class="secondary-button" type="button" data-command="copy-plan">${escapeHtml(t("builder.copyBuilder"))}</button>
+              <button class="secondary-button" type="button" data-command="export-plan">${escapeHtml(t("builder.exportBuilder"))}</button>
+              <button class="secondary-button" type="button" data-command="export-bulletin">${escapeHtml(t("builder.serviceBulletin"))}</button>
+              <button class="secondary-button" type="button" data-command="import-plan">${escapeHtml(t("builder.importBuilder"))}</button>
+              <button class="secondary-button" type="button" data-command="print-set">${escapeHtml(t("common.print"))}</button>
+              <button class="danger-button" type="button" data-command="clear-plan">${escapeHtml(t("common.clear"))}</button>
               <input id="worshipPlanImport" class="hidden" type="file" accept="application/json">
             </div>
           </div>
@@ -2097,7 +2097,7 @@
           </div>
         </section>
         <aside class="panel">
-          <h3>Assign Hymn</h3>
+          <h3>${escapeHtml(t("builder.assignHymn"))}</h3>
           <p class="muted">Builder: ${escapeHtml(worshipPlan[state.activeSlot]?.role || worshipPlan[0].role)} · Song Service: ${escapeHtml(songService[state.activeSongServiceSlot]?.role || songService[0].role)}</p>
           ${worshipSuggestionBlock}
           ${serviceSuggestionBlock}
@@ -2106,7 +2106,7 @@
           <hr>
           <label class="search-box">
             <span aria-hidden="true">⌕</span>
-            <input id="builderSearchInput" type="search" value="${escapeHtml(state.builderQuery)}" placeholder="Find a hymn">
+            <input id="builderSearchInput" type="search" value="${escapeHtml(state.builderQuery)}" placeholder="${escapeHtml(t("builder.findHymn"))}">
           </label>
           <div class="result-list">
             ${results.map((song) => `
@@ -2116,9 +2116,9 @@
                   <span>${escapeHtml(song.title)}</span>
                   ${renderSongTags(song) ? `<span class="result-tags">${renderSongTags(song)}</span>` : ""}
                 </button>
-                <button type="button" data-command="assign-service-song" data-song="${song.number}">Song Service</button>
+                <button type="button" data-command="assign-service-song" data-song="${song.number}">${escapeHtml(t("builder.songServiceBtn"))}</button>
               </div>
-            `).join("") || `<div class="empty-state">No hymns available in this language.</div>`}
+            `).join("") || `<div class="empty-state">${escapeHtml(t("builder.noHymns"))}</div>`}
           </div>
         </aside>
       </div>
@@ -2343,7 +2343,7 @@
 
   function setupPresenterSystem() {
     if (!window.CISPresenterEngine) return;
-    window.CISPresenterControl.configure({ escapeHtml, plain, formatDuration, helpTrigger });
+    window.CISPresenterControl.configure({ escapeHtml, plain, formatDuration, helpTrigger, t });
     window.CISPresenterOutput.configure({ escapeHtml, lyricHtml });
     window.CISPresenterEngine.configure({
       currentPresenterItem: () => {
@@ -2730,36 +2730,40 @@
       <div class="operator-grid">
         <section class="section">
           <p class="eyebrow">Clock ${escapeHtml(time)}</p>
-          <h2>${currentInfo ? `Current: ${escapeHtml(slotTitle(currentInfo.slot))}` : currentSong ? `Current: Hymn ${escapeHtml(currentSong.number)} · ${escapeHtml(currentSong.title)}` : "Current: No hymn selected"}</h2>
-          <p class="muted">${nextInfo ? `Next: ${escapeHtml(slotTitle(nextInfo.slot))}` : "Next: Not assigned"}</p>
+          <h2>${currentInfo
+    ? escapeHtml(t("presenter.current", { title: slotTitle(currentInfo.slot) }))
+    : currentSong
+      ? escapeHtml(t("presenter.current", { title: `${t("notice.hymnPrefix", { number: currentSong.number })} · ${currentSong.title}` }))
+      : escapeHtml(t("presenter.currentNone"))}</h2>
+          <p class="muted">${nextInfo ? escapeHtml(t("presenter.next", { title: slotTitle(nextInfo.slot) })) : escapeHtml(t("presenter.nextNone"))}</p>
           <div class="button-row">
-            <button class="action-button" type="button" data-command="present-current">Present Current${helpTrigger("send-live", "Present Current")}</button>
-            <button class="secondary-button" type="button" data-command="presenter-open-output">Open Projector Screen</button>
-            <button class="secondary-button" type="button" data-command="help-open-emergency">Emergency Help</button>
-            <button class="secondary-button" type="button" data-command="emergency-clear">Clear${helpTrigger("clear", "Clear")}</button>
-            <button class="secondary-button" type="button" data-command="emergency-black" data-confirm="true">Black Screen${helpTrigger("blackout", "Blackout")}</button>
-            <button class="secondary-button" type="button" data-command="emergency-white">White Screen</button>
-            <button class="secondary-button" type="button" data-command="emergency-logo">Logo Screen</button>
+            <button class="action-button" type="button" data-command="present-current">${escapeHtml(t("presenter.presentCurrent"))}${helpTrigger("send-live", "Present Current")}</button>
+            <button class="secondary-button" type="button" data-command="presenter-open-output">${escapeHtml(t("presenter.openProjector"))}</button>
+            <button class="secondary-button" type="button" data-command="help-open-emergency">${escapeHtml(t("presenter.emergencyHelp"))}</button>
+            <button class="secondary-button" type="button" data-command="emergency-clear">${escapeHtml(t("common.clear"))}${helpTrigger("clear", "Clear")}</button>
+            <button class="secondary-button" type="button" data-command="emergency-black" data-confirm="true">${escapeHtml(t("presenter.blackScreen"))}${helpTrigger("blackout", "Blackout")}</button>
+            <button class="secondary-button" type="button" data-command="emergency-white">${escapeHtml(t("presenter.whiteScreen"))}</button>
+            <button class="secondary-button" type="button" data-command="emergency-logo">${escapeHtml(t("presenter.logoScreen"))}</button>
           </div>
           <div class="operator-preview-grid">
             <article class="preview-card">
-              <span>Current Preview</span>
-              <strong>${currentInfo ? escapeHtml(slotTitle(currentInfo.slot)) : currentSong ? `Hymn ${escapeHtml(currentSong.number)}` : "No item"}</strong>
-              <p>${escapeHtml(currentInfo ? plain(slotSlides(currentInfo.slot)[0]?.body).slice(0, 170) : currentSong ? plain(currentSong.slides[0]?.body).slice(0, 170) : "Build a service queue first.")}</p>
+              <span>${escapeHtml(t("presenter.currentPreview"))}</span>
+              <strong>${currentInfo ? escapeHtml(slotTitle(currentInfo.slot)) : currentSong ? escapeHtml(t("notice.hymnPrefix", { number: currentSong.number })) : escapeHtml(t("presenter.noItem"))}</strong>
+              <p>${escapeHtml(currentInfo ? plain(slotSlides(currentInfo.slot)[0]?.body).slice(0, 170) : currentSong ? plain(currentSong.slides[0]?.body).slice(0, 170) : t("presenter.buildQueue"))}</p>
             </article>
             <article class="preview-card next">
-              <span>Next Preview</span>
-              <strong>${nextInfo ? escapeHtml(slotTitle(nextInfo.slot)) : "End of queue"}</strong>
-              <p>${escapeHtml(nextInfo ? plain(slotSlides(nextInfo.slot)[0]?.body).slice(0, 170) : "No next item assigned.")}</p>
+              <span>${escapeHtml(t("presenter.nextPreview"))}</span>
+              <strong>${nextInfo ? escapeHtml(slotTitle(nextInfo.slot)) : escapeHtml(t("presenter.endOfQueue"))}</strong>
+              <p>${escapeHtml(nextInfo ? plain(slotSlides(nextInfo.slot)[0]?.body).slice(0, 170) : t("presenter.noNext"))}</p>
             </article>
             <article class="timer-card">
-              <span>Countdown</span>
+              <span>${escapeHtml(t("presenter.countdown"))}</span>
               <strong>${formatDuration(remaining)}</strong>
               <div class="button-row">
                 <button class="secondary-button" type="button" data-command="timer-minus">-5</button>
                 <button class="secondary-button" type="button" data-command="timer-plus">+5</button>
-                <button class="action-button" type="button" data-command="timer-toggle">${state.timerRunning ? "Pause" : "Start"}</button>
-                <button class="secondary-button" type="button" data-command="timer-reset">Reset</button>
+                <button class="action-button" type="button" data-command="timer-toggle">${state.timerRunning ? escapeHtml(t("common.pause")) : escapeHtml(t("common.start"))}</button>
+                <button class="secondary-button" type="button" data-command="timer-reset">${escapeHtml(t("common.reset"))}</button>
               </div>
             </article>
           </div>
@@ -2769,7 +2773,7 @@
           </div>
         </section>
         <aside class="panel">
-          <h3>Presenter Queue</h3>
+          <h3>${escapeHtml(t("presenter.queue"))}</h3>
           ${window.CISObsControlUI && window.CISObsConnectionService
             ? window.CISObsControlUI.renderCompactStatus(
               window.CISObsConnectionService.getStatus(),
@@ -2790,7 +2794,7 @@
                   <small>${escapeHtml(song ? `${song.slides.length} slides` : slotSubtitle(item.slot))}</small>
                 </button>
               `;
-            }).join("") || `<div class="empty-state">Build a worship builder order to create a queue.</div>`}
+            }).join("") || `<div class="empty-state">${escapeHtml(t("presenter.buildQueue"))}</div>`}
           </div>
         </aside>
       </div>
@@ -2803,15 +2807,15 @@
     return `
       <div class="dashboard-grid">
         <section class="section">
-          <h2>Favorites</h2>
+          <h2>${escapeHtml(t("favorites.title"))}</h2>
           <div class="tile-grid">
-            ${favoriteSongs.map((item) => renderStoredSongCard(item.key, item.song)).join("") || `<div class="empty-state">No favorites saved yet.</div>`}
+            ${favoriteSongs.map((item) => renderStoredSongCard(item.key, item.song)).join("") || `<div class="empty-state">${escapeHtml(t("favorites.none"))}</div>`}
           </div>
         </section>
         <aside class="panel">
-          <h3>Recently Used</h3>
+          <h3>${escapeHtml(t("favorites.recentlyUsed"))}</h3>
           <div class="result-list">
-            ${recentSongs.map((item) => renderStoredResult(item.key, item.song)).join("") || `<div class="empty-state">No recent hymns yet.</div>`}
+            ${recentSongs.map((item) => renderStoredResult(item.key, item.song)).join("") || `<div class="empty-state">${escapeHtml(t("favorites.noRecent"))}</div>`}
           </div>
         </aside>
       </div>
@@ -2850,34 +2854,34 @@
       autoBackups: autoBackupList,
     }) : `
       <section class="section">
-        <h3>Local Worship Data</h3>
+        <h3>${escapeHtml(t("settings.localData"))}</h3>
         <div class="button-row">
-          <button class="action-button" type="button" data-command="export-backup">Export Backup</button>
-          <button class="secondary-button" type="button" data-command="restore-backup">Restore Backup</button>
+          <button class="action-button" type="button" data-command="export-backup">${escapeHtml(t("settings.exportBackup"))}</button>
+          <button class="secondary-button" type="button" data-command="restore-backup">${escapeHtml(t("settings.restoreBackup"))}</button>
         </div>
       </section>`;
     return `
       <div class="settings-page">
         <div class="dashboard-grid">
           <section class="section">
-            <h2>Language Packs</h2>
+            <h2>${escapeHtml(t("settings.languagePacks"))}</h2>
             <div class="import-zone" data-command="import-language-pack">
-              <strong>Import Language Pack</strong>
-              <span>Add hymns in a new language from a JSON pack or PowerPoint file. Drag-and-drop, validation, and duplicate handling are built in.</span>
-              <button class="action-button" type="button" data-command="import-language-pack">Import Language Pack</button>
+              <strong>${escapeHtml(t("settings.importPack"))}</strong>
+              <span>${escapeHtml(t("settings.importPackDesc"))}</span>
+              <button class="action-button" type="button" data-command="import-language-pack">${escapeHtml(t("settings.importPack"))}</button>
               <span class="muted">Test pack: <code>app/data/sample-packs/ndebele-sample.json</code> (5 Ndebele hymns)</span>
             </div>
             <div class="import-zone tag-tools-zone">
-              <strong>Tag & Categorize Hymns</strong>
-              <span>Apply worship categories to imported packs in bulk, or refine tags hymn by hymn from the song reader.</span>
-              <button class="secondary-button" type="button" data-command="open-bulk-tag">Bulk Tag Hymns</button>
-              <span class="muted">${Object.keys(songTagMap).length} hymns tagged across all languages</span>
+              <strong>${escapeHtml(t("settings.tagHymns"))}</strong>
+              <span>${escapeHtml(t("settings.tagHymnsDesc"))}</span>
+              <button class="secondary-button" type="button" data-command="open-bulk-tag">${escapeHtml(t("settings.bulkTag"))}</button>
+              <span class="muted">${escapeHtml(t("settings.taggedCount", { count: Object.keys(songTagMap).length }))}</span>
             </div>
             <div class="language-status">
               ${data.languagePacks.map((pack) => `
                 <div class="language-row">
                   <strong>${escapeHtml(pack.name)}</strong>
-                  <span class="status-pill ${pack.status === "ready" ? "ready" : "awaiting"}">${pack.status === "ready" ? `${pack.songCount} hymns` : "Awaiting upload"}</span>
+                  <span class="status-pill ${pack.status === "ready" ? "ready" : "awaiting"}">${pack.status === "ready" ? t("topbar.hymns", { count: pack.songCount }) : escapeHtml(t("common.awaiting"))}</span>
                   <span class="muted">${escapeHtml(compactSource(pack.source))}</span>
                 </div>
               `).join("")}
@@ -3754,7 +3758,13 @@
   }
 
   document.addEventListener("click", (event) => {
-    const target = event.target.closest("[data-view], [data-command], [data-song], [data-lang], [data-slide], [data-help-article], [data-help-category], [data-help-nav], [data-help-bookmark], [data-help-context], [data-help-training-start], [data-help-training-complete]");
+    if (!event.target.closest(".locale-dropdown") && (uiLocaleMenuOpen || hymnPackMenuOpen)) {
+      uiLocaleMenuOpen = false;
+      hymnPackMenuOpen = false;
+      renderLanguageSwitcher();
+    }
+
+    const target = event.target.closest("[data-view], [data-command], [data-song], [data-lang], [data-ui-locale], [data-slide], [data-help-article], [data-help-category], [data-help-nav], [data-help-bookmark], [data-help-context], [data-help-training-start], [data-help-training-complete]");
     if (!target) return;
 
     const backdrop = event.target.classList.contains("modal-backdrop");
@@ -3763,8 +3773,20 @@
       return;
     }
 
+    const uiLocale = target.dataset.uiLocale;
+    if (uiLocale && window.CISI18n) {
+      window.CISI18n.setLocale(uiLocale);
+      state.uiLocale = window.CISI18n.getLocale();
+      uiLocaleMenuOpen = false;
+      hymnPackMenuOpen = false;
+      render();
+      return;
+    }
+
     const lang = target.dataset.lang;
     if (lang) {
+      hymnPackMenuOpen = false;
+      uiLocaleMenuOpen = false;
       void (async () => {
         if (!(await ensureLanguagePackLoaded(lang))) return;
         state.languageCode = lang;
@@ -3936,6 +3958,18 @@
   function handleCommand(command, target) {
     const slotIndex = Number(target.dataset.slot);
     const serviceSlotIndex = Number(target.dataset.serviceSlot);
+    if (command === "toggle-ui-locale-menu") {
+      uiLocaleMenuOpen = !uiLocaleMenuOpen;
+      hymnPackMenuOpen = false;
+      renderLanguageSwitcher();
+      return;
+    }
+    if (command === "toggle-hymn-pack-menu") {
+      hymnPackMenuOpen = !hymnPackMenuOpen;
+      uiLocaleMenuOpen = false;
+      renderLanguageSwitcher();
+      return;
+    }
     if (command === "range-open") {
       state.indexRange = target.dataset.range || state.indexRange;
       state.view = "index";
@@ -4444,7 +4478,11 @@
   setupSearchEngine();
   setupHymnAudio();
 
-  Promise.all([loadImportedLanguagePacks(), loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(() => {
+  Promise.all([loadImportedLanguagePacks(), loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(async () => {
+    if (window.CISLazyLoader && window.CISLazyLoader.isPackDeferred(state.languageCode)) {
+      await ensureLanguagePackLoaded(state.languageCode);
+      indexReadyPacks([state.languageCode]);
+    }
     render();
     if (!data.languagePacks.length) {
       setNotice("Hymn library failed to load. Check app/data/songs.js.");
