@@ -1,4 +1,4 @@
-const CACHE_NAME = "christ-in-song-worship-v18";
+const CACHE_NAME = "christ-in-song-worship-v19";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -33,6 +33,7 @@ const APP_SHELL = [
   "./presenter-screen.js?v=1",
   "./app.js?v=18",
   "./data/songs.js?v=2",
+  "./data/sda-hymnal-pack.js?v=1",
   "./data/extra-packs.js",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",

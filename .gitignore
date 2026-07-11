@@ -6,6 +6,7 @@ build/icon.iconset/*.png.tmp
 
 # Local source archives (already imported into app/data/)
 Christ_in_Song_Multi_Language_Pack/
+data/source/
 *.zip
 *.app/
 
