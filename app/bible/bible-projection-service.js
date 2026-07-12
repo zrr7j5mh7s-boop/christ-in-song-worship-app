@@ -135,6 +135,14 @@
   }
 
   function buildSlides(verses, parsed, translationCode, secondaryVerses) {
+    if (window.CISlideLayoutEngine) {
+      return window.CISlideLayoutEngine.buildScriptureSlides(verses, parsed, {
+        translation: translationCode,
+        secondaryVerses,
+        settings,
+        layout: settings.defaultLayout || "fullscreen",
+      });
+    }
     const store = window.CISBibleStore;
     const meta = store ? store.getTranslationMeta(translationCode) : null;
     const secondaryMeta = settings.secondaryTranslation && store

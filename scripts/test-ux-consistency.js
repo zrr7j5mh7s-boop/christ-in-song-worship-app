@@ -102,12 +102,17 @@ function testHymnCardLongTitles() {
 function testCacheVersion() {
   const sw = read("sw.js");
 <<<<<<< HEAD
+<<<<<<< HEAD
   if (!sw.includes("christ-in-song-worship-v41")) fail("Service worker cache should be v41");
   ok("cache version v41 for quiet service mode release");
 =======
   if (!sw.includes("christ-in-song-worship-v39")) fail("Service worker cache should be v39");
   ok("cache version v39 for UX release");
 >>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
+=======
+  if (!sw.includes("christ-in-song-worship-v40")) fail("Service worker cache should be v40");
+  ok("cache version v40 for projection release");
+>>>>>>> e584b20 (Unify projection rendering so hymn, Bible, and OBS congregation outputs share themes, layout, and text fitting for readable slides on any screen.)
 }
 
 testDesignTokens();

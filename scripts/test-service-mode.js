@@ -131,6 +131,7 @@ function run() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   assert.match(indexHtml, /styles\.css\?v=37/);
 =======
   assert.match(indexHtml, /styles\.css\?v=36/);
@@ -144,6 +145,9 @@ function run() {
 =======
   assert.match(indexHtml, /styles\.css\?v=39/);
 >>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
+=======
+  assert.match(indexHtml, /styles\.css\?v=40/);
+>>>>>>> e584b20 (Unify projection rendering so hymn, Bible, and OBS congregation outputs share themes, layout, and text fitting for readable slides on any screen.)
 
   const styles = read("app/styles.css");
   assert.match(styles, /\.service-mode-trio/);
@@ -152,6 +156,7 @@ function run() {
   assert.match(styles, /body\.service-mode-active/);
 
   const sw = read("app/sw.js");
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -169,6 +174,9 @@ function run() {
 =======
   assert.match(sw, /christ-in-song-worship-v39/);
 >>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
+=======
+  assert.match(sw, /christ-in-song-worship-v40/);
+>>>>>>> e584b20 (Unify projection rendering so hymn, Bible, and OBS congregation outputs share themes, layout, and text fitting for readable slides on any screen.)
   assert.match(sw, /service-mode-service\.js/);
 
   const pkg = JSON.parse(read("package.json"));

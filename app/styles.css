@@ -7139,6 +7139,7 @@ a:focus:not(:focus-visible) {
   }
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
 =======
 >>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
@@ -7379,6 +7380,8 @@ a:focus:not(:focus-visible) {
     gap: 6px;
   }
 }
+=======
+>>>>>>> e584b20 (Unify projection rendering so hymn, Bible, and OBS congregation outputs share themes, layout, and text fitting for readable slides on any screen.)
 
 /* Congregation projection output */
 .presenter-screen-body,
@@ -7627,6 +7630,7 @@ a:focus:not(:focus-visible) {
   }
 }
 
+<<<<<<< HEAD
 .quiet-service-mode-root:empty {
   display: none;
 }
@@ -7711,3 +7715,5 @@ body.quiet-service-mode-active .launch-splash {
 }
 
 >>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
+=======
+>>>>>>> e584b20 (Unify projection rendering so hymn, Bible, and OBS congregation outputs share themes, layout, and text fitting for readable slides on any screen.)
