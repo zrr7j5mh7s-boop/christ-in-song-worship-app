@@ -201,6 +201,7 @@
     practiceMode: false,
     obsUrls: {},
     obsHeartbeat: {},
+    stageDisplayDisplays: [],
     help: {
       category: "",
       articleId: "",
@@ -1131,8 +1132,10 @@
     return {
       projectorStatus: presenterActive || localStatus?.active ? "active" : "off",
       projectorDetail: localStatus?.mainProjector || (presenterActive ? "Active" : "Off"),
-      stageStatus: localStatus?.stageDisplay && localStatus.stageDisplay !== "—" ? "ready" : "off",
-      stageDetail: localStatus?.stageDisplay || "—",
+      stageStatus: (window.CISStageDisplayService?.getState?.().connected ? "ready" : "off"),
+      stageDetail: window.CISStageDisplayService?.getState?.().connected
+        ? (window.CISStageDisplaySettings?.LAYOUTS?.[window.CISStageDisplayService.getState().settings?.layoutId]?.label || "Stage Display")
+        : (localStatus?.stageDisplay && localStatus.stageDisplay !== "—" ? localStatus.stageDisplay : "—"),
       obsEnabled,
       obsStatus: obsStatus?.connected ? "connected" : obsEnabled ? "warning" : "off",
       obsDetail: obsStatus?.connected ? "Connected" : obsEnabled ? "Disconnected" : "Off",
@@ -5384,7 +5387,167 @@
         embeddedProjectorActive = true;
         renderPresenterAV();
       }
+      if (event.data && event.data.type === "cis-stage-display:closed") {
+        window.CISStageDisplayService?.handleOutputClosed?.();
+        render();
+      }
     });
+  }
+
+  function getStageDisplayWorshipContext() {
+    const item = currentPresenterItem();
+    const slideIndex = Math.max(0, state.presenter.slideIndex || 0);
+    const slide = item?.slides?.[slideIndex] || null;
+    const nextCtx = buildPresenterNextContext(item);
+    const assigned = assignedSlots();
+    const currentSlotInfo = assigned.find((entry) => entry.index === state.activeSlot) || assigned[0] || null;
+    const nextSlotInfo = currentSlotInfo
+      ? assigned.find((entry) => entry.index > currentSlotInfo.index)
+      : assigned[0] || null;
+
+    let currentBible = null;
+    let nextBible = null;
+    if (window.CISBibleProjectionService) {
+      const bibleState = window.CISBibleProjectionService.getPublicState?.();
+      const live = bibleState?.live;
+      if (live?.active && !live.cleared && live.slides?.length) {
+        const liveIndex = Math.max(0, Math.min(live.slides.length - 1, live.slideIndex || 0));
+        const liveSlide = live.slides[liveIndex];
+        currentBible = {
+          reference: live.referenceLabel || liveSlide?.reference || liveSlide?.label || "",
+          text: liveSlide?.body || "",
+          translation: live.translation || "",
+        };
+        const nextSlide = live.slides[liveIndex + 1];
+        if (nextSlide) {
+          nextBible = {
+            reference: nextSlide.reference || nextSlide.label || "",
+            text: nextSlide.body || "",
+            translation: live.translation || "",
+          };
+        }
+      }
+    }
+
+    const obsStatus = window.CISObsConnectionService?.getStatus?.() || {};
+    const obsLive = window.CISObsOutputService?.getLiveState?.() || {};
+    const cameraStatus = window.CISCameraSourceService?.getLocalPresentationStatus?.() || {};
+
+    return {
+      currentHymn: item?.type === "song"
+        ? { number: item.song?.number || "", title: item.song?.title || item.hymnTitle || "" }
+        : null,
+      currentStanza: slide
+        ? { label: slide.label || "", body: slide.body || "" }
+        : null,
+      nextStanza: nextCtx.nextSlide || null,
+      nextHymnTitle: nextCtx.nextHymn?.title || "",
+      currentBible,
+      nextBible,
+      currentServiceItem: currentSlotInfo
+        ? {
+          title: slotTitle(currentSlotInfo.slot),
+          role: currentSlotInfo.slot.role || "",
+          meta: slotSubtitle(currentSlotInfo.slot),
+        }
+        : null,
+      nextServiceItem: nextSlotInfo
+        ? {
+          title: slotTitle(nextSlotInfo.slot),
+          role: nextSlotInfo.slot.role || "",
+          meta: slotSubtitle(nextSlotInfo.slot),
+        }
+        : null,
+      status: {
+        camera: {
+          label: cameraStatus.stageDisplay || cameraStatus.mainProjector || "Camera",
+          detail: cameraStatus.active ? "Active feed" : "Idle",
+          status: cameraStatus.active ? "live" : "idle",
+        },
+        mic: {
+          label: obsLive.micMuted ? "Muted" : "Live",
+          detail: obsLive.micLabel || "Operator mic",
+          status: obsLive.micMuted ? "muted" : "live",
+        },
+        recording: {
+          label: obsStatus.recordingActive ? "Recording" : "Not recording",
+          detail: obsStatus.recordingActive ? "OBS recording active" : "—",
+          status: obsStatus.recordingActive ? "active" : "off",
+        },
+        streaming: {
+          label: obsStatus.streamingActive ? "Streaming" : "Not streaming",
+          detail: obsStatus.streamingActive ? "OBS stream live" : "—",
+          status: obsStatus.streamingActive ? "live" : "off",
+        },
+      },
+    };
+  }
+
+  function publishStageDisplay() {
+    if (!window.CISStageDisplayService) return;
+    window.CISStageDisplayService.publish();
+  }
+
+  function refreshStageDisplayDisplays() {
+    if (desktopBridge?.stageDisplay?.listDisplays) {
+      desktopBridge.stageDisplay.listDisplays().then((payload) => {
+        state.stageDisplayDisplays = payload?.displays || [];
+        if (state.view === "settings" || state.view === "presenter") render();
+      }).catch(() => {});
+      return;
+    }
+    state.stageDisplayDisplays = [];
+  }
+
+  function setupStageDisplay() {
+    if (!window.CISStageDisplayEngine || !window.CISStageDisplayService) return;
+    window.CISStageDisplayUI?.configure?.({ escapeHtml, t });
+    window.CISStageDisplayService.configure({
+      loadSettings: () => window.CISStageDisplaySettings.load((key, fallback) => loadJson(key, fallback)),
+      saveSettings: (settings) => window.CISStageDisplaySettings.save(settings, saveJson),
+      saveMessageLog: (log) => saveJson("stageDisplayMessageLog", log),
+      getWorshipContext: getStageDisplayWorshipContext,
+      electronOpen: desktopBridge?.stageDisplay?.open
+        ? (payload) => desktopBridge.stageDisplay.open(payload)
+        : null,
+      electronClose: desktopBridge?.stageDisplay?.close
+        ? () => desktopBridge.stageDisplay.close()
+        : null,
+      electronRestart: desktopBridge?.stageDisplay?.restart
+        ? (payload) => desktopBridge.stageDisplay.restart(payload)
+        : null,
+      electronPublish: desktopBridge?.stageDisplay?.publish
+        ? (payload) => desktopBridge.stageDisplay.publish(payload)
+        : null,
+    });
+    window.CISStageDisplayEngine.subscribe(() => {
+      if (window.CISStageDisplayService.getState().active) publishStageDisplay();
+    });
+    if (window.CISPresenterEngine) {
+      window.CISPresenterEngine.subscribe(() => publishStageDisplay());
+    }
+    if (desktopBridge?.stageDisplay?.onClosed) {
+      desktopBridge.stageDisplay.onClosed(() => {
+        window.CISStageDisplayService.handleOutputClosed();
+        render();
+      });
+    }
+    if (desktopBridge?.stageDisplay?.onDisplaysChanged) {
+      desktopBridge.stageDisplay.onDisplaysChanged(() => {
+        refreshStageDisplayDisplays();
+        if (window.CISStageDisplayService.getState().active) {
+          void window.CISStageDisplayService.restartOutput();
+        }
+      });
+    }
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "cis-stage-display:closed") {
+        window.CISStageDisplayService.handleOutputClosed();
+        render();
+      }
+    });
+    refreshStageDisplayDisplays();
   }
 
   function gatherHelpDiagnosticsReport() {
@@ -5955,6 +6118,12 @@
           </div>
         </section>
         <aside class="panel">
+          ${window.CISStageDisplayUI && window.CISStageDisplayService
+    ? window.CISStageDisplayUI.renderPresenterMount(
+      window.CISStageDisplayService.getState(),
+      state.stageDisplayDisplays,
+    )
+    : ""}
           <h3>${escapeHtml(t("presenter.queue"))}</h3>
           ${window.CISObsControlUI && window.CISObsConnectionService
             ? window.CISObsControlUI.renderCompactStatus(
@@ -6142,6 +6311,12 @@
           </aside>
         </div>
         ${backupPanel}
+        ${window.CISStageDisplayUI && window.CISStageDisplayService
+    ? window.CISStageDisplayUI.renderSettingsPanel(
+      window.CISStageDisplayService.getState(),
+      state.stageDisplayDisplays,
+    )
+    : ""}
         ${quietPanel}
         ${shortcutSettingsPanel}
         ${shortcutReferencePanel}
@@ -7275,6 +7450,9 @@
       const option = target.closest(".song-tag-option");
       if (option) option.classList.toggle("active", target.checked);
     }
+    if (target.dataset?.command) {
+      handleCommand(target.dataset.command, target);
+    }
   });
 
   document.addEventListener("keydown", (event) => {
@@ -7698,6 +7876,145 @@
     if (command === "font-reset") {
       state.fontScale = 1;
       saveValue("fontScale", state.fontScale);
+      render();
+      return;
+    }
+    if (command === "stage-display-open") {
+      void window.CISStageDisplayService?.openOutput?.().then(() => {
+        publishStageDisplay();
+        setNotice("Stage Display opened. Congregation outputs unchanged.");
+        render();
+      });
+      return;
+    }
+    if (command === "stage-display-close") {
+      void window.CISStageDisplayService?.closeOutput?.().then(() => render());
+      return;
+    }
+    if (command === "stage-display-restart") {
+      void window.CISStageDisplayService?.restartOutput?.().then(() => {
+        setNotice("Stage Display restarted.");
+        render();
+      });
+      return;
+    }
+    if (command === "stage-display-test") {
+      void window.CISStageDisplayService?.openOutput?.({ test: true }).then(() => {
+        window.CISStageDisplayService.publishTestPattern("Stage display test pattern");
+        render();
+      });
+      return;
+    }
+    if (command === "stage-display-set-layout") {
+      window.CISStageDisplayService?.setLayout?.(target.dataset.layout);
+      publishStageDisplay();
+      render();
+      return;
+    }
+    if (command === "stage-display-set-display") {
+      const displayId = target.value || "auto";
+      window.CISStageDisplayService?.setDisplayAssignment?.({ displayId });
+      if (desktopBridge?.stageDisplay?.savePrefs) {
+        desktopBridge.stageDisplay.savePrefs({ displayId });
+      }
+      render();
+      return;
+    }
+    if (command === "stage-display-windowed-test") {
+      const windowedTest = target.type === "checkbox" ? target.checked : !window.CISStageDisplayService.getState().settings?.windowedTest;
+      window.CISStageDisplayService?.setDisplayAssignment?.({ windowedTest });
+      if (desktopBridge?.stageDisplay?.savePrefs) {
+        desktopBridge.stageDisplay.savePrefs({ windowedTest });
+      }
+      render();
+      return;
+    }
+    if (command === "stage-display-set-scale") {
+      const scaleMode = target.value || "fit";
+      window.CISStageDisplayService?.setDisplayAssignment?.({ scaleMode });
+      publishStageDisplay();
+      render();
+      return;
+    }
+    if (command === "stage-display-countdown-start") {
+      const current = window.CISStageDisplayService.getState();
+      window.CISStageDisplayService.startCountdown(current.countdownRemaining || current.settings?.countdownSeconds || 300);
+      publishStageDisplay();
+      render();
+      return;
+    }
+    if (command === "stage-display-countdown-pause") {
+      const current = window.CISStageDisplayService.getState();
+      if (current.countdownRunning) window.CISStageDisplayService.pauseCountdown();
+      else window.CISStageDisplayService.resumeCountdown();
+      publishStageDisplay();
+      render();
+      return;
+    }
+    if (command === "stage-display-countdown-reset") {
+      window.CISStageDisplayService.resetCountdown();
+      publishStageDisplay();
+      render();
+      return;
+    }
+    if (command === "stage-display-countdown-adjust") {
+      window.CISStageDisplayService.adjustCountdown(Number(target.dataset.delta || 0));
+      publishStageDisplay();
+      render();
+      return;
+    }
+    if (command === "stage-display-countdown-label") {
+      if (target.matches(":focus")) return;
+      window.CISStageDisplayService.setCountdownLabel(target.value);
+      publishStageDisplay();
+      return;
+    }
+    if (command === "stage-display-send-message") {
+      window.CISStageDisplayService.sendPrivateMessage(target.dataset.message || "");
+      publishStageDisplay();
+      setNotice("Private message sent to Stage Display only.");
+      return;
+    }
+    if (command === "stage-display-send-custom-message") {
+      const input = document.getElementById("stageDisplayMessageInput");
+      window.CISStageDisplayService.sendPrivateMessage(input?.value || "");
+      if (input) input.value = "";
+      publishStageDisplay();
+      setNotice("Private message sent to Stage Display only.");
+      return;
+    }
+    if (command === "stage-display-dismiss-message") {
+      window.CISStageDisplayService.dismissPrivateMessage();
+      publishStageDisplay();
+      render();
+      return;
+    }
+    if (command === "stage-display-log-messages") {
+      window.CISStageDisplayService.setDisplayAssignment({ logPrivateMessages: target.checked });
+      render();
+      return;
+    }
+    if (command === "stage-display-sermon-title") {
+      if (target.matches(":focus")) return;
+      window.CISStageDisplayService.saveSettings({ sermonTitle: target.value || "" });
+      publishStageDisplay();
+      return;
+    }
+    if (command === "stage-display-speaker-name") {
+      if (target.matches(":focus")) return;
+      window.CISStageDisplayService.saveSettings({ speakerName: target.value || "" });
+      publishStageDisplay();
+      return;
+    }
+    if (command === "stage-display-start-service-clock") {
+      window.CISStageDisplayService.saveSettings({ serviceStartedAt: Date.now() });
+      publishStageDisplay();
+      render();
+      return;
+    }
+    if (command === "stage-display-reset-service-clock") {
+      window.CISStageDisplayService.saveSettings({ serviceStartedAt: 0 });
+      publishStageDisplay();
       render();
       return;
     }
@@ -8310,6 +8627,7 @@
   setupBuilderSlides();
   setupBuilderSystems();
   setupPresenterSystem();
+  setupStageDisplay();
   setupObsIntegration();
   setupCameraSources();
   setupHelpCentre();

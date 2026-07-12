@@ -43,6 +43,8 @@ let splashWindow = null;
 let projectorWindow = null;
 let obsMonitorWindow = null;
 let cameraPreviewWindow = null;
+let stageDisplayWindow = null;
+let stageDisplayPrefs = { displayId: "auto", windowed: false, scaleMode: "fit" };
 let obsMonitorWorshipContext = {
   worshipPreview: "—",
   worshipLive: "—",
@@ -417,6 +419,147 @@ ipcMain.handle('camera-preview:close', () => {
   }
   cameraPreviewWindow = null;
   return { closed: true };
+});
+
+function listDisplays() {
+  const displays = screen.getAllDisplays();
+  const primary = screen.getPrimaryDisplay();
+  return displays.map((display, index) => ({
+    id: display.id,
+    label: display.id === primary.id
+      ? `Primary · ${display.size.width}×${display.size.height}`
+      : `Display ${index + 1} · ${display.size.width}×${display.size.height}`,
+    primary: display.id === primary.id,
+    bounds: display.bounds,
+    scaleFactor: display.scaleFactor,
+  }));
+}
+
+function resolveStageDisplayTarget() {
+  const displays = screen.getAllDisplays();
+  const primary = screen.getPrimaryDisplay();
+  if (stageDisplayPrefs.displayId && stageDisplayPrefs.displayId !== 'auto' && stageDisplayPrefs.displayId !== 'primary') {
+    const found = displays.find((display) => String(display.id) === String(stageDisplayPrefs.displayId));
+    if (found) return found;
+  }
+  if (stageDisplayPrefs.displayId === 'primary') return primary;
+  return displays.find((display) => display.id !== primary.id) || primary;
+}
+
+function createStageDisplayWindow(options) {
+  if (stageDisplayWindow && !stageDisplayWindow.isDestroyed()) {
+    stageDisplayWindow.focus();
+    return stageDisplayWindow;
+  }
+
+  const targetDisplay = resolveStageDisplayTarget();
+  const { x, y, width, height } = targetDisplay.bounds;
+  const windowed = Boolean(options?.windowed ?? stageDisplayPrefs.windowed);
+  const hasExternalDisplay = screen.getAllDisplays().length > 1;
+
+  const win = new BrowserWindow({
+    x,
+    y,
+    width: windowed ? Math.min(960, width) : width,
+    height: windowed ? Math.min(540, height) : height,
+    fullscreen: !windowed && hasExternalDisplay,
+    frame: windowed || !hasExternalDisplay,
+    backgroundColor: '#111827',
+    title: brand.windowTitle('Stage Display'),
+    autoHideMenuBar: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+    },
+  });
+
+  win.loadFile(path.join(__dirname, '..', 'app', 'stage-display', 'stage-display-screen.html'));
+  win.once('ready-to-show', () => {
+    win.show();
+    if (!windowed && hasExternalDisplay) win.setFullScreen(true);
+  });
+  win.on('closed', () => {
+    stageDisplayWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('stage-display-closed');
+    }
+  });
+  stageDisplayWindow = win;
+  return win;
+}
+
+ipcMain.handle('stage-display:list-displays', () => ({ displays: listDisplays() }));
+
+ipcMain.handle('stage-display:save-prefs', (_event, payload) => {
+  if (payload && typeof payload === 'object') {
+    stageDisplayPrefs = { ...stageDisplayPrefs, ...payload };
+  }
+  return { ok: true, prefs: { ...stageDisplayPrefs } };
+});
+
+ipcMain.handle('stage-display:get-start-prefs', () => ({ ...stageDisplayPrefs }));
+
+ipcMain.handle('stage-display:open', (_event, payload) => {
+  if (payload && typeof payload === 'object') {
+    stageDisplayPrefs = { ...stageDisplayPrefs, ...payload };
+  }
+  createStageDisplayWindow(payload || {});
+  return { opened: true, display: resolveStageDisplayTarget().id, windowed: Boolean(stageDisplayPrefs.windowed) };
+});
+
+ipcMain.handle('stage-display:close', () => {
+  if (stageDisplayWindow && !stageDisplayWindow.isDestroyed()) {
+    stageDisplayWindow.close();
+  }
+  stageDisplayWindow = null;
+  return { closed: true };
+});
+
+ipcMain.handle('stage-display:restart', (_event, payload) => {
+  if (stageDisplayWindow && !stageDisplayWindow.isDestroyed()) {
+    stageDisplayWindow.close();
+  }
+  stageDisplayWindow = null;
+  if (payload && typeof payload === 'object') {
+    stageDisplayPrefs = { ...stageDisplayPrefs, ...payload };
+  }
+  createStageDisplayWindow(payload || {});
+  return { restarted: true };
+});
+
+ipcMain.handle('stage-display:publish', (_event, payload) => {
+  if (stageDisplayWindow && !stageDisplayWindow.isDestroyed()) {
+    stageDisplayWindow.webContents.send('stage-display-state', payload);
+  }
+  return { delivered: Boolean(stageDisplayWindow && !stageDisplayWindow.isDestroyed()) };
+});
+
+ipcMain.handle('stage-display:closed', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('stage-display-closed');
+  }
+  return { ok: true };
+});
+
+screen.on('display-added', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('stage-display-displays-changed', { displays: listDisplays() });
+  }
+});
+
+screen.on('display-removed', () => {
+  if (stageDisplayWindow && !stageDisplayWindow.isDestroyed()) {
+    stageDisplayWindow.close();
+    stageDisplayWindow = null;
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('stage-display-displays-changed', { displays: listDisplays() });
+    mainWindow.webContents.send('stage-display-closed');
+  }
 });
 
 obsManager.registerIpc(ipcMain);

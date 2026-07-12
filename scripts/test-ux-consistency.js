@@ -105,6 +105,7 @@ function testCacheVersion() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   if (!sw.includes("christ-in-song-worship-v41")) fail("Service worker cache should be v41");
   ok("cache version v41 for quiet service mode release");
 =======
@@ -123,6 +124,10 @@ function testCacheVersion() {
   if (!sw.includes("christ-in-song-worship-v43")) fail("Service worker cache should be v43");
   ok("cache version v43 for worship search release");
 >>>>>>> da01d1b (Add unified Worship Search so operators can find hymns, Scripture, service items, and media from one place during live worship.)
+=======
+  if (!sw.includes("christ-in-song-worship-v44")) fail("Service worker cache should be v44");
+  ok("cache version v44 for stage display release");
+>>>>>>> ad24e9c (Add Stage Display so worship leaders and musicians can monitor live lyrics, Scripture, and cues on a private screen without changing congregation projection.)
 }
 
 testDesignTokens();

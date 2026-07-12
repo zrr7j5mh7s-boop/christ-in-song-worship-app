@@ -44,6 +44,7 @@
     "test:quiet-service-mode": "node scripts/test-quiet-service-mode.js",
     "test:keyboard-shortcuts": "node scripts/test-keyboard-shortcuts.js",
     "test:worship-search": "node scripts/test-worship-search.js",
+    "test:stage-display": "node scripts/test-stage-display.js",
     "test:projection-rendering": "node scripts/test-projection-rendering.js",
     "benchmark:performance": "node scripts/benchmark-performance.js",
     "build:web-assets": "node scripts/build-production-assets.js",
