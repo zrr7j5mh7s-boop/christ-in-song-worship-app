@@ -12,7 +12,7 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=37">
+    <link rel="stylesheet" href="./styles.css?v=38">
   </head>
   <body>
     <div id="launchSplash" class="launch-splash" aria-hidden="true">
@@ -75,6 +75,10 @@
     <script src="./brand/brand-migration.js?v=1"></script>
     <script src="./data/songs.js?v=2"></script>
     <script src="./data/extra-packs.js"></script>
+    <script src="./performance/task-session.js?v=1"></script>
+    <script src="./performance/performance-monitor.js?v=1"></script>
+    <script src="./performance/passage-cache.js?v=1"></script>
+    <script src="./performance/stanza-render-cache.js?v=1"></script>
     <script src="./lazy-pack-loader.js?v=1"></script>
     <script src="./slide-content.js?v=1"></script>
     <script src="./builder-slides.js?v=2"></script>
@@ -96,17 +100,17 @@
     <script src="./backup-store.js?v=1"></script>
     <script src="./backup-restore.js?v=1"></script>
     <script src="./vendor/fuse.min.js"></script>
-    <script src="./hymn-search.js?v=2"></script>
-    <script src="./hymn-search-ui.js?v=3"></script>
+    <script src="./hymn-search.js?v=3"></script>
+    <script src="./hymn-search-ui.js?v=4"></script>
     <script src="./data/bible-catalog.js?v=2"></script>
     <script src="./bible-store.js?v=2"></script>
     <script src="./bible-reader-ui.js?v=2"></script>
     <script src="./bible/bible-reference-parser.js?v=1"></script>
     <script src="./bible/bible-projection-settings.js?v=1"></script>
-    <script src="./bible/bible-projection-service.js?v=1"></script>
-    <script src="./bible/bible-search-service.js?v=1"></script>
+    <script src="./bible/bible-projection-service.js?v=2"></script>
+    <script src="./bible/bible-search-service.js?v=2"></script>
     <script src="./bible/bible-speech-service.js?v=1"></script>
-    <script src="./bible/bible-live-ui.js?v=1"></script>
+    <script src="./bible/bible-live-ui.js?v=2"></script>
     <script src="./hymn-queue/live-hymn-queue-settings.js?v=1"></script>
     <script src="./hymn-queue/live-hymn-queue-service.js?v=1"></script>
     <script src="./hymn-queue/live-hymn-queue-ui.js?v=1"></script>
@@ -132,7 +136,7 @@
     <script src="./obs/obs-settings-store.js?v=2"></script>
     <script src="./obs/obs-event-service.js?v=1"></script>
     <script src="./obs/obs-ws-client.js?v=1"></script>
-    <script src="./obs/obs-connection-service.js?v=1"></script>
+    <script src="./obs/obs-connection-service.js?v=2"></script>
     <script src="./obs/obs-scene-service.js?v=2"></script>
     <script src="./obs/obs-source-service.js?v=1"></script>
     <script src="./obs/obs-output-service.js?v=2"></script>
@@ -140,10 +144,10 @@
     <script src="./obs/obs-program-monitor.js?v=1"></script>
     <script src="./obs/obs-program-monitor-ui.js?v=1"></script>
     <script src="./hymn-index-settings.js?v=1"></script>
-    <script src="./hymn-index-ui.js?v=2"></script>
+    <script src="./hymn-index-ui.js?v=3"></script>
     <script src="./camera/camera-constants.js?v=1"></script>
     <script src="./camera/camera-settings-store.js?v=1"></script>
-    <script src="./camera/camera-source-service.js?v=1"></script>
+    <script src="./camera/camera-source-service.js?v=2"></script>
     <script src="./camera/camera-compositor.js?v=1"></script>
     <script src="./camera/camera-source-ui.js?v=1"></script>
     <script src="./obs/obs-mapping-ui.js?v=2"></script>
@@ -161,7 +165,7 @@
     <script src="./i18n/i18n-catalog.js?v=1"></script>
     <script src="./i18n/i18n-store.js?v=1"></script>
     <script src="./i18n/i18n.js?v=1"></script>
-    <script src="./app.js?v=37"></script>
+    <script src="./app.js?v=38"></script>
     <script>
       if ("serviceWorker" in navigator && !window.electronAPI) {
         window.addEventListener("load", () => {

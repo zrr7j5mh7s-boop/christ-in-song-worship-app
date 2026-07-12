@@ -4741,6 +4741,19 @@ body.presenter-live .sidebar {
   font-weight: 700;
 }
 
+.global-search-count.is-pending,
+#hymnIndexCollectionRoot.is-pending {
+  opacity: 0.72;
+}
+
+#hymnIndexCollectionRoot.is-pending::after {
+  content: "Updating…";
+  display: block;
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  margin-top: 6px;
+}
+
 .global-search-results {
   display: grid;
   gap: 18px;

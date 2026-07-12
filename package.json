@@ -39,6 +39,8 @@
     "test:branding": "node scripts/test-branding.js",
     "test:help": "node scripts/test-help-centre.js",
     "test:performance": "node scripts/test-performance.js",
+    "test:performance-audit": "node scripts/test-performance-audit.js",
+    "benchmark:performance": "node scripts/benchmark-performance.js",
     "build:web-assets": "node scripts/build-production-assets.js",
     "pack": "electron-builder --dir",
     "dist": "npm run build:web-assets && npm run verify:release && electron-builder --publish=never",
