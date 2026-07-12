@@ -1,6 +1,6 @@
 # OBS Studio Integration
 
-Christ in Song Worship App integrates with OBS Studio via OBS WebSocket 5.x. OBS is optional — projector output, hymns, and worship builder continue when OBS is closed or disconnected.
+VaChinoda Worship App integrates with OBS Studio via OBS WebSocket 5.x. OBS is optional — projector output, hymns, and worship builder continue when OBS is closed or disconnected.
 
 ## Architecture
 

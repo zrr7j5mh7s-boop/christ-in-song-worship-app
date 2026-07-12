@@ -1,12 +1,14 @@
 node_modules/
 dist/
+# Generated production assets (rebuilt via npm run build:web-assets)
+app/dist/
+app/index.prod.html
 release/
 out/
 build/icon.iconset/*.png.tmp
 
 # Local source archives (already imported into app/data/)
 Christ_in_Song_Multi_Language_Pack/
-Bible_App_Ready_Public_Domain_Set/
 data/source/
 *.zip
 *.app/

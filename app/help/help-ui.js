@@ -32,7 +32,7 @@
           <div>
             <p class="eyebrow">Support · Offline help available</p>
             <h2>Help Centre</h2>
-            <p class="muted">Find instructions, service workflows, troubleshooting steps and emergency support for the Christ in Song Digital Worship System.</p>
+            <p class="muted">Find instructions, service workflows, troubleshooting steps and emergency support for the VaChinoda Worship App.</p>
           </div>
           <div class="help-header-meta">
             <span class="help-version" title="Application version">v${escapeHtml(version)}</span>
@@ -246,6 +246,7 @@
 
   function renderAbout(desktopInfo) {
     const version = desktopInfo?.version || "1.0.0";
+    const brand = window.CISBrandConfig ? window.CISBrandConfig.BRAND : { appName: "VaChinoda Worship App", shortName: "VaChinoda" };
     const seen = window.CISHelpStore ? window.CISHelpStore.getWhatsNewSeen() : "";
     const whatsNew = version !== seen;
     return `
@@ -253,7 +254,8 @@
         <h2>About and Updates</h2>
         ${whatsNew ? `<div class="help-whats-new"><strong>What's New in v${escapeHtml(version)}</strong><ul><li>Help Centre with offline search and emergency tools</li><li>OBS Studio integration (WebSocket 5.x, Browser Sources)</li><li>Interactive pre-service and setup checklists</li><li>Training Mode for operator practice</li></ul><button type="button" class="secondary-button" data-command="help-dismiss-whats-new">Dismiss</button></div>` : ""}
         <dl class="help-about-grid">
-          <div><dt>Application</dt><dd>Christ in Song Worship App</dd></div>
+          <div><dt>Application</dt><dd>${escapeHtml(brand.appName)}</dd></div>
+          <div><dt>Short name</dt><dd>${escapeHtml(brand.shortName)}</dd></div>
           <div><dt>Version</dt><dd>${escapeHtml(version)}</dd></div>
           <div><dt>OBS integration</dt><dd>WebSocket 5.x · Browser Source server</dd></div>
           <div><dt>Bible translations</dt><dd>KJV, ASV, WEB (public domain)</dd></div>

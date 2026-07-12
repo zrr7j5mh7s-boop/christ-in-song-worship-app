@@ -24,7 +24,7 @@
     return sanitizeReport({
       generatedAt: new Date().toISOString(),
       app: {
-        name: "Christ in Song Worship App",
+        name: window.CISBrandConfig ? window.CISBrandConfig.BRAND.appName : "VaChinoda Worship App",
         version: desktopInfo.version || "1.0.0",
         platform: desktopInfo.platform || (window.electronAPI ? "electron" : "pwa"),
         build: desktopInfo.build || "",
@@ -66,7 +66,8 @@
   }
 
   function formatReportText(report) {
-    const lines = ["Christ in Song — Diagnostic Report", "================================", ""];
+    const appLabel = window.CISBrandConfig ? window.CISBrandConfig.BRAND.appName : "VaChinoda Worship App";
+    const lines = [`${appLabel} — Diagnostic Report`, "================================", ""];
     Object.entries(report).forEach(([section, value]) => {
       lines.push(`[${section}]`);
       if (value && typeof value === "object") {

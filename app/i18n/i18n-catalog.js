@@ -1,5 +1,5 @@
 /**
- * Christ in Song — UI translation catalog
+ * VaChinoda Worship App — UI translation catalog
  *
  * HOW TO ADD A NEW UI LANGUAGE
  * 1. Copy TEMPLATE_LOCALE below into CATALOG under a new locale code (e.g. "ts").
@@ -22,7 +22,7 @@
     "nav.help": "Help Centre",
     "nav.settings": "Settings",
     "nav.song": "Hymn",
-    "topbar.eyebrow": "Digital worship operating system",
+    "topbar.eyebrow": "VaChinoda Worship App",
     "topbar.presenter": "Presenter",
     "topbar.help": "Help",
     "topbar.uiLanguage": "Interface language",
@@ -45,7 +45,7 @@
     "common.all": "All",
     "common.ready": "Ready",
     "common.awaiting": "Awaiting upload",
-    "home.eyebrow": "Christ in Song · VaChinoda Edition",
+    "home.eyebrow": "VaChinoda Worship App",
     "home.title": "Your worship, ready to lead.",
     "home.subtitle": "Search, build a Sabbath order of service, and present any hymn full-screen in the navy and gold worship theme.",
     "home.searchPlaceholder": "Search by number, title, or a line of lyrics...",
@@ -233,7 +233,7 @@
       "common.all": "Konke",
       "common.ready": "Ilungile",
       "common.awaiting": "Ilinde ukulayishwa",
-      "home.eyebrow": "Christ in Song · VaChinoda Edition",
+      "home.eyebrow": "VaChinoda Worship App",
       "home.title": "Ukukhulekela kwakho, kulungele ukuhola.",
       "home.subtitle": "Sesha, yakha uhlelo lwesivivinyo, futhi ubonise noma yiliphi ihymn esikrinini esigcwele.",
       "home.searchPlaceholder": "Sesha ngenombolo, isihloko, noma umugqa wamagama...",
