@@ -31,6 +31,7 @@
     "test:camera-sources": "node scripts/test-camera-sources.js",
     "test:hymn-index": "node scripts/test-hymn-index.js",
     "test:bible-projection": "node scripts/test-bible-projection.js",
+    "test:live-hymn-queue": "node scripts/test-live-hymn-queue.js",
     "test:help": "node scripts/test-help-centre.js",
     "test:performance": "node scripts/test-performance.js",
     "build:web-assets": "node scripts/build-production-assets.js",

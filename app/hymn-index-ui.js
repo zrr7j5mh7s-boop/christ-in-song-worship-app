@@ -191,7 +191,11 @@
     const showTitles = ctx.showTitles !== false;
     const showFav = ctx.showFavorites !== false;
     const langAttr = ctx.langCode ? ` data-lang-jump="${escapeHtml(ctx.langCode)}" data-edition="${escapeHtml(ctx.editionId || "")}"` : "";
+    const actions = typeof ctx.renderHymnQueueActions === "function"
+      ? ctx.renderHymnQueueActions(song, { code: ctx.langCode, editionId: ctx.editionId })
+      : "";
     return `
+      <div class="hymn-index-list-item">
       <button
         class="hymn-index-list-row"
         type="button"
@@ -204,6 +208,8 @@
         ${showFav ? `<span class="hymn-list-fav" aria-label="${starred ? "Favourite" : "Not a favourite"}">${starred ? "★" : ""}</span>` : ""}
         <span class="hymn-list-action muted">Open</span>
       </button>
+      ${actions}
+      </div>
     `;
   }
 
