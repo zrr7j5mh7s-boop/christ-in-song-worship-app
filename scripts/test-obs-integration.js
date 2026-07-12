@@ -152,6 +152,35 @@ function run() {
   assert.ok(httpSource.includes('127.0.0.1'));
   assert.ok(httpSource.includes('/obs/live-sse'));
 
+  const {
+    AUTH_MESSAGES,
+    formatObsAuthenticationError,
+    isAuthenticationError,
+    resolveStoredPassword,
+  } = require(path.join(ROOT, 'src/obs/obs-auth-errors'));
+
+  assert.equal(
+    formatObsAuthenticationError(
+      "Your payload's data is missing an 'authentication' string, however authentication is required.",
+      false,
+    ),
+    AUTH_MESSAGES.PASSWORD_REQUIRED,
+  );
+  assert.equal(
+    formatObsAuthenticationError('Authentication failed.', true),
+    AUTH_MESSAGES.PASSWORD_REJECTED,
+  );
+  assert.equal(
+    formatObsAuthenticationError('Authentication failed.', false),
+    AUTH_MESSAGES.PASSWORD_REQUIRED,
+  );
+  assert.throws(
+    () => resolveStoredPassword(true, ''),
+    (error) => error.code === 'OBS_PASSWORD_UNREADABLE',
+  );
+  assert.equal(isAuthenticationError("missing an 'authentication'", null), true);
+  assert.equal(isAuthenticationError('Connection refused', null), false);
+
   console.log('test-obs-integration: all checks passed');
 }
 
