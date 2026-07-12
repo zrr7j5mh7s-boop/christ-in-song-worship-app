@@ -51,6 +51,10 @@
         <span><kbd>P</kbd> ${escapeHtml(t("presenterControl.pauseDisplay"))}</span>
         <span><kbd>Esc</kbd> ${escapeHtml(t("presenterControl.exit"))}</span>
         <span><kbd>F</kbd> ${escapeHtml(t("presenterControl.fullscreen"))}</span>
+        <span><kbd>Shift</kbd><kbd>]</kbd> Take Next Live</span>
+        <span><kbd>Shift</kbd><kbd>[</kbd> Restore previous hymn</span>
+        <span><kbd>V</kbd> Camera live</span>
+        <span><kbd>N</kbd> Next camera</span>
       </footer>
     `;
   }
@@ -146,8 +150,10 @@
           </section>
 
           <aside class="av-side-panel">
+            ${window.CISLiveHymnQueueUI && window.CISLiveHymnQueueService
+    ? window.CISLiveHymnQueueUI.renderCompactNextPanel(window.CISLiveHymnQueueService.getState())
+    : previewBlock(t("presenterControl.nextHymn"), nextHymnTitle, nextHymn && nextHymn.firstLine, t("presenterControl.endOfQueue"))}
             ${previewBlock(t("presenterControl.nextSlide"), nextSlideTitle, nextSlide && nextSlide.body, t("presenterControl.endOfHymn"))}
-            ${previewBlock(t("presenterControl.nextHymn"), nextHymnTitle, nextHymn && nextHymn.firstLine, t("presenterControl.endOfQueue"))}
             <article class="av-preview-card timer-card">
               <span>${escapeHtml(t("presenterControl.timer"))}</span>
               <strong>${escapeHtml(formatDuration(snapshot.timerRemaining || 0))}</strong>

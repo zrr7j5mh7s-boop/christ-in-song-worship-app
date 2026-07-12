@@ -81,7 +81,12 @@
     const flatIndex = typeof item.flatIndex === "number" ? item.flatIndex : indexInFlat;
     const active = flatIndex === activeIndex ? " active" : "";
     const tags = call("renderSongTags", item.song, item.code) || "";
+    const songKey = typeof call("makeSongKey", item) === "string"
+      ? call("makeSongKey", item)
+      : "";
+    const actions = songKey ? (call("renderHymnQueueActions", songKey) || "") : "";
     return `
+      <div class="search-result-card-wrap${active}">
       <button
         type="button"
         class="search-result-card${active}"
@@ -106,6 +111,8 @@
         </div>
         ${tags ? `<div class="search-result-tags">${tags}</div>` : ""}
       </button>
+      ${actions}
+      </div>
     `;
   }
 

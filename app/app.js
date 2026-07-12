@@ -398,6 +398,810 @@
     setNotice(t("notice.audioRemoved", { number: song.number }));
   }
 
+  function setupBible() {
+    if (!window.CISBibleReaderUI || !window.CISBibleStore) return;
+    window.CISBibleReaderUI.configure({ escapeHtml });
+    setupBibleProjection();
+  }
+
+  function setupBibleProjection() {
+    if (!window.CISBibleProjectionService || !window.CISBibleLiveUI) return;
+    window.CISBibleLiveUI.configure({ escapeHtml });
+    window.CISBibleProjectionService.configure({
+      escapeHtml,
+      loadSettings: () => (
+        window.CISBibleProjectionSettings
+          ? window.CISBibleProjectionSettings.load(null, (key, fallback) => loadJson(key, fallback))
+          : {}
+      ),
+      saveSettings: (settings) => {
+        if (window.CISBibleProjectionSettings) {
+          window.CISBibleProjectionSettings.save(settings, saveJson);
+        }
+      },
+      onSendLive: ({ slideIndex }) => {
+        const key = window.CISBibleProjectionService.BIBLE_LIVE_KEY;
+        state.presenter.songKey = key;
+        state.presenter.planIndex = null;
+        state.presenter.slideIndex = slideIndex || 0;
+        state.presenter.queueKeys = [];
+        state.presenter.queueIndex = null;
+        if (!window.CISPresenterEngine?.getState?.().active) {
+          startPresenterSession({
+            songKey: key,
+            planIndex: null,
+            slideIndex: state.presenter.slideIndex,
+            queueKeys: [],
+            queueIndex: null,
+          });
+        } else {
+          window.CISPresenterEngine.applyState({
+            songKey: key,
+            planIndex: null,
+            slideIndex: state.presenter.slideIndex,
+            queueKeys: [],
+            queueIndex: null,
+          });
+        }
+        renderPresenterAV();
+        if (state.view === "bible") paintBibleLive();
+      },
+      onClearLive: () => {
+        if (window.CISObsOutputService?.clearOverlay) {
+          window.CISObsOutputService.clearOverlay("scripture").catch(() => {});
+        }
+        if (window.CISPresenterEngine?.getState?.().active
+          && state.presenter.songKey === window.CISBibleProjectionService.BIBLE_LIVE_KEY) {
+          window.CISPresenterEngine.applyState({ songKey: "", planIndex: null, slideIndex: 0 });
+        }
+        renderPresenterAV();
+      },
+    });
+    if (window.CISBibleSpeechService) {
+      window.CISBibleSpeechService.configure({
+        getSettings: () => window.CISBibleProjectionService.getSettings(),
+        onSuggestion: (suggestion) => {
+          if (suggestion?.error) setNotice(suggestion.error);
+          if (state.view === "bible") paintBibleLive();
+        },
+      });
+    }
+    if (!window.CISBibleProjectionService._subscribed) {
+      window.CISBibleProjectionService._subscribed = true;
+      window.CISBibleProjectionService.subscribe(() => {
+        if (state.view === "bible") paintBibleLive();
+      });
+    }
+  }
+
+  function describeSongKeyForQueue(songKey) {
+    const parsed = parseSongKey(songKey);
+    const song = getSong(parsed.number, parsed.code, parsed.editionId);
+    if (!song) return null;
+    const edition = getEdition(parsed.editionId);
+    const store = window.CISHymnalLibraryStore;
+    const book = edition && store ? store.getBookById(edition.hymnBookId) : null;
+    const pack = getPack(parsed.code, parsed.editionId);
+    const bookTitle = book?.title || pack?.bookTitle || pack?.name || "Hymnal";
+    const lang = edition?.languageName || pack?.name || parsed.code;
+    const chorusSlide = (song.slides || []).find((slide) => /chorus|refrain|pinda|impinda/i.test(slide.label || ""));
+    return {
+      hymnBookId: edition?.hymnBookId || state.hymnBookId || "",
+      editionId: parsed.editionId,
+      hymnId: songKey,
+      hymnNumber: song.number,
+      title: song.title,
+      shortLabel: `${bookTitle} · ${lang} · Hymn ${song.number}`,
+      chorusLabel: song.chorusLabel || chorusSlide?.label || "Chorus",
+    };
+  }
+
+  function findChorusSlide(song) {
+    if (!song?.slides?.length) return -1;
+    return song.slides.findIndex((slide) => /chorus|refrain|pinda|impinda/i.test(slide.label || ""));
+  }
+
+  async function resolveSongForQueue(songKey) {
+    const parsed = parseSongKey(songKey);
+    await ensureLanguagePackLoaded(parsed.code);
+    return getSongByKey(songKey);
+  }
+
+  function getLiveHymnMeta() {
+    if (!state.presenter.songKey) return null;
+    if (window.CISBibleProjectionService
+      && state.presenter.songKey === window.CISBibleProjectionService.BIBLE_LIVE_KEY) {
+      return null;
+    }
+    const song = getSongByKey(state.presenter.songKey);
+    if (!song) return null;
+    const meta = describeSongKeyForQueue(state.presenter.songKey);
+    if (!meta) return null;
+    const slide = song.slides[state.presenter.slideIndex] || song.slides[0];
+    return {
+      ...meta,
+      songKey: state.presenter.songKey,
+      slideIndex: state.presenter.slideIndex,
+      stanzaLabel: slide?.label ? `${slide.label}` : "",
+      destinations: [],
+    };
+  }
+
+  async function goLiveFromQueue(payload) {
+    const songKey = payload?.songKey;
+    if (!songKey) return { ok: false, message: "Hymn unavailable." };
+    const parsed = parseSongKey(songKey);
+    if (!(await ensureLanguagePackLoaded(parsed.code))) {
+      return { ok: false, message: "Hymn pack could not be loaded." };
+    }
+    const song = getSongByKey(songKey);
+    if (!song) return { ok: false, message: "Hymn not found." };
+    const slideIndex = Math.max(0, Math.min(song.slides.length - 1, Number(payload?.slideIndex) || 0));
+    addRecent(song, parsed.code, parsed.editionId);
+    if (!window.CISPresenterEngine?.getState?.().active) {
+      state.presenter.songKey = songKey;
+      state.presenter.slideIndex = slideIndex;
+      state.presenter.planIndex = null;
+      state.presenter.queueKeys = [];
+      state.presenter.queueIndex = null;
+      startPresenterSession({
+        songKey,
+        planIndex: null,
+        slideIndex,
+        queueKeys: [],
+        queueIndex: null,
+      });
+    } else {
+      state.presenter.songKey = songKey;
+      state.presenter.slideIndex = slideIndex;
+      state.presenter.planIndex = null;
+      window.CISPresenterEngine.applyState({
+        songKey,
+        planIndex: null,
+        slideIndex,
+        displayMode: "lyrics",
+        paused: false,
+      });
+      applyEnginePresenterState(window.CISPresenterEngine.getState());
+      renderPresenterAV();
+    }
+    return { ok: true };
+  }
+
+  function resolveSongKeyFromTarget(target) {
+    if (!target) return "";
+    if (target.dataset.songKey) return target.dataset.songKey;
+    const number = target.dataset.song;
+    if (!number) return "";
+    const edition = target.dataset.editionJump || target.dataset.edition || state.editionId;
+    return makeSongKey(edition, number);
+  }
+
+  function renderHymnQueueActions(songKey, compact) {
+    if (!window.CISLiveHymnQueueUI || !songKey) return "";
+    return window.CISLiveHymnQueueUI.renderQueueActions(songKey, compact);
+  }
+
+  function renderLiveHymnQueueMount(full) {
+    if (full) return `<div id="liveHymnQueueMount" class="live-hymn-queue-mount" aria-live="polite"></div>`;
+    return `<div id="liveHymnQueueCompactMount" class="live-hymn-queue-compact-mount" aria-live="polite"></div>`;
+  }
+
+  function paintLiveHymnQueuePanels() {
+    if (!window.CISLiveHymnQueueService || !window.CISLiveHymnQueueUI) return;
+    const queueState = window.CISLiveHymnQueueService.getState();
+    const liveMeta = getLiveHymnMeta();
+    const mount = document.getElementById("liveHymnQueueMount");
+    if (mount) {
+      mount.innerHTML = window.CISLiveHymnQueueUI.renderWorkspace({
+        queueState,
+        liveMeta,
+        showQuickSearch: state.view === "presenter" || state.view === "song",
+      });
+    }
+    const compactMount = document.getElementById("liveHymnQueueCompactMount");
+    if (compactMount) {
+      compactMount.innerHTML = window.CISLiveHymnQueueUI.renderCompactNextPanel(queueState);
+    }
+  }
+
+  function setupLiveHymnQueue() {
+    if (!window.CISLiveHymnQueueService || !window.CISLiveHymnQueueUI) return;
+    window.CISLiveHymnQueueUI.configure({ escapeHtml });
+    window.CISLiveHymnQueueService.configure({
+      resolveSong: resolveSongForQueue,
+      describeSongKey: describeSongKeyForQueue,
+      getLiveMeta: getLiveHymnMeta,
+      goLive: goLiveFromQueue,
+      findChorusSlide,
+      saveSession: (payload) => {
+        try {
+          sessionStorage.setItem("cis-live-hymn-queue-session", JSON.stringify(payload));
+        } catch (_error) {
+          /* ignore */
+        }
+      },
+      loadSession: () => {
+        try {
+          return JSON.parse(sessionStorage.getItem("cis-live-hymn-queue-session") || "null");
+        } catch (_error) {
+          return null;
+        }
+      },
+      loadSettings: () => (
+        window.CISLiveHymnQueueSettings
+          ? window.CISLiveHymnQueueSettings.load((key, fallback) => loadJson(key, fallback))
+          : {}
+      ),
+      saveSettings: (settings) => {
+        if (window.CISLiveHymnQueueSettings) {
+          window.CISLiveHymnQueueSettings.save(settings, saveJson);
+        }
+      },
+    });
+    if (!window.CISLiveHymnQueueService._subscribed) {
+      window.CISLiveHymnQueueService._subscribed = true;
+      window.CISLiveHymnQueueService.subscribe(() => {
+        paintLiveHymnQueuePanels();
+        if (window.CISPresenterEngine?.getState?.().active) renderPresenterAV();
+      });
+    }
+  }
+
+  async function handleHymnQueueCommand(command, target) {
+    const service = window.CISLiveHymnQueueService;
+    if (!service) return;
+    const songKey = resolveSongKeyFromTarget(target);
+    const queueId = target?.dataset?.queueId || "";
+    const settings = service.getState().settings || {};
+
+    if (command === "hymn-preview" || command === "hymn-preview-open") {
+      if (!songKey) return;
+      service.setPreview(songKey, { startSlideIndex: state.slideIndex });
+      const parsed = parseSongKey(songKey);
+      void openSong(parsed.number, parsed.code, parsed.editionId);
+      paintLiveHymnQueuePanels();
+      setNotice("Preview updated. Live output unchanged.");
+      return;
+    }
+    if (command === "hymn-preview-clear") {
+      service.clearPreview();
+      paintLiveHymnQueuePanels();
+      return;
+    }
+    if (command === "hymn-set-next") {
+      if (!songKey) return;
+      service.setAsNext(songKey, { startSlideIndex: 0 });
+      paintLiveHymnQueuePanels();
+      setNotice("Set as Next. Current hymn remains Live.");
+      return;
+    }
+    if (command === "hymn-add-queue") {
+      if (!songKey) return;
+      service.addToQueue(songKey, { startSlideIndex: 0 });
+      paintLiveHymnQueuePanels();
+      setNotice("Added to live queue.");
+      return;
+    }
+    if (command === "hymn-send-live" || command === "hymn-queue-send-live") {
+      const key = songKey || (queueId ? service.getState().queue.find((item) => item.id === queueId)?.songKey : "");
+      if (!key) return;
+      if (settings.confirmReplaceLive
+        && window.CISPresenterEngine?.getState?.().active
+        && !window.confirm("Send this hymn Live now and replace the current Live hymn?")) {
+        return;
+      }
+      if (!confirmTrainingLiveAction("Send hymn Live now")) return;
+      const result = command === "hymn-queue-send-live" && queueId
+        ? await service.sendQueueItemLive(queueId, { skipConfirm: true })
+        : await service.sendLiveNow(key, { skipConfirm: true });
+      paintLiveHymnQueuePanels();
+      setNotice(result?.message || (result?.ok ? "Hymn sent Live." : "Could not send hymn Live."));
+      return;
+    }
+    if (command === "hymn-take-next") {
+      if (settings.confirmBeforeLive
+        && window.CISPresenterEngine?.getState?.().active
+        && !window.confirm("Take the prepared Next hymn Live?")) {
+        return;
+      }
+      if (!confirmTrainingLiveAction("Take Next Live")) return;
+      const result = await service.takeNextLive();
+      paintLiveHymnQueuePanels();
+      setNotice(result?.message || (result?.ok ? "Next hymn is now Live." : "Take Next Live failed."));
+      return;
+    }
+    if (command === "hymn-remove-next") {
+      service.removeNext();
+      paintLiveHymnQueuePanels();
+      setNotice("Next hymn removed.");
+      return;
+    }
+    if (command === "hymn-clear-queue") {
+      if (!window.confirm("Clear the upcoming hymn queue?")) return;
+      service.clearQueue();
+      paintLiveHymnQueuePanels();
+      setNotice("Queue cleared.");
+      return;
+    }
+    if (command === "hymn-queue-up") {
+      service.moveQueueItem(queueId, -1);
+      paintLiveHymnQueuePanels();
+      return;
+    }
+    if (command === "hymn-queue-down") {
+      service.moveQueueItem(queueId, 1);
+      paintLiveHymnQueuePanels();
+      return;
+    }
+    if (command === "hymn-queue-set-next") {
+      service.promoteQueueItem(queueId);
+      paintLiveHymnQueuePanels();
+      setNotice("Queue item promoted to Next.");
+      return;
+    }
+    if (command === "hymn-queue-remove") {
+      service.removeQueueItem(queueId);
+      paintLiveHymnQueuePanels();
+      return;
+    }
+    if (command === "hymn-queue-duplicate") {
+      service.duplicateQueueItem(queueId);
+      paintLiveHymnQueuePanels();
+      setNotice("Queue item duplicated.");
+      return;
+    }
+    if (command === "hymn-restore-previous") {
+      const result = await service.restorePrevious();
+      paintLiveHymnQueuePanels();
+      setNotice(result?.message || "Previous hymn restored.");
+      return;
+    }
+    if (command === "hymn-queue-from-plan") {
+      const start = Number(target?.dataset?.slot);
+      const slots = worshipPlan.slice(Number.isNaN(start) ? 0 : start).filter((slot) => slot?.songKey);
+      slots.forEach((slot, index) => {
+        if (index === 0) service.setAsNext(slot.songKey, { startSlideIndex: 0 });
+        else service.addToQueue(slot.songKey, { startSlideIndex: 0 });
+      });
+      paintLiveHymnQueuePanels();
+      setNotice(slots.length ? `${slots.length} service hymn(s) queued.` : "No service hymns to queue.");
+    }
+  }
+
+  function renderBibleSettingsPanel() {
+    const settings = window.CISBibleProjectionService
+      ? window.CISBibleProjectionService.getSettings()
+      : (window.CISBibleProjectionSettings ? window.CISBibleProjectionSettings.load(null, loadJson) : {});
+    const translations = window.CISBibleStore ? window.CISBibleStore.getTranslations() : [];
+    return `
+      <section class="section bible-settings-panel">
+        <h3>Bible Projection</h3>
+        <p class="muted">KJV, ASV, and WEB are bundled (public domain). Import additional translations only when you have permission.</p>
+        <div class="settings-grid">
+          <label>Default Bible version
+            <select data-command="bible-settings" data-setting="defaultTranslation">
+              ${translations.map((item) => `<option value="${escapeHtml(item.code)}" ${settings.defaultTranslation === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}
+            </select>
+          </label>
+          <label>Secondary version (dual display)
+            <select data-command="bible-settings" data-setting="secondaryTranslation">
+              <option value="">None</option>
+              ${translations.map((item) => `<option value="${escapeHtml(item.code)}" ${settings.secondaryTranslation === item.code ? "selected" : ""}>${escapeHtml(item.abbreviation || item.code)}</option>`).join("")}
+            </select>
+          </label>
+          <label>Verses per slide
+            <input type="number" min="1" max="6" data-command="bible-settings" data-setting="versesPerSlide" value="${Number(settings.versesPerSlide) || 1}">
+          </label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="enterSendsPreview" ${settings.enterSendsPreview !== false ? "checked" : ""}> Enter sends to Preview</label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="dualVersion" ${settings.dualVersion ? "checked" : ""}> Dual-version display</label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="enableSpeechDetection" ${settings.enableSpeechDetection ? "checked" : ""}> Enable speech-assisted detection (opt-in)</label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="enableHistory" ${settings.enableHistory !== false ? "checked" : ""}> Scripture session history</label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="showVerseNumbers" ${settings.showVerseNumbers !== false ? "checked" : ""}> Show verse numbers</label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="showTranslationAbbr" ${settings.showTranslationAbbr !== false ? "checked" : ""}> Show translation abbreviation</label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="confirmLiveVersionChange" ${settings.confirmLiveVersionChange !== false ? "checked" : ""}> Confirm before changing Live version</label>
+        </div>
+        <div class="language-status">
+          ${translations.map((item) => `
+            <div class="language-row">
+              <strong>${escapeHtml(item.name)} (${escapeHtml(item.abbreviation || item.code)})</strong>
+              <span class="status-pill ready">${escapeHtml(String(item.verseRecords || ""))} verses</span>
+              <span class="muted">${escapeHtml(item.license || "")}</span>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  async function handleBibleCommand(command, element) {
+    const service = window.CISBibleProjectionService;
+    if (!service) return;
+
+    const inputValue = () => {
+      const input = document.getElementById("bibleLiveReferenceInput");
+      return input ? input.value : "";
+    };
+
+    if (command === "set-mode") {
+      state.bibleMode = element.dataset.mode || "live";
+      saveValue("bibleMode", state.bibleMode);
+      render();
+      return;
+    }
+    if (command === "toggle-sermon-mode") {
+      state.bibleSermonMode = !state.bibleSermonMode;
+      saveValue("bibleSermonMode", state.bibleSermonMode ? "true" : "false");
+      paintBibleLive();
+      return;
+    }
+    if (command === "set-search-mode") {
+      service.setPreviewField("searchMode", element.dataset.mode || "reference");
+      paintBibleLive();
+      return;
+    }
+    if (command === "search-reference" || command === "preview-load") {
+      const settings = service.getSettings();
+      const value = inputValue();
+      const mode = service.getState().preview.searchMode;
+      if (mode === "text" && window.CISBibleSearchService) {
+        const results = await window.CISBibleSearchService.searchText(value, {
+          translation: service.getState().preview.translation,
+          limit: 30,
+        });
+        service.setPreviewField("searchResults", results);
+        service.setPreviewField("referenceInput", value);
+        paintBibleLive();
+        return;
+      }
+      await service.loadPreviewFromInput(value);
+      if (command === "search-reference" && settings.enterSendsPreview === false) return;
+      return;
+    }
+    if (command === "apply-suggestion") {
+      await service.loadPreviewFromInput(element.dataset.reference || "");
+      return;
+    }
+    if (command === "set-preview-version") {
+      const translation = element.value;
+      saveValue("bibleTranslation", translation);
+      state.bibleTranslation = translation;
+      await service.setPreviewTranslation(translation);
+      return;
+    }
+    if (command === "set-destinations") {
+      const selected = [...element.selectedOptions].map((opt) => opt.value);
+      service.setDestinations(selected.length ? selected : ["main"]);
+      return;
+    }
+    if (command === "send-live") {
+      const result = service.sendLive();
+      setNotice(result.message || "");
+      return;
+    }
+    if (command === "change-live-version") {
+      const settings = service.getSettings();
+      const translation = service.getState().preview.translation;
+      if (settings.confirmLiveVersionChange && !window.confirm(`Change Live scripture to ${translation}?`)) return;
+      const result = await service.changeLiveVersion(translation);
+      setNotice(result.message || "");
+      return;
+    }
+    if (command === "clear-scripture") {
+      const result = service.clearLive();
+      setNotice(result.message || "");
+      return;
+    }
+    if (command === "restore-scripture") {
+      const result = service.restorePreviousLive();
+      setNotice(result.message || "");
+      return;
+    }
+    if (command === "show-logo") return setEmergency("logo");
+    if (command === "blackout") return setEmergency("black");
+    if (command === "prev-verse") return service.movePreviewVerse(-1);
+    if (command === "next-verse") return service.movePreviewVerse(1);
+    if (command === "preview-result" || command === "history-preview") {
+      await service.loadPreviewFromInput(element.dataset.reference || "");
+      return;
+    }
+    if (command === "send-result-live" || command === "history-live") {
+      await service.loadPreviewFromInput(element.dataset.reference || "");
+      const result = service.sendLive();
+      setNotice(result.message || "");
+      return;
+    }
+    if (command === "add-result-service") {
+      addBiblePassageToService(element.dataset.reference || "", service.getState().preview.translation);
+      return;
+    }
+    if (command === "history-copy") {
+      const ref = element.dataset.reference || "";
+      if (navigator.clipboard && ref) {
+        navigator.clipboard.writeText(ref).then(() => setNotice(`Copied ${ref}.`)).catch(() => setNotice(ref));
+      }
+      return;
+    }
+    if (command === "clear-history") {
+      if (!window.confirm("Clear scripture history for this session?")) return;
+      service.clearHistory();
+      paintBibleLive();
+      return;
+    }
+    if (command === "speech-start" && window.CISBibleSpeechService) {
+      const result = window.CISBibleSpeechService.start();
+      setNotice(result.message || "");
+      paintBibleLive();
+      return;
+    }
+    if (command === "speech-stop" && window.CISBibleSpeechService) {
+      const result = window.CISBibleSpeechService.stop();
+      setNotice(result.message || "");
+      paintBibleLive();
+      return;
+    }
+    if (command === "speech-preview") {
+      const suggestion = service.getState().speechSuggestion;
+      if (suggestion?.referenceInput) await service.loadPreviewFromInput(suggestion.referenceInput);
+      return;
+    }
+    if (command === "speech-dismiss") {
+      service.dismissSpeechSuggestion();
+      paintBibleLive();
+      return;
+    }
+    if (command === "speech-correct") {
+      const suggestion = service.getState().speechSuggestion;
+      const input = document.getElementById("bibleLiveReferenceInput");
+      if (input && suggestion?.referenceInput) input.value = suggestion.referenceInput;
+      paintBibleLive();
+      return;
+    }
+  }
+
+  function addBiblePassageToService(reference, translation) {
+    if (!reference) return;
+    const slot = createPlanSlot("Scripture Reading", worshipPlan.length, {
+      type: "custom",
+      itemType: "scripture",
+      title: reference,
+      scriptureRef: reference,
+      body: reference,
+      notes: translation ? `Translation: ${translation}` : "",
+    });
+    worshipPlan.push(slot);
+    saveWorshipPlan();
+    if (window.CISBibleProjectionService) {
+      window.CISBibleProjectionService.recordHistory({
+        reference,
+        translation: translation || "KJV",
+        sentLive: false,
+        addedToService: true,
+      });
+    }
+    setNotice(`${reference} added to worship plan.`);
+    render();
+  }
+
+  function paintBibleLive() {
+    const root = document.getElementById("bibleLiveRoot");
+    if (!root || !window.CISBibleLiveUI || !window.CISBibleProjectionService) return;
+    root.innerHTML = window.CISBibleLiveUI.renderLiveWorkspace({
+      translations: window.CISBibleStore.getTranslations(),
+      projectionState: window.CISBibleProjectionService.getState(),
+      settings: window.CISBibleProjectionService.getSettings(),
+      speechState: window.CISBibleSpeechService ? window.CISBibleSpeechService.getState() : null,
+      sermonMode: state.bibleSermonMode,
+      bibleMode: state.bibleMode,
+    });
+    window.CISBibleLiveUI.bindWorkspace(root, handleBibleCommand);
+    const input = root.querySelector("#bibleLiveReferenceInput");
+    if (input && state.bibleSermonMode) input.focus();
+  }
+
+  function bindBibleLive() {
+    if (state.view !== "bible" || state.bibleMode !== "live") return;
+    paintBibleLive();
+  }
+
+  function openBibleLive(reference) {
+    state.view = "bible";
+    state.bibleMode = "live";
+    saveValue("view", "bible");
+    saveValue("bibleMode", "live");
+    render();
+    if (reference && window.CISBibleProjectionService) {
+      window.CISBibleProjectionService.loadPreviewFromInput(reference);
+    }
+  }
+
+  function bibleCacheKey() {
+    return `${state.bibleTranslation}:${state.bibleBookOrder}:${state.bibleChapter}`;
+  }
+
+  function renderBibleShell() {
+    if (!window.CISBibleReaderUI || !window.CISBibleStore) {
+      return `<section class="section"><p class="muted">Bible reader failed to load.</p></section>`;
+    }
+    if (state.bibleMode === "live" && window.CISBibleLiveUI) {
+      return `<div id="bibleLiveRoot">${window.CISBibleLiveUI.renderLiveWorkspace({
+        translations: window.CISBibleStore.getTranslations(),
+        projectionState: window.CISBibleProjectionService ? window.CISBibleProjectionService.getState() : { preview: {}, live: {} },
+        settings: window.CISBibleProjectionService ? window.CISBibleProjectionService.getSettings() : {},
+        speechState: window.CISBibleSpeechService ? window.CISBibleSpeechService.getState() : null,
+        sermonMode: state.bibleSermonMode,
+        bibleMode: state.bibleMode,
+      })}</div>`;
+    }
+    const store = window.CISBibleStore;
+    return `
+      <div id="bibleReaderRoot">
+        <div class="bible-mode-tabs">
+          <button class="secondary-button" type="button" data-bible-command="set-mode" data-mode="read">Read</button>
+          <button class="secondary-button active" type="button" data-bible-command="set-mode" data-mode="live">Bible Live</button>
+        </div>
+        ${window.CISBibleReaderUI.renderReader({
+          translations: store.getTranslations(),
+          books: store.getBooks(),
+          translationCode: state.bibleTranslation,
+          bookOrder: state.bibleBookOrder,
+          chapterNumber: state.bibleChapter,
+          bookPayload: bibleReaderState.bookPayload,
+          chapterPayload: bibleReaderState.chapterPayload,
+          highlightVerse: state.bibleVerse,
+          loading: bibleReaderState.loading,
+          error: bibleReaderState.error,
+          translationMeta: store.getTranslationMeta(state.bibleTranslation),
+          bookMeta: store.getBookMeta(state.bibleBookOrder),
+        })}
+      </div>
+    `;
+  }
+
+  function paintBibleReader() {
+    const root = document.getElementById("bibleReaderRoot");
+    if (!root || state.view !== "bible" || !window.CISBibleReaderUI) return;
+    root.innerHTML = window.CISBibleReaderUI.renderReader({
+      translations: window.CISBibleStore.getTranslations(),
+      books: window.CISBibleStore.getBooks(),
+      translationCode: state.bibleTranslation,
+      bookOrder: state.bibleBookOrder,
+      chapterNumber: state.bibleChapter,
+      bookPayload: bibleReaderState.bookPayload,
+      chapterPayload: bibleReaderState.chapterPayload,
+      highlightVerse: state.bibleVerse,
+      loading: bibleReaderState.loading,
+      error: bibleReaderState.error,
+      translationMeta: window.CISBibleStore.getTranslationMeta(state.bibleTranslation),
+      bookMeta: window.CISBibleStore.getBookMeta(state.bibleBookOrder),
+    });
+    bindBibleHandlers(root);
+  }
+
+  async function loadBibleChapter() {
+    if (!window.CISBibleStore) return;
+    bibleReaderState.loading = true;
+    bibleReaderState.error = "";
+    paintBibleReader();
+    try {
+      const payload = await window.CISBibleStore.loadBook(state.bibleTranslation, state.bibleBookOrder);
+      bibleReaderState.bookPayload = payload;
+      let chapter = window.CISBibleStore.getChapter(payload, state.bibleChapter);
+      if (!chapter) {
+        state.bibleChapter = 1;
+        saveValue("bibleChapter", state.bibleChapter);
+        chapter = window.CISBibleStore.getChapter(payload, 1);
+      }
+      bibleReaderState.chapterPayload = chapter;
+      bibleLoadedKey = bibleCacheKey();
+    } catch (error) {
+      bibleReaderState.error = (error && error.message) ? error.message : "Could not load Bible text.";
+      bibleReaderState.bookPayload = null;
+      bibleReaderState.chapterPayload = null;
+    } finally {
+      bibleReaderState.loading = false;
+      paintBibleReader();
+      if (state.bibleVerse) {
+        const verseEl = document.getElementById(`verse-${state.bibleVerse}`);
+        if (verseEl) verseEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }
+
+  function changeBibleChapter(delta) {
+    if (!window.CISBibleStore) return;
+    const count = window.CISBibleStore.chapterCount(state.bibleBookOrder);
+    const next = Math.max(1, Math.min(count, state.bibleChapter + delta));
+    if (next === state.bibleChapter) return;
+    state.bibleChapter = next;
+    state.bibleVerse = 0;
+    saveValue("bibleChapter", state.bibleChapter);
+    saveValue("bibleVerse", state.bibleVerse);
+    bibleLoadedKey = "";
+    loadBibleChapter();
+  }
+
+  function bindBibleHandlers(root) {
+    if (!root || !window.CISBibleReaderUI) return;
+    window.CISBibleReaderUI.bindReader(root, {
+      handleCommand(command, element) {
+        if (command === "set-translation") {
+          state.bibleTranslation = element.dataset.translation || element.value;
+          saveValue("bibleTranslation", state.bibleTranslation);
+          state.bibleVerse = 0;
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "set-book") {
+          state.bibleBookOrder = Number(element.value);
+          state.bibleChapter = 1;
+          state.bibleVerse = 0;
+          saveValue("bibleBookOrder", state.bibleBookOrder);
+          saveValue("bibleChapter", state.bibleChapter);
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "set-chapter") {
+          state.bibleChapter = Number(element.dataset.chapter);
+          state.bibleVerse = 0;
+          saveValue("bibleChapter", state.bibleChapter);
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "prev-chapter") return changeBibleChapter(-1);
+        if (command === "next-chapter") return changeBibleChapter(1);
+        if (command === "jump") {
+          const input = root.querySelector("[data-bible-command='jump-input']");
+          const ref = window.CISBibleStore.parseReference(input ? input.value : "");
+          if (!ref) {
+            setNotice("Enter a reference like John 3 or John 3:16.");
+            return;
+          }
+          state.bibleBookOrder = ref.bookOrder;
+          state.bibleChapter = ref.chapter;
+          state.bibleVerse = ref.verse || 0;
+          saveValue("bibleBookOrder", state.bibleBookOrder);
+          saveValue("bibleChapter", state.bibleChapter);
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "copy-reference") {
+          const text = window.CISBibleStore.formatReference(state.bibleBookOrder, state.bibleChapter, state.bibleVerse || null);
+          if (navigator.clipboard && text) {
+            navigator.clipboard.writeText(text).then(() => setNotice(`Copied ${text}.`)).catch(() => setNotice(text));
+          } else if (text) {
+            setNotice(text);
+          }
+        }
+      },
+    });
+  }
+
+  async function bindBible() {
+    if (state.view !== "bible") return;
+    if (state.bibleMode === "live") {
+      bindBibleLive();
+      return;
+    }
+    const root = document.getElementById("bibleReaderRoot");
+    if (!root) return;
+    bindBibleHandlers(root);
+    root.querySelectorAll("[data-bible-command='set-mode']").forEach((element) => {
+      element.addEventListener("click", () => handleBibleCommand("set-mode", element));
+    });
+    if (bibleLoadedKey !== bibleCacheKey() || !bibleReaderState.chapterPayload) {
+      await loadBibleChapter();
+    }
+  }
+
   function setupSearchEngine() {
     refreshLanguageLibrary();
     if (!window.CISSearchEngine) return;
@@ -421,7 +1225,34 @@
             ? window.CISSongTagsUI.renderFilterRow(window.CISTagCatalog.getAllTags(), state.tagFilters)
             : categoryDefinitions.map((category) => `<button class="filter-chip ${state.category === category.id ? "active" : ""}" type="button" data-command="set-category" data-category="${category.id}">${escapeHtml(category.label)}</button>`).join("")
         ),
-        renderSongTags: (song, code) => renderSongTags(song, code),
+        renderSongTags: (song, code) => (
+          state.indexDisplay.showCategories === false ? "" : renderSongTags(song, code)
+        ),
+        makeSongKey: (item) => makeSongKey(item.editionId || state.editionId, item.number || item.song?.number),
+        renderHymnQueueActions: (key) => renderHymnQueueActions(key, true),
+        getIndexDisplaySettings: () => state.indexDisplay,
+        renderIndexCollection: (songs, extra = {}) => {
+          if (!window.CISHymnIndexUI) return "";
+          window.CISHymnIndexUI.configure({ escapeHtml });
+          return window.CISHymnIndexUI.renderCollection(
+            window.CISHymnIndexUI.sortSongs(songs, state.indexDisplay.sort, {
+              favorites,
+              recents,
+              songKey: (song) => songKey(song, extra.code || state.languageCode, extra.editionId || state.editionId),
+            }),
+            state.indexDisplay,
+            {
+              ...indexDisplayContext(),
+              ...extra,
+              songKey: (song) => songKey(song, extra.code || state.languageCode, extra.editionId || state.editionId),
+              renderSongTags: (song) => (
+                state.indexDisplay.showCategories === false
+                  ? ""
+                  : renderSongTags(song, extra.code || state.languageCode)
+              ),
+            },
+          );
+        },
       });
     }
     window.CISSearchEngine.rebuildIndex(data.languagePacks);
@@ -1355,6 +2186,9 @@
     bindBackupSettings();
     bindHelpCentre();
     renderHelpContextOverlay();
+    paintLiveHymnQueuePanels();
+    if (state.view === "presenter" || state.view === "settings") bindObsProgramMonitor();
+    if (state.view === "cameras" || state.view === "presenter" || state.view === "settings") bindCameraSources();
     document.body.classList.add("app-ready");
   }
 
@@ -1615,6 +2449,36 @@
     `;
   }
 
+  function persistIndexDisplay(patch) {
+    if (!window.CISHymnIndexSettings) return;
+    state.indexDisplay = window.CISHymnIndexSettings.patch(state.indexDisplay, patch, saveJson);
+  }
+
+  function indexDisplayContext() {
+    return {
+      settings: state.indexDisplay,
+      query: state.query,
+      favorites,
+      recents,
+      activeCategory: state.category,
+      activeTagFilters: state.tagFilters,
+      songKey: (song) => songKey(song),
+      langCode: state.languageCode,
+      editionId: state.editionId,
+      renderSongTags: (song, code = state.languageCode) => renderSongTags(song, code),
+      renderHymnQueueActions: (song, extra = {}) => renderHymnQueueActions(
+        songKey(song, extra.code || state.languageCode, extra.editionId || state.editionId),
+        true,
+      ),
+      categories: categoryDefinitions,
+      renderFilterRow: () => (
+        window.CISTagCatalog && window.CISSongTagsUI
+          ? window.CISSongTagsUI.renderFilterRow(window.CISTagCatalog.getAllTags(), state.tagFilters)
+          : ""
+      ),
+    };
+  }
+
   function renderIndex() {
     const pack = getPack();
     if (pack.status !== "ready") return renderAwaitingPack(pack);
@@ -1674,14 +2538,19 @@
   }
 
   function renderSearchResult(song, code = state.languageCode, pack = getPack(code)) {
+    const editionId = pack.editionId || state.editionId;
+    const key = makeSongKey(editionId, song.number);
     const tags = renderSongTags(song, code);
     return `
-      <button class="result-item" type="button" data-song="${song.number}" data-lang-jump="${escapeHtml(code)}">
-        <strong>${escapeHtml(pack.name || "Language")} · Hymn ${escapeHtml(song.number)}</strong>
-        <span>${escapeHtml(song.title)}</span>
-        ${tags ? `<div class="result-tags">${tags}</div>` : ""}
-        <small>${resultSnippet(song, state.query)}</small>
-      </button>
+      <div class="result-item search-result-with-actions">
+        <button class="result-item-main" type="button" data-song="${song.number}" data-lang-jump="${escapeHtml(code)}" data-edition-jump="${escapeHtml(editionId)}">
+          <strong>${escapeHtml(pack.name || "Language")} · Hymn ${escapeHtml(song.number)}</strong>
+          <span>${escapeHtml(song.title)}</span>
+          ${tags ? `<div class="result-tags">${tags}</div>` : ""}
+          <small>${resultSnippet(song, state.query)}</small>
+        </button>
+        ${renderHymnQueueActions(key, true)}
+      </div>
     `;
   }
 
@@ -1693,6 +2562,7 @@
     const slide = song.slides[Math.min(state.slideIndex, song.slides.length - 1)] || song.slides[0];
     const fontSize = Math.round(42 * state.fontScale);
     return `
+      ${renderLiveHymnQueueMount(true)}
       <div class="song-layout">
         <section class="section">
           <div class="song-header">
@@ -1712,6 +2582,7 @@
               <button class="secondary-button ${state.practiceMode ? "active" : ""}" type="button" data-command="toggle-practice-mode">${state.practiceMode ? "Close Practice" : "Practice"}</button>
               <button class="secondary-button" type="button" data-command="toggle-favorite">${isFavorite ? "★ Saved" : "☆ Save"}</button>
               <button class="secondary-button" type="button" data-command="open-slot-picker">Add to Set</button>
+              ${renderHymnQueueActions(key)}
               <button class="action-button" type="button" data-command="present-song">Present</button>
             </div>
           </div>
@@ -2062,6 +2933,7 @@
       ? window.CISSongTagsUI.renderSuggestions(suggestSongsLabel(activeServiceSlot), serviceSuggestions, renderServiceSuggestionButton)
       : "";
     return `
+      ${renderLiveHymnQueueMount(true)}
       ${templateGallery}
       <section class="section opens-service">
         <div class="song-header">
@@ -2165,6 +3037,8 @@
         <div class="mini-actions">
           ${slotHasContent(slot) ? `<button type="button" data-command="present-plan-slot" data-slot="${index}" title="Present">▶</button>` : ""}
           ${song ? `<button type="button" data-command="open-plan-song" data-slot="${index}" title="Open">↗</button>` : ""}
+          ${song ? `<button type="button" data-command="hymn-set-next" data-song-key="${escapeHtml(slot.songKey)}" title="Set as Next">Next</button>` : ""}
+          ${song ? `<button type="button" data-command="hymn-add-queue" data-song-key="${escapeHtml(slot.songKey)}" title="Add to Queue">+Q</button>` : ""}
           ${custom ? `<button type="button" data-command="edit-slide-item" data-slot="${index}" title="Edit">✎</button>` : ""}
           <button type="button" data-command="move-slot-up" data-slot="${index}" title="Move up">↑</button>
           <button type="button" data-command="move-slot-down" data-slot="${index}" title="Move down">↓</button>
@@ -2744,6 +3618,7 @@
     const remaining = timerRemaining();
     const time = new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit" }).format(new Date());
     return `
+      ${renderLiveHymnQueueMount(true)}
       <div class="operator-grid">
         <section class="section">
           <p class="eyebrow">Clock ${escapeHtml(time)}</p>
@@ -2783,6 +3658,9 @@
                 <button class="secondary-button" type="button" data-command="timer-reset">${escapeHtml(t("common.reset"))}</button>
               </div>
             </article>
+          </div>
+          <div class="button-row">
+            <button class="secondary-button" type="button" data-command="hymn-queue-from-plan" data-slot="${state.activeSlot || 0}">Queue remaining service hymns</button>
           </div>
           <hr>
           <div class="set-list">
@@ -2842,22 +3720,28 @@
   function renderStoredSongCard(key, song) {
     const parsed = parseSongKey(key);
     return `
-      <button class="tile song-tile" type="button" data-song="${song.number}" data-lang-jump="${parsed.code}">
-        <span class="star" aria-hidden="true">★</span>
-        <span class="tnum">${escapeHtml(song.number)}</span>
-        <span class="ttitle">${escapeHtml(song.title)}</span>
-        <small class="tile-meta">${escapeHtml(getPack(parsed.code).name)}</small>
-      </button>
+      <div class="tile-wrap">
+        <button class="tile song-tile" type="button" data-song="${song.number}" data-lang-jump="${parsed.code}" data-edition-jump="${parsed.editionId}">
+          <span class="star" aria-hidden="true">★</span>
+          <span class="tnum">${escapeHtml(song.number)}</span>
+          <span class="ttitle">${escapeHtml(song.title)}</span>
+          <small class="tile-meta">${escapeHtml(getPack(parsed.code).name)}</small>
+        </button>
+        ${renderHymnQueueActions(key, true)}
+      </div>
     `;
   }
 
   function renderStoredResult(key, song) {
     const parsed = parseSongKey(key);
     return `
-      <button class="result-item" type="button" data-song="${song.number}" data-lang-jump="${parsed.code}">
-        <strong>${escapeHtml(getPack(parsed.code).name)} · Hymn ${escapeHtml(song.number)}</strong>
-        <span>${escapeHtml(song.title)}</span>
-      </button>
+      <div class="result-item search-result-with-actions">
+        <button class="result-item-main" type="button" data-song="${song.number}" data-lang-jump="${parsed.code}" data-edition-jump="${parsed.editionId}">
+          <strong>${escapeHtml(getPack(parsed.code).name)} · Hymn ${escapeHtml(song.number)}</strong>
+          <span>${escapeHtml(song.title)}</span>
+        </button>
+        ${renderHymnQueueActions(key, true)}
+      </div>
     `;
   }
 
@@ -3938,6 +4822,32 @@
       return;
     }
     if (state.presenter.open || (window.CISPresenterEngine && window.CISPresenterEngine.getState().active)) {
+      if (!typing) {
+        if (event.shiftKey && event.key === "]" && window.CISLiveHymnQueueService) {
+          event.preventDefault();
+          void handleHymnQueueCommand("hymn-take-next", {});
+          return;
+        }
+        if (event.shiftKey && event.key === "[" && window.CISLiveHymnQueueService) {
+          event.preventDefault();
+          void handleHymnQueueCommand("hymn-restore-previous", {});
+          return;
+        }
+        if (event.key.toLowerCase() === "v") {
+          event.preventDefault();
+          handleCameraSendLive();
+          return;
+        }
+        if (event.key.toLowerCase() === "n" && window.CISCameraSourceService) {
+          event.preventDefault();
+          const cameras = window.CISCameraSourceService.getState().savedCameras;
+          const currentId = window.CISCameraSourceService.getState().live.cameraId;
+          const index = cameras.findIndex((cam) => cam.id === currentId);
+          const next = cameras[(index + 1) % cameras.length];
+          if (next) handleCameraSendLive(next.id);
+          return;
+        }
+      }
       if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
         event.preventDefault();
         presenterMove(1);
@@ -3975,6 +4885,10 @@
   function handleCommand(command, target) {
     const slotIndex = Number(target.dataset.slot);
     const serviceSlotIndex = Number(target.dataset.serviceSlot);
+    if (command && command.startsWith("hymn-")) {
+      void handleHymnQueueCommand(command, target);
+      return;
+    }
     if (command === "toggle-ui-locale-menu") {
       uiLocaleMenuOpen = !uiLocaleMenuOpen;
       hymnPackMenuOpen = false;
@@ -4495,6 +5409,9 @@
   setupBulletinExport();
   setupSearchEngine();
   setupHymnAudio();
+  setupBible();
+  setupHymnalLibrary();
+  setupLiveHymnQueue();
 
   Promise.all([loadImportedLanguagePacks(), loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(async () => {
     if (window.CISLazyLoader && window.CISLazyLoader.isPackDeferred(state.languageCode)) {
