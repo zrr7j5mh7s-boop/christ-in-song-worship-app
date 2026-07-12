@@ -104,6 +104,7 @@ function testCacheVersion() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   if (!sw.includes("christ-in-song-worship-v41")) fail("Service worker cache should be v41");
   ok("cache version v41 for quiet service mode release");
 =======
@@ -118,6 +119,10 @@ function testCacheVersion() {
   if (!sw.includes("christ-in-song-worship-v42")) fail("Service worker cache should be v42");
   ok("cache version v42 for keyboard shortcuts release");
 >>>>>>> feddf9c (Add configurable keyboard shortcuts, touch-friendly live controls, and accessibility improvements for faster worship operation.)
+=======
+  if (!sw.includes("christ-in-song-worship-v43")) fail("Service worker cache should be v43");
+  ok("cache version v43 for worship search release");
+>>>>>>> da01d1b (Add unified Worship Search so operators can find hymns, Scripture, service items, and media from one place during live worship.)
 }
 
 testDesignTokens();

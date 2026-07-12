@@ -207,6 +207,7 @@ function run() {
   const sw = read("app/sw.js");
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   assert.match(sw, /christ-in-song-worship-v41/);
 =======
   assert.match(sw, /christ-in-song-worship-v40/);
@@ -214,6 +215,9 @@ function run() {
 =======
   assert.match(sw, /christ-in-song-worship-v42/);
 >>>>>>> feddf9c (Add configurable keyboard shortcuts, touch-friendly live controls, and accessibility improvements for faster worship operation.)
+=======
+  assert.match(sw, /christ-in-song-worship-v43/);
+>>>>>>> da01d1b (Add unified Worship Search so operators can find hymns, Scripture, service items, and media from one place during live worship.)
   assert.ok(sw.includes("projection-themes.js"));
   assert.ok(sw.includes("text-fit-engine.js"));
   assert.ok(sw.includes("slide-layout-engine.js"));

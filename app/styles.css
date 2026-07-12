@@ -7837,4 +7837,90 @@ body.quiet-service-mode-active .launch-splash {
   min-width: 52px;
 }
 
+<<<<<<< HEAD
 >>>>>>> feddf9c (Add configurable keyboard shortcuts, touch-friendly live controls, and accessibility improvements for faster worship operation.)
+=======
+.worship-search-page .worship-search-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.worship-search-interpretation {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.worship-search-interpretation-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.worship-search-results {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.worship-search-group h3 {
+  margin-bottom: 0.65rem;
+}
+
+.worship-search-group-results {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.worship-search-result-wrap {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.65rem;
+  border: 1px solid var(--line, #d8dde8);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+
+.worship-search-result-wrap.active {
+  border-color: color-mix(in srgb, var(--accent, #1f4b99) 55%, var(--line, #d8dde8));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #1f4b99) 18%, transparent);
+}
+
+.worship-search-result {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.worship-search-result-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.worship-search-result-subtitle {
+  margin-top: 0.2rem;
+  font-size: 0.92rem;
+}
+
+.worship-search-result-snippet {
+  margin-top: 0.45rem;
+  color: var(--ink-soft, #475467);
+  line-height: 1.45;
+}
+
+.worship-search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.worship-search-recent-queries {
+  margin-bottom: 1rem;
+}
+
+>>>>>>> da01d1b (Add unified Worship Search so operators can find hymns, Scripture, service items, and media from one place during live worship.)
