@@ -5,6 +5,16 @@
     sda: "./data/sda-hymnal-pack.js?v=2",
   };
 
+  const DEFERRED_PACK_META = {
+    sda: {
+      code: "sda",
+      name: "SDA Hymnal",
+      status: "loading",
+      songCount: 695,
+      source: "SDA_Hymnal_English_PowerPoint_Pack.pptx",
+    },
+  };
+
   const DEFERRED_BUNDLES = {
     pdfmake: [
       "./vendor/pdfmake.min.js",
@@ -95,6 +105,7 @@
 
   window.CISLazyLoader = {
     PACK_SCRIPTS,
+    DEFERRED_PACK_META,
     DEFERRED_BUNDLES,
     assetPath,
     loadScript,
