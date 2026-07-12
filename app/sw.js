@@ -1,9 +1,9 @@
-const CACHE_NAME = "christ-in-song-worship-v28";
+const CACHE_NAME = "christ-in-song-worship-v27";
 
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=28",
+  "./styles.css?v=27",
   "./data/songs.js?v=2",
   "./data/extra-packs.js",
   "./lazy-pack-loader.js?v=1",
@@ -23,6 +23,9 @@ const APP_SHELL = [
   "./vendor/fuse.min.js",
   "./hymn-search.js?v=2",
   "./hymn-search-ui.js?v=1",
+  "./data/bible-catalog.js?v=1",
+  "./bible-store.js?v=1",
+  "./bible-reader-ui.js?v=1",
   "./song-audio-store.js?v=1",
   "./song-audio-player.js?v=1",
   "./song-audio-ui.js?v=1",
@@ -41,8 +44,6 @@ const APP_SHELL = [
   "./obs/obs-source-service.js?v=1",
   "./obs/obs-output-service.js?v=1",
   "./obs/obs-control-service.js?v=1",
-  "./obs/obs-program-monitor.js?v=1",
-  "./obs/obs-program-monitor-ui.js?v=1",
   "./obs/obs-mapping-ui.js?v=2",
   "./obs/obs-control-ui.js?v=2",
   "./obs/obs-settings-ui.js?v=2",
@@ -60,7 +61,7 @@ const APP_SHELL = [
   "./i18n/i18n-catalog.js?v=1",
   "./i18n/i18n-store.js?v=1",
   "./i18n/i18n.js?v=1",
-  "./app.js?v=28",
+  "./app.js?v=27",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",
