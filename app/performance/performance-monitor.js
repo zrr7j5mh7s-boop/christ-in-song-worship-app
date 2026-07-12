@@ -28,11 +28,14 @@
   }
 
   function record(name, value) {
+<<<<<<< HEAD
     if (window.CISQuietServiceModeService?.shouldPauseBackgroundTask?.(
       window.CISQuietServiceModeService.BACKGROUND_TASKS.analytics
     )) {
       return;
     }
+=======
+>>>>>>> 1f16699 (Improve worship app responsiveness with debounced search, cancellation, and resource cleanup.)
     metrics[name] = value;
   }
 

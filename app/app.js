@@ -231,6 +231,9 @@
   let loadedAudioSongKey = "";
   let songAudioMeta = null;
   let audioDockState = { currentTime: 0 };
+  let indexSearchSession = null;
+  let biblePhraseSearchSession = null;
+  let firstRenderMarked = false;
   let worshipPlan = normalizeWorshipPlan(loadJson("worshipPlan", null));
   let songService = normalizeSongService(loadJson("songService", null));
   state.activeSlot = Math.min(state.activeSlot, worshipPlan.length - 1);
@@ -1769,12 +1772,7 @@
       const value = inputValue();
       const mode = service.getState().preview.searchMode;
       if (mode === "text" && window.CISBibleSearchService) {
-        const results = await window.CISBibleSearchService.searchText(value, {
-          translation: service.getState().preview.translation,
-          limit: 30,
-        });
-        service.setPreviewField("searchResults", results);
-        service.setPreviewField("referenceInput", value);
+        await runBiblePhraseSearch(value, service.getState().preview.translation);
         paintBibleLive();
         return;
       }
@@ -1912,6 +1910,28 @@
     render();
   }
 
+  function bindBibleLiveInput(root) {
+    const input = root?.querySelector("#bibleLiveReferenceInput");
+    if (!input || input.dataset.perfBound === "1") return;
+    input.dataset.perfBound = "1";
+    input.addEventListener("input", () => {
+      const service = window.CISBibleProjectionService;
+      if (!service || service.getState().preview.searchMode !== "text") return;
+      const translation = service.getState().preview.translation;
+      if (!biblePhraseSearchSession) {
+        void runBiblePhraseSearch(input.value, translation).then(() => paintBibleLive());
+        return;
+      }
+      biblePhraseSearchSession.scheduleDebounced((gen, isCurrent) => {
+        if (!isCurrent(gen)) return;
+        return runBiblePhraseSearch(input.value, translation).then(() => {
+          if (!isCurrent(gen)) return;
+          paintBibleLive();
+        });
+      });
+    });
+  }
+
   function paintBibleLive() {
     const root = document.getElementById("bibleLiveRoot");
     if (!root || !window.CISBibleLiveUI || !window.CISBibleProjectionService) return;
@@ -1924,6 +1944,7 @@
       bibleMode: state.bibleMode,
     });
     window.CISBibleLiveUI.bindWorkspace(root, handleBibleCommand);
+    bindBibleLiveInput(root);
     const input = root.querySelector("#bibleLiveReferenceInput");
     if (input && state.bibleSermonMode) input.focus();
   }
@@ -2128,6 +2149,77 @@
     });
     if (bibleLoadedKey !== bibleCacheKey() || !bibleReaderState.chapterPayload) {
       await loadBibleChapter();
+    }
+  }
+
+  function setupPerformance() {
+    if (window.CISTaskSession) {
+      indexSearchSession = window.CISTaskSession.createDebouncedSession({ debounceMs: 200 });
+      biblePhraseSearchSession = window.CISTaskSession.createDebouncedSession({ debounceMs: 220 });
+    }
+    window.addEventListener("beforeunload", () => {
+      if (window.CISSearchUI?.cancelPending) window.CISSearchUI.cancelPending();
+      if (window.CISBibleSearchService?.cancelActiveSearch) window.CISBibleSearchService.cancelActiveSearch();
+      if (window.CISCameraSourceService?.shutdownCleanup) window.CISCameraSourceService.shutdownCleanup();
+      if (window.CISObsConnectionService?.clearReconnectTimer) window.CISObsConnectionService.clearReconnectTimer();
+      if (window.CISPerformanceMonitor?.shutdown) window.CISPerformanceMonitor.shutdown();
+    });
+  }
+
+  function paintIndexCollection() {
+    if (state.view !== "index" || !window.CISHymnIndexUI) return;
+    const pack = getPack();
+    if (pack.status !== "ready") return;
+    const root = document.getElementById("hymnIndexCollectionRoot");
+    if (!root) return;
+    const activeRange = activeRangeKey(pack);
+    const songs = rangeSongs(activeRange, state.query);
+    const started = typeof performance !== "undefined" ? performance.now() : Date.now();
+    window.CISHymnIndexUI.paintCollection(
+      root,
+      songs,
+      state.indexDisplay,
+      { ...indexDisplayContext(), query: state.query },
+    );
+    if (window.CISPerformanceMonitor) {
+      const ended = typeof performance !== "undefined" ? performance.now() : Date.now();
+      window.CISPerformanceMonitor.record("hymnIndexRenderMs", ended - started);
+    }
+  }
+
+  function scheduleIndexSearch(target) {
+    const position = target.selectionStart || target.value.length;
+    const collection = document.getElementById("hymnIndexCollectionRoot");
+    if (window.CISHymnIndexUI && collection) window.CISHymnIndexUI.setCollectionPending(collection);
+    if (!indexSearchSession) {
+      rerenderKeepingFocus(target);
+      return;
+    }
+    indexSearchSession.scheduleDebounced((gen, isCurrent) => {
+      if (!isCurrent(gen)) return;
+      paintIndexCollection();
+      const next = document.getElementById(target.id);
+      if (next) {
+        next.focus();
+        next.setSelectionRange(position, position);
+      }
+    });
+  }
+
+  async function runBiblePhraseSearch(query, translation) {
+    if (!window.CISBibleSearchService || !window.CISBibleProjectionService) return;
+    const service = window.CISBibleProjectionService;
+    const started = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const results = await window.CISBibleSearchService.searchText(query, {
+      translation,
+      limit: 30,
+    });
+    if (results === null) return;
+    service.setPreviewField("searchResults", results);
+    service.setPreviewField("referenceInput", query);
+    if (window.CISPerformanceMonitor) {
+      const ended = typeof performance !== "undefined" ? performance.now() : Date.now();
+      window.CISPerformanceMonitor.record("biblePhraseSearchMs", ended - started);
     }
   }
 
@@ -2404,6 +2496,15 @@
   }
 
   function lyricHtml(value) {
+    const key = String(value || "");
+    const cache = window.CISStanzaRenderCache;
+    if (cache) {
+      const cached = cache.get(key);
+      if (cached) return cached;
+      const html = escapeHtml(value).replace(/\n/g, "<br>");
+      cache.set(key, html);
+      return html;
+    }
     return escapeHtml(value).replace(/\n/g, "<br>");
   }
 
@@ -3428,6 +3529,10 @@
     document.body.classList.toggle("service-mode-active", isServiceModeActive());
     document.body.classList.toggle("quiet-service-mode-active", isQuietServiceModeActive());
     document.body.classList.add("app-ready");
+    if (!firstRenderMarked && window.CISPerformanceMonitor) {
+      window.CISPerformanceMonitor.measure("initialRenderMs", "app-start");
+      firstRenderMarked = true;
+    }
   }
 
   function renderNotice() {
@@ -6510,7 +6615,8 @@
     }
     if (target.id === "indexSearchInput") {
       state.query = target.value;
-      rerenderKeepingFocus(target);
+      scheduleIndexSearch(target);
+      return;
     }
     if (target.id === "builderSearchInput") {
       state.builderQuery = target.value;
@@ -7641,10 +7747,14 @@
   setupQuietServiceMode();
   setupLiveSwitch();
   setupLiveLock();
+<<<<<<< HEAD
 >>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
 =======
   setupServiceMode();
 >>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
+=======
+  setupPerformance();
+>>>>>>> 1f16699 (Improve worship app responsiveness with debounced search, cancellation, and resource cleanup.)
 
   Promise.all([loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(async () => {
     migrateLegacySongKeys();
@@ -7654,7 +7764,12 @@
       indexReadyPacks([state.languageCode]);
     }
     scheduleBackgroundWarmup();
+    if (window.CISPerformanceMonitor) window.CISPerformanceMonitor.mark("data-ready");
     render();
+    if (window.CISPerformanceMonitor) {
+      window.CISPerformanceMonitor.measure("startupToFirstRenderMs", "app-start");
+      window.CISPerformanceMonitor.measure("startupToDataReadyMs", "data-ready");
+    }
     if (!data.languagePacks.length) {
       setNotice(t("notice.libraryFailed"));
     }
@@ -7668,7 +7783,7 @@
       }).catch(() => {});
     }
   });
-  setInterval(() => {
+  const presenterClockInterval = window.setInterval(() => {
     if (state.timerRunning && timerRemaining() <= 0) {
       state.timerRunning = false;
       state.timerSeconds = 0;
@@ -7681,6 +7796,9 @@
       renderPresenterAV();
       return;
     }
-    if (state.view === "presenter" || state.presenter.open) render();
+    if ((state.view === "presenter" || state.presenter.open) && state.timerRunning) {
+      render();
+    }
   }, 1000);
+  if (window.CISPerformanceMonitor) window.CISPerformanceMonitor.trackInterval(presenterClockInterval);
 })();

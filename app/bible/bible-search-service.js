@@ -2,6 +2,16 @@
   "use strict";
 
   const indexCache = new Map();
+  let activeSearchGen = 0;
+
+  function cancelActiveSearch() {
+    activeSearchGen += 1;
+    return activeSearchGen;
+  }
+
+  function isSearchCurrent(gen) {
+    return gen === activeSearchGen;
+  }
 
   function normalizeQuery(query) {
     return String(query || "").trim().toLowerCase();
@@ -67,14 +77,18 @@
   }
 
   async function searchText(query, options) {
+    const gen = cancelActiveSearch();
     const translations = options?.translations || [options?.translation || "KJV"];
     const limit = options?.limit || 40;
     const results = [];
 
     for (let t = 0; t < translations.length; t += 1) {
+      if (!isSearchCurrent(gen)) return null;
       const translation = translations[t];
       const index = await buildIndex(translation, options?.onProgress);
+      if (!isSearchCurrent(gen)) return null;
       for (let i = 0; i < index.length; i += 1) {
+        if (!isSearchCurrent(gen)) return null;
         const record = index[i];
         if (!matchesRecord(record, query, options)) continue;
         results.push({
@@ -86,6 +100,7 @@
       if (results.length >= limit) break;
     }
 
+    if (!isSearchCurrent(gen)) return null;
     return results;
   }
 
@@ -100,5 +115,8 @@
     highlightText,
     clearIndex,
     matchesRecord,
+    cancelActiveSearch,
+    isSearchCurrent,
+    getActiveSearchGeneration: () => activeSearchGen,
   };
 })();

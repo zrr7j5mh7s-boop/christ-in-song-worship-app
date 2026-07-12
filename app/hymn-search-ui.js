@@ -5,9 +5,17 @@
 
   let escapeHtml = (value) => String(value || "");
   let callbacks = {};
-  let debounceTimer = null;
+  let searchSession = null;
   let lastPayload = { groups: [], total: 0, flat: [] };
   let activeIndex = -1;
+  let searchPending = false;
+
+  function ensureSearchSession() {
+    if (!searchSession && window.CISTaskSession) {
+      searchSession = window.CISTaskSession.createDebouncedSession({ debounceMs: DEBOUNCE_MS });
+    }
+    return searchSession;
+  }
 
   function configure(options) {
     callbacks = options || {};
@@ -160,9 +168,21 @@
     }).join("");
   }
 
+  function setSearchPending(pending) {
+    searchPending = pending;
+    const countEl = document.getElementById("globalSearchCount");
+    if (!countEl) return;
+    countEl.classList.toggle("is-pending", pending);
+    if (pending) {
+      const query = call("getQuery") || "";
+      countEl.textContent = query ? "Searching…" : "Type to search all languages";
+    }
+  }
+
   function updateCount(total) {
     const countEl = document.getElementById("globalSearchCount");
     if (!countEl) return;
+    countEl.classList.remove("is-pending");
     const query = call("getQuery") || "";
     if (!query) {
       countEl.textContent = "Type to search all languages";
@@ -181,22 +201,36 @@
     scrollActiveIntoView();
   }
 
-  function runSearchNow() {
+  function runSearchNow(gen, isCurrent) {
     const query = call("getQuery") || "";
     if (!window.CISSearchEngine) {
+      if (isCurrent && !isCurrent(gen)) return;
       paintResults({ groups: [], total: 0, flat: [] });
+      setSearchPending(false);
       return;
     }
     const scopeOptions = typeof callbacks.getSearchScopeOptions === "function"
       ? callbacks.getSearchScopeOptions()
       : {};
+    const started = typeof performance !== "undefined" ? performance.now() : Date.now();
     const payload = window.CISSearchEngine.search(query, { limit: 120, ...scopeOptions });
+    if (isCurrent && !isCurrent(gen)) return;
     paintResults(payload);
+    setSearchPending(false);
+    if (window.CISPerformanceMonitor) {
+      const ended = typeof performance !== "undefined" ? performance.now() : Date.now();
+      window.CISPerformanceMonitor.record("hymnSearchMs", ended - started);
+    }
   }
 
   function scheduleSearch() {
-    window.clearTimeout(debounceTimer);
-    debounceTimer = window.setTimeout(runSearchNow, DEBOUNCE_MS);
+    const session = ensureSearchSession();
+    setSearchPending(true);
+    if (session) {
+      session.scheduleDebounced(runSearchNow);
+      return;
+    }
+    runSearchNow(0, () => true);
   }
 
   function scrollActiveIntoView() {
@@ -288,6 +322,15 @@
     configure,
     renderPage,
     bind,
-    refresh: runSearchNow,
+    refresh: () => {
+      const session = ensureSearchSession();
+      if (session) return session.runImmediate(runSearchNow);
+      return runSearchNow(0, () => true);
+    },
+    cancelPending: () => {
+      if (searchSession) searchSession.cancelPending();
+      setSearchPending(false);
+    },
+    isSearchPending: () => searchPending,
   };
 })();

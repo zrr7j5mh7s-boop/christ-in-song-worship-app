@@ -196,6 +196,31 @@
     }
   }
 
+  function releaseAllStreams() {
+    for (const [key, entry] of streamRegistry.entries()) {
+      if (entry.stream) {
+        entry.stream.getTracks().forEach((track) => {
+          try { track.stop(); } catch (_error) {}
+        });
+      }
+      streamRegistry.delete(key);
+    }
+  }
+
+  function getActiveStreamCount() {
+    let count = 0;
+    for (const entry of streamRegistry.values()) {
+      if (entry.stream && entry.stream.active) count += 1;
+    }
+    return count;
+  }
+
+  function shutdownCleanup() {
+    stopPreview();
+    if (live.active) clearCamera();
+    releaseAllStreams();
+  }
+
   function getLiveStream() {
     for (const entry of streamRegistry.values()) {
       if (entry.liveRef > 0 && entry.stream) return entry.stream;
@@ -671,6 +696,9 @@
     bindVideoElement,
     getLiveStream,
     getPreviewStream,
+    getActiveStreamCount,
+    releaseAllStreams,
+    shutdownCleanup,
     getLocalPresentationStatus,
     getState: getPublicState,
     persistSettings,

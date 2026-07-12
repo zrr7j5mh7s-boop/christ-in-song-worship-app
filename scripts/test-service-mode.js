@@ -129,6 +129,7 @@ function run() {
   assert.match(indexHtml, /topbarServiceModeBtn/);
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   assert.match(indexHtml, /styles\.css\?v=37/);
 =======
   assert.match(indexHtml, /styles\.css\?v=36/);
@@ -136,6 +137,9 @@ function run() {
 =======
   assert.match(indexHtml, /styles\.css\?v=41/);
 >>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
+=======
+  assert.match(indexHtml, /styles\.css\?v=38/);
+>>>>>>> 1f16699 (Improve worship app responsiveness with debounced search, cancellation, and resource cleanup.)
 
   const styles = read("app/styles.css");
   assert.match(styles, /\.service-mode-trio/);
@@ -146,6 +150,7 @@ function run() {
   const sw = read("app/sw.js");
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   assert.match(sw, /christ-in-song-worship-v37/);
 =======
   assert.match(sw, /christ-in-song-worship-v36/);
@@ -153,6 +158,9 @@ function run() {
 =======
   assert.match(sw, /christ-in-song-worship-v41/);
 >>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
+=======
+  assert.match(sw, /christ-in-song-worship-v38/);
+>>>>>>> 1f16699 (Improve worship app responsiveness with debounced search, cancellation, and resource cleanup.)
   assert.match(sw, /service-mode-service\.js/);
 
   const pkg = JSON.parse(read("package.json"));
