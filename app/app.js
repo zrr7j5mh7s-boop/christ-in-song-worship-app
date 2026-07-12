@@ -131,6 +131,11 @@
     presenterOverlay: document.getElementById("presenterOverlay"),
     emergencyOverlay: document.getElementById("emergencyOverlay"),
     obsStatusRoot: document.getElementById("obsStatusRoot"),
+<<<<<<< HEAD
+=======
+    operatorStatusRoot: document.getElementById("operatorStatusRoot"),
+    quietServiceModeRoot: document.getElementById("quietServiceModeRoot"),
+>>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
   };
 
   let embeddedProjectorActive = false;
@@ -171,6 +176,7 @@
     displayMode: loadValue("displayMode", "slides"),
     fontScale: Number(loadValue("fontScale", 1)) || 1,
     notice: "",
+    noticeLevel: "",
     desktopInfo: null,
     presenter: {
       open: false,
@@ -480,14 +486,20 @@
 
   function scheduleBackgroundWarmup() {
     if (!window.CISLazyLoader) return;
+    const quiet = window.CISQuietServiceModeService;
+    if (quiet?.shouldPauseBackgroundTask?.(quiet.BACKGROUND_TASKS.lazyPreload)) return;
     window.CISLazyLoader.scheduleIdlePreload(() => {
+      if (quiet?.shouldPauseBackgroundTask?.(quiet.BACKGROUND_TASKS.lazyPreload)) return;
       window.CISLazyLoader.preloadDeferredPacks(["sda"]).then(() => {
         refreshLanguageLibrary();
-        indexReadyPacks(["sda"]);
+        if (!quiet?.shouldPauseBackgroundTask?.(quiet.BACKGROUND_TASKS.indexing)) {
+          indexReadyPacks(["sda"]);
+        }
         render();
       }).catch(() => {});
     });
     window.CISLazyLoader.scheduleIdlePreload(() => {
+      if (quiet?.shouldPauseBackgroundTask?.(quiet.BACKGROUND_TASKS.indexing)) return;
       const pending = data.languagePacks
         .filter((pack) => pack.status === "ready")
         .map((pack) => pack.code)
@@ -1150,6 +1162,7 @@
       status: buildServiceModeStatusContext(),
       mediaControls,
       localPresentation,
+      quietServiceModeActive: isQuietServiceModeActive(),
     };
   }
 
@@ -1184,6 +1197,121 @@
     paintLiveHymnQueuePanels();
   }
 
+  function isQuietServiceModeActive() {
+    return Boolean(window.CISQuietServiceModeService?.isActive?.());
+  }
+
+  function outputsActiveForQuietMode() {
+    const presenter = window.CISPresenterEngine?.getState?.() || {};
+    return Boolean(
+      embeddedProjectorActive
+      || (presenter.active && presenter.displayMode === "lyrics")
+      || isPresentationLiveActive()
+      || state.emergencyMode,
+    );
+  }
+
+  function syncQuietPowerBlocker() {
+    if (!window.CISQuietServiceModeService) return;
+    window.CISQuietServiceModeService.syncPowerBlocker(outputsActiveForQuietMode());
+  }
+
+  function enterQuietServiceMode() {
+    if (!window.CISQuietServiceModeService) return;
+    const result = window.CISQuietServiceModeService.enter({ outputsActive: outputsActiveForQuietMode() });
+    setNotice(result.message, { nonessential: false });
+    render();
+  }
+
+  function exitQuietServiceMode() {
+    if (!window.CISQuietServiceModeService) return;
+    const result = window.CISQuietServiceModeService.exit();
+    setNotice(result.message, { nonessential: false });
+    render();
+  }
+
+  function maybeOfferQuietServiceModeOnServiceEnter() {
+    if (!window.CISQuietServiceModeService || isQuietServiceModeActive()) return;
+    const decision = window.CISQuietServiceModeService.shouldAutoEnterWithServiceMode();
+    if (decision.enter) {
+      enterQuietServiceMode();
+      return;
+    }
+    if (decision.ask) {
+      window.CISQuietServiceModeService.markAutoEnterAsked();
+      if (window.confirm("Enter Quiet Service Mode to reduce background activity and interruptions during this service?")) {
+        enterQuietServiceMode();
+      }
+    }
+  }
+
+  function setupQuietServiceMode() {
+    if (!window.CISQuietServiceModeService || !window.CISQuietServiceModeUI) return;
+    window.CISQuietServiceModeUI.configure({ escapeHtml });
+    const electronBridge = window.electronAPI || null;
+    window.CISQuietServiceModeService.configure({
+      loadSettings: () => (
+        window.CISQuietServiceModeSettings
+          ? window.CISQuietServiceModeSettings.load((key, fallback) => loadJson(key, fallback))
+          : {}
+      ),
+      saveSettings: (settings) => {
+        if (window.CISQuietServiceModeSettings) {
+          window.CISQuietServiceModeSettings.save(settings, saveJson);
+        }
+      },
+      saveSession: (payload) => {
+        try {
+          sessionStorage.setItem("cis-quiet-service-mode-session", JSON.stringify(payload));
+        } catch (_error) {
+          /* ignore */
+        }
+      },
+      loadSession: () => {
+        try {
+          return JSON.parse(sessionStorage.getItem("cis-quiet-service-mode-session") || "null");
+        } catch (_error) {
+          return null;
+        }
+      },
+      setPlatformQuietMode: (enabled, options) => {
+        if (electronBridge?.quietMode?.setActive) {
+          electronBridge.quietMode.setActive(enabled).catch(() => {});
+        }
+        if (!enabled && electronBridge?.quietMode?.setPowerBlocker) {
+          electronBridge.quietMode.setPowerBlocker(false).catch(() => {});
+        } else if (enabled && options?.preventDisplaySleep) {
+          syncQuietPowerBlocker();
+        }
+      },
+      setPowerBlocker: (enabled) => (
+        electronBridge?.quietMode?.setPowerBlocker
+          ? electronBridge.quietMode.setPowerBlocker(Boolean(enabled))
+          : Promise.resolve({ supported: false })
+      ),
+    });
+    if (!window.CISQuietServiceModeService._subscribed) {
+      window.CISQuietServiceModeService._subscribed = true;
+      window.CISQuietServiceModeService.subscribe(() => {
+        document.body.classList.toggle("quiet-service-mode-active", isQuietServiceModeActive());
+        const settings = window.CISQuietServiceModeService.getState().settings || {};
+        document.body.classList.toggle("quiet-reduce-motion", isQuietServiceModeActive() && settings.reduceAnimations !== false);
+        renderQuietServiceModeBanner();
+        syncQuietPowerBlocker();
+      });
+    }
+    document.body.classList.toggle("quiet-service-mode-active", isQuietServiceModeActive());
+  }
+
+  function renderQuietServiceModeBanner() {
+    if (!els.quietServiceModeRoot || !window.CISQuietServiceModeUI) return;
+    const qState = window.CISQuietServiceModeService?.getState?.() || {};
+    els.quietServiceModeRoot.innerHTML = window.CISQuietServiceModeUI.renderStatusBanner(
+      qState.active,
+      qState.deferredCount || 0,
+    );
+  }
+
   function enterServiceMode() {
     if (!window.CISServiceModeService) return;
     const result = window.CISServiceModeService.enter({ previousView: state.view });
@@ -1194,6 +1322,7 @@
     state.view = "service";
     saveValue("view", state.view);
     setNotice("Service Mode active. Live, Preview and Next stay separate.");
+    maybeOfferQuietServiceModeOnServiceEnter();
     render();
   }
 
@@ -3271,6 +3400,11 @@
     els.content.innerHTML = `${renderNotice()}${serviceBar}${renderView()}`;
     renderPresenterAV();
     renderObsTopbar();
+<<<<<<< HEAD
+=======
+    renderOperatorStatus();
+    renderQuietServiceModeBanner();
+>>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
     renderEmergencyOverlay();
     if (state.view === "builder") bindBuilderInteractions();
     bindGlobalSearch();
@@ -3292,28 +3426,146 @@
     if (state.view === "presenter" || state.view === "settings") bindObsProgramMonitor();
     if (state.view === "cameras" || state.view === "presenter" || state.view === "settings") bindCameraSources();
     document.body.classList.toggle("service-mode-active", isServiceModeActive());
+    document.body.classList.toggle("quiet-service-mode-active", isQuietServiceModeActive());
     document.body.classList.add("app-ready");
   }
 
   function renderNotice() {
     if (!state.notice) return "";
-    return `<div class="app-notice" role="status">${escapeHtml(state.notice)}</div>`;
+    const levelClass = state.noticeLevel ? ` app-notice-${state.noticeLevel}` : "";
+    return `<div class="app-notice${levelClass}" role="status">${escapeHtml(state.notice)}</div>`;
   }
 
-  function setNotice(message) {
-    state.notice = message || "";
+  function setNotice(message, options) {
+    const text = message || "";
+    const quiet = window.CISQuietServiceModeService;
+    if (quiet && quiet.isActive() && text) {
+      const decision = quiet.evaluateNotice(text, options || {});
+      if (decision.defer) {
+        quiet.queueNotice(text, decision.level);
+        return;
+      }
+      state.notice = text;
+      state.noticeLevel = decision.unobtrusive ? "important" : (decision.level === "critical" ? "critical" : "");
+      render();
+      if (text) {
+        window.clearTimeout(setNotice.timer);
+        const timeout = decision.unobtrusive ? 9000 : 5200;
+        setNotice.timer = window.setTimeout(() => {
+          if (state.notice === text) {
+            state.notice = "";
+            state.noticeLevel = "";
+            render();
+          }
+        }, timeout);
+      }
+      return;
+    }
+    state.notice = text;
+    state.noticeLevel = "";
     render();
-    if (message) {
+    if (text) {
       window.clearTimeout(setNotice.timer);
       setNotice.timer = window.setTimeout(() => {
-        if (state.notice === message) {
+        if (state.notice === text) {
           state.notice = "";
+          state.noticeLevel = "";
           render();
         }
       }, 5200);
     }
   }
 
+<<<<<<< HEAD
+=======
+  function navIconMarkup(id, fallback) {
+    if (window.CISUiIcons) return window.CISUiIcons.nav(id);
+    return fallback || "";
+  }
+
+  function gatherOperatorStatus() {
+    const items = [];
+    const presenter = window.CISPresenterEngine ? window.CISPresenterEngine.getState() : null;
+    const obs = window.CISObsConnectionService ? window.CISObsConnectionService.getStatus() : null;
+    const liveLock = window.CISLiveLockService ? window.CISLiveLockService.getState() : null;
+    const serviceMode = window.CISServiceModeService ? window.CISServiceModeService.isActive() : false;
+
+    items.push({
+      label: "Local Outputs",
+      value: presenter?.outputOpen ? "Open" : "Closed",
+      tone: presenter?.outputOpen ? "ready" : "off",
+    });
+    items.push({
+      label: "Current Service",
+      value: isQuietServiceModeActive()
+        ? "Quiet Service Mode"
+        : (isServiceModeActive() ? "Service Mode" : (presenter?.active ? "Live" : "Browse")),
+      tone: presenter?.active || isServiceModeActive() || isQuietServiceModeActive() ? "ready" : "off",
+    });
+
+    if (obs) {
+      const obsTone = obs.connected ? "ready" : (obs.state === "reconnecting" || obs.state === "connecting" ? "warning" : "off");
+      items.push({
+        label: "OBS",
+        value: obs.connected ? "Connected" : (obs.enabled ? "Disconnected" : "Off"),
+        tone: obsTone,
+      });
+      if (obs.enabled && obs.obsRuntime) {
+        items.push({
+          label: "Internet Streaming",
+          value: obs.obsRuntime.streaming ? "Live" : "Off",
+          tone: obs.obsRuntime.streaming ? "ready" : "off",
+        });
+        items.push({
+          label: "Recording",
+          value: obs.obsRuntime.recording ? "On" : "Off",
+          tone: obs.obsRuntime.recording ? "warning" : "off",
+        });
+        items.push({
+          label: "Virtual Camera",
+          value: obs.obsRuntime.virtualCamera ? "On" : "Off",
+          tone: obs.obsRuntime.virtualCamera ? "ready" : "off",
+        });
+      }
+    }
+
+    if (liveLock) {
+      items.push({
+        label: "Live Lock",
+        value: liveLock.active || liveLock.enabled ? "On" : "Off",
+        tone: liveLock.active || liveLock.enabled ? "warning" : "off",
+        icon: window.CISUiIcons ? window.CISUiIcons.get("lock") : "",
+      });
+    }
+
+    items.push({
+      label: "Quiet Service Mode",
+      value: serviceMode ? "On" : "Off",
+      tone: serviceMode ? "ready" : "off",
+    });
+
+    items.push({
+      label: "Backup",
+      value: autoBackupList.length ? "Ready" : "None",
+      tone: autoBackupList.length ? "ready" : "off",
+    });
+
+    return { items };
+  }
+
+  function renderOperatorStatus() {
+    if (!els.operatorStatusRoot || !window.CISOperatorStatusStrip) return;
+    els.operatorStatusRoot.innerHTML = window.CISOperatorStatusStrip.render(gatherOperatorStatus());
+  }
+
+  function setupUx() {
+    if (window.CISOperatorStatusStrip) window.CISOperatorStatusStrip.configure({ escapeHtml });
+    if (window.CISUiIcons) {
+      // icons are static; no configure required
+    }
+  }
+
+>>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
   function renderNav() {
     const serviceNavItems = [
       { id: "service", label: "Service Mode", icon: "⬤" },
@@ -3353,6 +3605,12 @@
       serviceBtn.textContent = isServiceModeActive() ? "Exit Service Mode" : "Enter Service Mode";
       serviceBtn.dataset.command = isServiceModeActive() ? "service-mode-exit" : "service-mode-enter";
       serviceBtn.setAttribute("aria-pressed", isServiceModeActive() ? "true" : "false");
+    }
+    const quietBtn = document.getElementById("topbarQuietServiceModeBtn");
+    if (quietBtn) {
+      quietBtn.textContent = isQuietServiceModeActive() ? "Exit Quiet Service Mode" : "Enter Quiet Service Mode";
+      quietBtn.dataset.command = isQuietServiceModeActive() ? "quiet-service-mode-exit" : "quiet-service-mode-enter";
+      quietBtn.setAttribute("aria-pressed", isQuietServiceModeActive() ? "true" : "false");
     }
   }
 
@@ -4354,6 +4612,7 @@
     }
     publishObsMonitorWorshipContext();
     if (state.view === "presenter") renderObsProgramMonitor();
+    syncQuietPowerBlocker();
   }
 
   function setupPresenterSystem() {
@@ -5084,6 +5343,14 @@
         pendingUndo: window.CISHymnalDeletionService ? window.CISHymnalDeletionService.getPendingUndo() : null,
       })
       : "";
+    const quietPanel = window.CISQuietServiceModeUI
+      ? window.CISQuietServiceModeUI.renderSettingsPanel(
+        window.CISQuietServiceModeService?.getState?.().settings
+          || (window.CISQuietServiceModeSettings
+            ? window.CISQuietServiceModeSettings.load((key, fallback) => loadJson(key, fallback))
+            : {}),
+      )
+      : "";
     const backupPanel = window.CISBackupRestore ? window.CISBackupRestore.renderSettingsPanel({
       favorites: favorites.size,
       builderItems: assignedSlots().length,
@@ -5162,6 +5429,7 @@
           </aside>
         </div>
         ${backupPanel}
+        ${quietPanel}
         ${renderBibleSettingsPanel()}
         ${renderObsSettingsPanel()}
         ${renderCameraSettingsMount()}
@@ -6367,7 +6635,14 @@
   function handleCommand(command, target) {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+    if (command && window.CISQuietServiceModeService?.shouldBlockAdminPopup?.(command)) {
+      setNotice("That administrative action is deferred while Quiet Service Mode is active.", { important: true });
+      return;
+    }
+>>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
     if (command && window.CISLiveLockService) {
       if (window.CISLiveLockService.isCommandBlocked(command)) {
         setNotice("Live Lock is enabled. Unlock to perform this action.");
@@ -6745,6 +7020,10 @@
     if (command === "timer-reset") return resetTimer();
     if (command === "install-app") return installApp();
     if (command === "check-updates") {
+      if (isQuietServiceModeActive()) {
+        setNotice("Update checks are deferred while Quiet Service Mode is active.", { important: true });
+        return;
+      }
       if (desktopBridge && desktopBridge.checkForUpdates) {
         desktopBridge.checkForUpdates();
         setNotice("Checking for desktop app updates.");
@@ -6771,6 +7050,8 @@
 <<<<<<< HEAD
 =======
     if (command === "service-mode-enter") return enterServiceMode();
+    if (command === "quiet-service-mode-enter") return enterQuietServiceMode();
+    if (command === "quiet-service-mode-exit") return exitQuietServiceMode();
     if (command === "live-lock-enable") {
       if (window.CISLiveLockService) setNotice(window.CISLiveLockService.enable().message);
       renderLiveLockStrip();
@@ -7223,6 +7504,24 @@
       openBibleLive(target?.dataset?.reference || "");
       return;
     }
+    if (command === "quiet-settings" && window.CISQuietServiceModeService) {
+      const setting = target.dataset.setting;
+      if (!setting) return;
+      const current = window.CISQuietServiceModeService.getState().settings || {};
+      let value;
+      if (target.type === "checkbox") value = target.checked;
+      else value = target.value;
+      window.CISQuietServiceModeService.updateSettings({ ...current, [setting]: value });
+      if (window.CISQuietServiceModeSettings) {
+        window.CISQuietServiceModeSettings.save(
+          window.CISQuietServiceModeService.getState().settings,
+          saveJson,
+        );
+      }
+      setNotice("Quiet Service Mode settings saved.");
+      render();
+      return;
+    }
     if (command === "bible-settings" && window.CISBibleProjectionService) {
       const setting = target.dataset.setting;
       if (!setting) return;
@@ -7303,6 +7602,7 @@
     if (electronBridge && electronBridge.onUpdateStatus) {
       electronBridge.onUpdateStatus((payload) => {
         if (!payload) return;
+        if (window.CISQuietServiceModeService?.shouldDeferUpdateStatus?.(payload.status)) return;
         if (payload.status === "downloading") {
           setNotice(`Downloading update… ${payload.percent || 0}%`);
         } else if (payload.status === "downloaded") {
@@ -7338,6 +7638,7 @@
 <<<<<<< HEAD
 =======
   setupServiceMode();
+  setupQuietServiceMode();
   setupLiveSwitch();
   setupLiveLock();
 >>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)

@@ -128,10 +128,14 @@ function run() {
   assert.match(indexHtml, /service-mode-ui\.js/);
   assert.match(indexHtml, /topbarServiceModeBtn/);
 <<<<<<< HEAD
+<<<<<<< HEAD
   assert.match(indexHtml, /styles\.css\?v=37/);
 =======
   assert.match(indexHtml, /styles\.css\?v=36/);
 >>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
+=======
+  assert.match(indexHtml, /styles\.css\?v=41/);
+>>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
 
   const styles = read("app/styles.css");
   assert.match(styles, /\.service-mode-trio/);
@@ -141,10 +145,14 @@ function run() {
 
   const sw = read("app/sw.js");
 <<<<<<< HEAD
+<<<<<<< HEAD
   assert.match(sw, /christ-in-song-worship-v37/);
 =======
   assert.match(sw, /christ-in-song-worship-v36/);
 >>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
+=======
+  assert.match(sw, /christ-in-song-worship-v41/);
+>>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
   assert.match(sw, /service-mode-service\.js/);
 
   const pkg = JSON.parse(read("package.json"));

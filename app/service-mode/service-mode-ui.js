@@ -160,8 +160,10 @@
             <p class="eyebrow">${escapeHtml(context.appName || "VaChinoda Worship App")} — SERVICE MODE</p>
             <h2>Live Worship Control</h2>
             <p class="muted">Current Live, Preview and Next stay separate. Emergency controls are always available.</p>
+            ${context.quietServiceModeActive ? `<p class="quiet-service-mode-inline-note" role="status">QUIET SERVICE MODE ACTIVE — background interruptions suppressed.</p>` : ""}
           </div>
           <div class="service-mode-header-actions">
+            <button class="secondary-button service-touch-btn" type="button" data-command="${context.quietServiceModeActive ? "quiet-service-mode-exit" : "quiet-service-mode-enter"}">${context.quietServiceModeActive ? "Exit Quiet Service Mode" : "Enter Quiet Service Mode"}</button>
             <button class="secondary-button service-touch-btn" type="button" data-command="service-mode-exit">Exit Service Mode</button>
           </div>
         </header>
