@@ -772,6 +772,13 @@
   }
 
   async function goLiveFromQueue(payload) {
+    if (window.CISLiveSwitchService) {
+      return window.CISLiveSwitchService.commitHymnLive(payload);
+    }
+    return applyHymnLiveDirect(payload);
+  }
+
+  async function applyHymnLiveDirect(payload) {
     const songKey = payload?.songKey;
     if (!songKey) return { ok: false, message: "Hymn unavailable." };
     const parsed = parseSongKey(songKey);
@@ -892,6 +899,500 @@
     }
   }
 
+<<<<<<< HEAD
+=======
+  function isServiceModeActive() {
+    return Boolean(window.CISServiceModeService?.getState?.().active);
+  }
+
+  function isServiceModeViewAllowed(view) {
+    const allowed = window.CISServiceModeSettings?.SERVICE_MODE_VIEWS;
+    return allowed ? allowed.has(view) : ["service", "search", "index", "bible", "help", "song"].includes(view);
+  }
+
+  function describeServiceOutputDestinations() {
+    const parts = [];
+    const presenterActive = window.CISPresenterEngine?.getState?.().active;
+    if (presenterActive || embeddedProjectorActive) parts.push("Local projector");
+    const obsStatus = window.CISObsConnectionService?.getStatus?.();
+    if (obsStatus?.connected) parts.push("OBS");
+    const camLive = window.CISCameraSourceService?.getState?.().live?.active;
+    if (camLive) parts.push("Camera");
+    return parts.length ? parts.join(", ") : "—";
+  }
+
+  function buildServiceModeLiveContext() {
+    const bibleSvc = window.CISBibleProjectionService;
+    const bibleKey = bibleSvc?.BIBLE_LIVE_KEY;
+    if (bibleSvc && state.presenter.songKey === bibleKey) {
+      const live = bibleSvc.getState().live;
+      if (live.active && !live.cleared) {
+        const slide = live.slides[live.slideIndex];
+        return {
+          type: "bible",
+          typeLabel: "Bible",
+          title: live.referenceLabel || "Scripture",
+          position: slide
+            ? `${live.referenceLabel || "Verse"} · ${live.slideIndex + 1} of ${live.slides.length}`
+            : "",
+          destinations: (live.destinations || []).join(", ") || describeServiceOutputDestinations(),
+          status: "active",
+        };
+      }
+    }
+    const camState = window.CISCameraSourceService?.getState?.();
+    if (camState?.live?.active) {
+      return {
+        type: "camera",
+        typeLabel: "Camera",
+        title: camState.live.cameraName || camState.live.deviceLabel || "Camera feed",
+        position: camState.live.layout || "Live",
+        destinations: describeServiceOutputDestinations(),
+        status: "active",
+      };
+    }
+    const liveMeta = getLiveHymnMeta();
+    if (liveMeta) {
+      return {
+        type: "hymn",
+        typeLabel: "Hymn",
+        title: liveMeta.shortLabel || liveMeta.title,
+        position: liveMeta.stanzaLabel || "",
+        destinations: describeServiceOutputDestinations(),
+        status: "active",
+      };
+    }
+    if (state.emergencyMode) {
+      const titles = { black: "Blackout", white: "White screen", logo: "Logo screen" };
+      return {
+        type: "emergency",
+        typeLabel: "Emergency",
+        title: titles[state.emergencyMode] || "Emergency",
+        position: "",
+        destinations: describeServiceOutputDestinations(),
+        status: "active",
+      };
+    }
+    if (window.CISPresenterEngine?.getState?.().active && state.presenter.planIndex != null) {
+      const slot = worshipPlan[state.presenter.planIndex];
+      if (slot) {
+        return {
+          type: slot.type || "plan",
+          typeLabel: "Service plan",
+          title: slotTitle(slot),
+          position: "",
+          destinations: describeServiceOutputDestinations(),
+          status: "active",
+        };
+      }
+    }
+    return {
+      type: "none",
+      typeLabel: "None",
+      title: "Nothing Live",
+      position: "No active stanza or verse",
+      destinations: "—",
+      status: "inactive",
+    };
+  }
+
+  function buildServiceModePreviewContext() {
+    const queueState = window.CISLiveHymnQueueService?.getState() || {};
+    const preview = queueState.preview;
+    if (preview?.songKey) {
+      return {
+        title: preview.shortLabel || preview.title,
+        meta: `Hymn ${preview.hymnNumber || ""}`,
+        layout: "Hymn slides",
+        destinations: "Preview only",
+        status: preview.status === "ready" ? "Ready" : (preview.status || "Prepared"),
+        openCommand: "hymn-preview-open",
+        clearCommand: "hymn-preview-clear",
+      };
+    }
+    const biblePreview = window.CISBibleProjectionService?.getState()?.preview;
+    if (biblePreview?.parsed && biblePreview.slides?.length) {
+      return {
+        title: biblePreview.referenceLabel || biblePreview.referenceInput,
+        meta: biblePreview.translation || state.bibleTranslation || "KJV",
+        layout: "Scripture",
+        destinations: "Preview only",
+        status: biblePreview.loading ? "Loading" : biblePreview.error ? "Error" : "Ready",
+        openCommand: "open-bible-live",
+        clearCommand: null,
+      };
+    }
+    return null;
+  }
+
+  function buildServiceModeNextContext() {
+    const queueState = window.CISLiveHymnQueueService?.getState() || {};
+    const next = queueState.next;
+    if (next?.songKey) {
+      return {
+        title: next.shortLabel || next.title,
+        meta: `Hymn ${next.hymnNumber || ""}`,
+        status: next.status === "ready" ? "Ready" : (next.status || "Prepared"),
+        previewCommand: "hymn-preview",
+        previewData: next.songKey,
+        removeCommand: "hymn-remove-next",
+        takeCommand: "hymn-take-next",
+        takeDisabled: next.status !== "ready",
+      };
+    }
+    const assigned = assignedSlots();
+    const currentInfo = assigned.find((item) => item.index === state.activeSlot) || assigned[0] || null;
+    const nextInfo = currentInfo ? assigned.find((item) => item.index > currentInfo.index) : null;
+    if (nextInfo) {
+      return {
+        title: slotTitle(nextInfo.slot),
+        meta: nextInfo.slot.role || "Service item",
+        status: "Ready",
+        previewCommand: "present-plan-slot",
+        previewDataSlot: nextInfo.index,
+        takeCommand: "present-plan-slot",
+        takeDataSlot: nextInfo.index,
+        takeDisabled: false,
+      };
+    }
+    return null;
+  }
+
+  function buildServiceModeStatusContext() {
+    const obsStatus = window.CISObsConnectionService?.getStatus?.();
+    const obsEnabled = obsStatus?.enabled !== false;
+    const localStatus = window.CISCameraSourceService?.getLocalPresentationStatus?.();
+    const presenterActive = window.CISPresenterEngine?.getState?.().active;
+    return {
+      projectorStatus: presenterActive || localStatus?.active ? "active" : "off",
+      projectorDetail: localStatus?.mainProjector || (presenterActive ? "Active" : "Off"),
+      stageStatus: localStatus?.stageDisplay && localStatus.stageDisplay !== "—" ? "ready" : "off",
+      stageDetail: localStatus?.stageDisplay || "—",
+      obsEnabled,
+      obsStatus: obsStatus?.connected ? "connected" : obsEnabled ? "warning" : "off",
+      obsDetail: obsStatus?.connected ? "Connected" : obsEnabled ? "Disconnected" : "Off",
+    };
+  }
+
+  function buildServiceModeContext() {
+    const serviceState = window.CISServiceModeService?.getState() || {};
+    const queueState = window.CISLiveHymnQueueService?.getState() || {};
+    const queue = (queueState.queue || []).map((item) => ({
+      title: item.shortLabel || item.title || "Queue item",
+      meta: `Hymn ${item.hymnNumber || ""}`,
+    }));
+    let mediaControls = "";
+    if (window.CISSongAudioUI && selectedSong()) {
+      mediaControls = `
+        <section class="service-media-panel" aria-label="Hymn media controls">
+          <h4>Media</h4>
+          ${window.CISSongAudioUI.renderPlayer(selectedSong(), state.languageCode)}
+        </section>
+      `;
+    }
+    let localPresentation = "";
+    if (window.CISCameraSourceUI && window.CISCameraSourceService) {
+      localPresentation = window.CISCameraSourceUI.renderLocalPresentationPanel(
+        window.CISCameraSourceService.getLocalPresentationStatus(),
+      );
+    }
+    return {
+      appName: brandAppName(),
+      pendingRestoreConfirm: serviceState.pendingRestoreConfirm,
+      live: buildServiceModeLiveContext(),
+      preview: buildServiceModePreviewContext(),
+      next: buildServiceModeNextContext(),
+      queue,
+      status: buildServiceModeStatusContext(),
+      mediaControls,
+      localPresentation,
+    };
+  }
+
+  function renderServiceModeContextBar() {
+    if (!isServiceModeActive() || !window.CISServiceModeUI || state.view === "service") return "";
+    const ctx = buildServiceModeContext();
+    return `
+      <div class="service-mode-context-bar" role="region" aria-label="Service Mode live context">
+        <div class="service-mode-context-live">
+          <span class="service-mode-context-label">Live</span>
+          <strong>${escapeHtml(ctx.live?.title || "Nothing Live")}</strong>
+          <span class="muted">${escapeHtml(ctx.live?.position || "")}</span>
+        </div>
+        <div class="service-mode-context-next">
+          <span class="service-mode-context-label">Next</span>
+          <strong>${escapeHtml(ctx.next?.title || "None")}</strong>
+        </div>
+        ${window.CISServiceModeUI.renderEmergencyStrip()}
+        <button class="secondary-button service-touch-btn" type="button" data-view="service">Service Workspace</button>
+        <button class="secondary-button service-touch-btn" type="button" data-command="service-mode-exit">Exit Service Mode</button>
+      </div>
+    `;
+  }
+
+  function renderServiceMode() {
+    if (!window.CISServiceModeUI) return `<div class="empty-state">Service Mode is unavailable.</div>`;
+    return window.CISServiceModeUI.renderWorkspace(buildServiceModeContext());
+  }
+
+  function paintServiceModeWorkspace() {
+    if (!isServiceModeActive() || state.view !== "service") return;
+    paintLiveHymnQueuePanels();
+  }
+
+  function enterServiceMode() {
+    if (!window.CISServiceModeService) return;
+    const result = window.CISServiceModeService.enter({ previousView: state.view });
+    if (!result.ok) {
+      setNotice(result.message || "Could not enter Service Mode.");
+      return;
+    }
+    state.view = "service";
+    saveValue("view", state.view);
+    setNotice("Service Mode active. Live, Preview and Next stay separate.");
+    render();
+  }
+
+  function exitServiceMode(options) {
+    if (!window.CISServiceModeService) return;
+    const result = window.CISServiceModeService.exit(options || {});
+    if (result.needsConfirm) {
+      if (window.confirm(`${result.message}\n\nOutputs will stay active.`)) {
+        exitServiceMode({ confirmed: true });
+      }
+      return;
+    }
+    if (!result.ok) {
+      setNotice(result.message || "Could not exit Service Mode.");
+      return;
+    }
+    state.view = result.previousView || "presenter";
+    saveValue("view", state.view);
+    setNotice("Service Mode exited. Outputs were not cleared.");
+    render();
+  }
+
+  function setupServiceMode() {
+    if (!window.CISServiceModeService || !window.CISServiceModeUI) return;
+    window.CISServiceModeUI.configure({ escapeHtml });
+    window.CISServiceModeService.configure({
+      getRole: () => (window.CISHelpStore ? window.CISHelpStore.getRole() : "operator"),
+      isPresentationActive: () => Boolean(
+        window.CISPresenterEngine?.getState?.().active
+        || state.presenter.open
+        || state.emergencyMode
+        || window.CISCameraSourceService?.getState?.().live?.active,
+      ),
+      saveSession: (payload) => {
+        try {
+          sessionStorage.setItem("cis-service-mode-session", JSON.stringify(payload));
+        } catch (_error) {
+          /* ignore */
+        }
+      },
+      loadSession: () => {
+        try {
+          return JSON.parse(sessionStorage.getItem("cis-service-mode-session") || "null");
+        } catch (_error) {
+          return null;
+        }
+      },
+      loadSettings: () => (
+        window.CISServiceModeSettings
+          ? window.CISServiceModeSettings.load((key, fallback) => loadJson(key, fallback))
+          : {}
+      ),
+      saveSettings: (settings) => {
+        if (window.CISServiceModeSettings) {
+          window.CISServiceModeSettings.save(settings, saveJson);
+        }
+      },
+    });
+    if (!window.CISServiceModeService._subscribed) {
+      window.CISServiceModeService._subscribed = true;
+      window.CISServiceModeService.subscribe(() => {
+        document.body.classList.toggle("service-mode-active", isServiceModeActive());
+        if (isServiceModeActive()) paintServiceModeWorkspace();
+      });
+    }
+    window.addEventListener("beforeunload", (event) => {
+      if (!isServiceModeActive()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    });
+    document.body.classList.toggle("service-mode-active", isServiceModeActive());
+    const smState = window.CISServiceModeService.getState();
+    if (smState.active && state.view !== "service" && !isServiceModeViewAllowed(state.view)) {
+      state.view = "service";
+      saveValue("view", state.view);
+    }
+  }
+
+  function isPresentationLiveActive() {
+    return Boolean(
+      window.CISPresenterEngine?.getState?.().active
+      || state.presenter.open
+      || state.emergencyMode
+      || window.CISCameraSourceService?.getState?.().live?.active
+      || (window.CISBibleProjectionService?.getState?.().live?.active
+        && !window.CISBibleProjectionService.getState().live.cleared),
+    );
+  }
+
+  function hasLyricLiveContent() {
+    if (window.CISBibleProjectionService) {
+      const bibleLive = window.CISBibleProjectionService.getState().live;
+      if (bibleLive.active && !bibleLive.cleared && bibleLive.slides?.length) return true;
+    }
+    if (state.presenter.songKey
+      && (!window.CISBibleProjectionService
+        || state.presenter.songKey !== window.CISBibleProjectionService.BIBLE_LIVE_KEY)) {
+      const song = getSongByKey(state.presenter.songKey);
+      if (song && song.slides?.length) return true;
+    }
+    if (typeof state.presenter.planIndex === "number" && worshipPlan[state.presenter.planIndex]) return true;
+    return false;
+  }
+
+  function captureLiveSnapshot() {
+    const engine = window.CISPresenterEngine?.getState?.() || {};
+    return {
+      songKey: state.presenter.songKey,
+      slideIndex: state.presenter.slideIndex,
+      planIndex: state.presenter.planIndex,
+      displayMode: engine.displayMode || state.emergencyMode || "lyrics",
+      queueKeys: [...(state.presenter.queueKeys || [])],
+      queueIndex: state.presenter.queueIndex,
+      capturedAt: Date.now(),
+      hymnMeta: getLiveHymnMeta(),
+      bibleLive: window.CISBibleProjectionService
+        ? { ...window.CISBibleProjectionService.getState().live }
+        : null,
+    };
+  }
+
+  function setupLiveSwitch() {
+    if (!window.CISLiveSwitchService) return;
+    window.CISLiveSwitchService.configure({
+      loadSettings: () => (
+        window.CISLiveSwitchSettings
+          ? window.CISLiveSwitchSettings.load((key, fallback) => loadJson(key, fallback))
+          : {}
+      ),
+      saveSettings: (settings) => {
+        if (window.CISLiveSwitchSettings) {
+          window.CISLiveSwitchSettings.save(settings, saveJson);
+        }
+      },
+      captureLiveSnapshot,
+      prepareContent: async (descriptor) => {
+        const item = descriptor || {};
+        if (item.type === "hymn") {
+          const songKey = item.songKey;
+          if (!songKey) return { ok: false, message: "No hymn selected." };
+          const parsed = parseSongKey(songKey);
+          if (!(await ensureLanguagePackLoaded(parsed.code))) {
+            return { ok: false, message: "Hymn pack could not be loaded. Current Live output is unchanged." };
+          }
+          const song = getSongByKey(songKey);
+          if (!song || !song.slides?.length) {
+            return { ok: false, message: "Hymn lyrics are missing. Current Live output is unchanged." };
+          }
+          const slideIndex = Math.max(0, Math.min(song.slides.length - 1, Number(item.slideIndex) || 0));
+          return {
+            ok: true,
+            staging: {
+              type: "hymn",
+              ready: true,
+              songKey,
+              slideIndex,
+              transition: item.transition,
+              destinations: item.destinations,
+            },
+          };
+        }
+        if (item.type === "bible") {
+          const bible = window.CISBibleProjectionService;
+          if (!bible) return { ok: false, message: "Bible projection unavailable." };
+          const preview = bible.getState().preview;
+          if (preview.loading) {
+            return { ok: false, message: "Passage is still loading. Current Live output is unchanged." };
+          }
+          if (preview.error && !preview.slides?.length) {
+            return { ok: false, message: preview.error || "Passage is not ready." };
+          }
+          if (!preview.slides?.length) {
+            return { ok: false, message: "Load a passage in Preview before sending Live." };
+          }
+          return { ok: true, staging: { type: "bible", ready: true } };
+        }
+        return { ok: true, staging: { type: item.type || "unknown", ready: true } };
+      },
+      applyLive: async (descriptor) => {
+        const item = descriptor || {};
+        if (item.type === "hymn") {
+          const result = await applyHymnLiveDirect({
+            songKey: item.songKey || item.staging?.songKey,
+            slideIndex: item.slideIndex ?? item.staging?.slideIndex,
+            transition: item.transition || item.staging?.transition,
+            destinations: item.destinations || item.staging?.destinations,
+            hymnBookId: item.hymnBookId,
+            editionId: item.editionId,
+          });
+          return { ...result, displayMode: "lyrics" };
+        }
+        if (item.type === "bible" && window.CISBibleProjectionService) {
+          const result = window.CISBibleProjectionService.sendLive();
+          return { ...result, displayMode: "lyrics" };
+        }
+        return { ok: false, message: "Unsupported Live content." };
+      },
+    });
+    if (window.CISCameraSourceService) {
+      window.CISCameraSourceService.configure({
+        hasLyricLiveContent: hasLyricLiveContent,
+      });
+    }
+  }
+
+  function setupLiveLock() {
+    if (!window.CISLiveLockService || !window.CISLiveLockUI) return;
+    window.CISLiveLockUI.configure({ escapeHtml });
+    window.CISLiveLockService.configure({
+      isPresentationActive: isPresentationLiveActive,
+      loadSettings: () => (
+        window.CISLiveLockSettings
+          ? window.CISLiveLockSettings.load((key, fallback) => loadJson(key, fallback))
+          : {}
+      ),
+      saveSettings: (settings) => {
+        if (window.CISLiveLockSettings) {
+          window.CISLiveLockSettings.save(settings, saveJson);
+        }
+      },
+    });
+    if (!window.CISLiveLockService._beforeUnloadBound) {
+      window.CISLiveLockService._beforeUnloadBound = true;
+      window.addEventListener("beforeunload", (event) => {
+        if (!window.CISLiveLockService?.shouldConfirmClose()) return;
+        event.preventDefault();
+        event.returnValue = "";
+      });
+    }
+    if (!window.CISLiveLockService._subscribed) {
+      window.CISLiveLockService._subscribed = true;
+      window.CISLiveLockService.subscribe(() => renderLiveLockStrip());
+    }
+    renderLiveLockStrip();
+  }
+
+  function renderLiveLockStrip() {
+    const root = document.getElementById("liveLockRoot");
+    if (!root || !window.CISLiveLockUI || !window.CISLiveLockService) return;
+    root.innerHTML = window.CISLiveLockUI.renderStrip(window.CISLiveLockService.getState());
+  }
+
+>>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
   async function handleHymnQueueCommand(command, target) {
     const service = window.CISLiveHymnQueueService;
     if (!service) return;
@@ -901,6 +1402,9 @@
 
     if (command === "hymn-preview" || command === "hymn-preview-open") {
       if (!songKey) return;
+      if (window.CISLiveSwitchService) {
+        window.CISLiveSwitchService.markPreview({ type: "hymn", songKey });
+      }
       service.setPreview(songKey, { startSlideIndex: state.slideIndex });
       const parsed = parseSongKey(songKey);
       void openSong(parsed.number, parsed.code, parsed.editionId);
@@ -1119,6 +1623,11 @@
       return;
     }
     if (command === "send-live") {
+      if (window.CISLiveSwitchService) {
+        const result = await window.CISLiveSwitchService.commit({ type: "bible" });
+        setNotice(result.message || (result.ok ? "Scripture sent Live." : "Send Live cancelled."));
+        return;
+      }
       const result = service.sendLive();
       setNotice(result.message || "");
       return;
@@ -2721,6 +3230,11 @@
     bindHelpCentre();
     renderHelpContextOverlay();
     paintLiveHymnQueuePanels();
+<<<<<<< HEAD
+=======
+    paintServiceModeWorkspace();
+    renderLiveLockStrip();
+>>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
     if (state.view === "presenter" || state.view === "settings") bindObsProgramMonitor();
     if (state.view === "cameras" || state.view === "presenter" || state.view === "settings") bindCameraSources();
     document.body.classList.add("app-ready");
@@ -5762,6 +6276,26 @@
   });
 
   function handleCommand(command, target) {
+<<<<<<< HEAD
+=======
+    if (command && window.CISLiveLockService) {
+      if (window.CISLiveLockService.isCommandBlocked(command)) {
+        setNotice("Live Lock is enabled. Unlock to perform this action.");
+        return;
+      }
+      if (window.CISLiveLockService.isCommandBlocked(command, { confirmed: target?.dataset?.confirmed === "true" })) {
+        if (window.confirm("Live Lock is enabled. Reassign outputs anyway?")) {
+          target.dataset.confirmed = "true";
+          handleCommand(command, target);
+        }
+        return;
+      }
+    }
+    if (command && window.CISServiceModeService && !window.CISServiceModeService.isCommandAllowed(command)) {
+      setNotice("That action is hidden during Service Mode. Exit Service Mode for administrative tasks.");
+      return;
+    }
+>>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
     const slotIndex = Number(target.dataset.slot);
     const serviceSlotIndex = Number(target.dataset.serviceSlot);
     if (command && command.startsWith("hymn-")) {
@@ -6138,6 +6672,54 @@
       }
       return;
     }
+<<<<<<< HEAD
+=======
+    if (command === "service-mode-enter") return enterServiceMode();
+    if (command === "live-lock-enable") {
+      if (window.CISLiveLockService) setNotice(window.CISLiveLockService.enable().message);
+      renderLiveLockStrip();
+      return;
+    }
+    if (command === "live-lock-unlock" || command === "live-lock-disable") {
+      if (!window.CISLiveLockService) return;
+      const result = window.CISLiveLockService.disable();
+      if (result.needsConfirm) {
+        if (window.confirm(result.message)) {
+          setNotice(window.CISLiveLockService.disable({ confirmed: true }).message);
+        }
+      } else {
+        setNotice(result.message);
+      }
+      renderLiveLockStrip();
+      return;
+    }
+    if (command === "live-lock-toggle") {
+      if (!window.CISLiveLockService) return;
+      const result = window.CISLiveLockService.toggle();
+      if (result.needsConfirm && window.confirm(result.message)) {
+        setNotice(window.CISLiveLockService.disable({ confirmed: true }).message);
+      } else if (!result.needsConfirm) {
+        setNotice(result.message);
+      }
+      renderLiveLockStrip();
+      return;
+    }
+    if (command === "service-mode-exit") return exitServiceMode();
+    if (command === "service-mode-confirm-restore") {
+      if (window.CISServiceModeService) window.CISServiceModeService.confirmSessionRestore();
+      state.view = "service";
+      saveValue("view", state.view);
+      setNotice("Service Mode resumed. Outputs were not restored automatically.");
+      render();
+      return;
+    }
+    if (command === "service-mode-dismiss-restore") {
+      if (window.CISServiceModeService) window.CISServiceModeService.dismissSessionRestore();
+      setNotice("Service Mode session cleared.");
+      render();
+      return;
+    }
+>>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
     if (command === "present-song") return openPresenter(selectedSong(), null);
     if (command === "present-current" || command === "open-presenter") return presentCurrent();
     if (command === "presenter-next") return presenterMove(1);
@@ -6648,6 +7230,12 @@
   setupBible();
   setupHymnalLibrary();
   setupLiveHymnQueue();
+<<<<<<< HEAD
+=======
+  setupServiceMode();
+  setupLiveSwitch();
+  setupLiveLock();
+>>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
 
   Promise.all([loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(async () => {
     migrateLegacySongKeys();

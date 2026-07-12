@@ -5,6 +5,18 @@
   const streamRegistry = new Map();
   let devices = [];
   let permission = "unknown";
+  let adapters = {};
+
+  function hasLyricLiveContent() {
+    if (typeof adapters.hasLyricLiveContent === "function") {
+      return adapters.hasLyricLiveContent();
+    }
+    return false;
+  }
+
+  function shouldAutoLogoOnCameraFailure() {
+    return settings.showLogoOnFailure && !hasLyricLiveContent();
+  }
   let error = "";
   let savedCameras = [];
   let settings = {};
@@ -416,7 +428,7 @@
     const device = matchDevice(savedCam, devices);
     if (!device) {
       const hint = classifyLabel(savedCam.deviceLabel);
-      if (settings.showLogoOnFailure && opts.allowFallback !== false) {
+      if (settings.showLogoOnFailure && opts.allowFallback !== false && shouldAutoLogoOnCameraFailure()) {
         return fallbackToLogo(hint.guidance);
       }
       throw new Error(hint.guidance || "Camera not found.");
@@ -467,13 +479,17 @@
       live.status = "error";
       live.error = mapPermissionError(err);
       notify();
-      if (settings.showLogoOnFailure) return fallbackToLogo(live.error);
+      if (shouldAutoLogoOnCameraFailure()) return fallbackToLogo(live.error);
+      live.active = false;
       throw new Error(live.error);
     }
   }
 
   function fallbackToLogo(reason) {
     live.error = reason || "";
+    if (!shouldAutoLogoOnCameraFailure()) {
+      return { fallback: "none", reason, preservedLive: true };
+    }
     if (window.CISPresenterEngine) {
       window.CISPresenterEngine.setDisplayMode("logo");
     }
@@ -536,9 +552,15 @@
   function handleTrackEnded(key, savedCam) {
     if (live.active && savedCam && live.cameraId === savedCam.id) {
       live.status = "disconnected";
-      live.error = "The selected camera disconnected. The church logo has been shown on the affected outputs.";
+      live.error = "The selected camera disconnected. Other outputs remain active.";
+      setOutputDisconnected("main", live.error);
       notify();
-      if (settings.showLogoOnFailure) fallbackToLogo(live.error);
+    }
+  }
+
+  function setOutputDisconnected(outputId, detail) {
+    if (window.CISLiveSwitchService?.setOutputHealth) {
+      window.CISLiveSwitchService.setOutputHealth(outputId, "disconnected", detail);
     }
   }
 
@@ -614,6 +636,12 @@
     void refreshDevices(false);
   }
 
+  function configure(options) {
+    adapters = {
+      hasLyricLiveContent: options?.hasLyricLiveContent || null,
+    };
+  }
+
   window.CISCameraSourceService = {
     refreshDevices,
     addCamera,
@@ -647,6 +675,7 @@
     getState: getPublicState,
     persistSettings,
     subscribe,
+    configure,
     init,
   };
 

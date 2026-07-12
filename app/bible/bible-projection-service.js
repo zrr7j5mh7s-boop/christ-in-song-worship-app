@@ -304,8 +304,17 @@
   }
 
   function sendLive() {
+    if (state.preview.loading) {
+      return { ok: false, message: "Passage is still loading. Current Live output is unchanged." };
+    }
+    if (state.preview.error && !state.preview.slides.length) {
+      return { ok: false, message: state.preview.error || "Passage is not ready for Live output." };
+    }
     if (!state.preview.slides.length) {
       return { ok: false, message: state.preview.error || "Load a passage in Preview before sending Live." };
+    }
+    if (window.CISLiveSwitchService?.isSwitching?.()) {
+      return { ok: false, message: "A Live switch is already in progress." };
     }
 
     if (state.live.active && state.live.slides.length) {
