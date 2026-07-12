@@ -1,9 +1,9 @@
-const CACHE_NAME = "christ-in-song-worship-v31";
+const CACHE_NAME = "christ-in-song-worship-v36";
 
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=31",
+  "./styles.css?v=36",
   "./data/songs.js?v=2",
   "./data/extra-packs.js",
   "./lazy-pack-loader.js?v=1",
@@ -32,6 +32,14 @@ const APP_SHELL = [
   "./bible/bible-search-service.js?v=1",
   "./bible/bible-speech-service.js?v=1",
   "./bible/bible-live-ui.js?v=1",
+  "./brand/brand-config.js?v=1",
+  "./brand/brand-migration.js?v=1",
+  "./hymn-queue/live-hymn-queue-settings.js?v=1",
+  "./hymn-queue/live-hymn-queue-service.js?v=1",
+  "./hymn-queue/live-hymn-queue-ui.js?v=1",
+  "./service-mode/service-mode-settings.js?v=1",
+  "./service-mode/service-mode-service.js?v=1",
+  "./service-mode/service-mode-ui.js?v=1",
   "./song-audio-store.js?v=1",
   "./song-audio-player.js?v=1",
   "./song-audio-ui.js?v=1",
@@ -78,7 +86,7 @@ const APP_SHELL = [
   "./i18n/i18n-catalog.js?v=1",
   "./i18n/i18n-store.js?v=1",
   "./i18n/i18n.js?v=1",
-  "./app.js?v=34",
+  "./app.js?v=36",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",
