@@ -6,6 +6,11 @@
 const { OBSWebSocket, OBSWebSocketError } = require('obs-websocket-js');
 const log = require('electron-log/main');
 const credentialStore = require('./obs-credential-store');
+const {
+  formatObsAuthenticationError,
+  isAuthenticationError,
+  resolveStoredPassword,
+} = require('./obs-auth-errors');
 
 const STATES = {
   DISABLED: 'disabled',
@@ -146,12 +151,20 @@ function formatError(error) {
   return error.message || String(error);
 }
 
-function classifyConnectionError(error) {
-  const message = formatError(error);
-  const code = error instanceof OBSWebSocketError ? error.code : null;
-  const lower = message.toLowerCase();
+function resolveConnectionPassword(explicitPassword) {
+  if (explicitPassword !== undefined) {
+    return String(explicitPassword || '');
+  }
+  return resolveStoredPassword(credentialStore.hasPassword(), credentialStore.getPassword());
+}
 
-  if (code === 4009 || lower.includes('authentication') || lower.includes('auth failed')) {
+function classifyConnectionError(error) {
+  const rawMessage = formatError(error);
+  const message = formatObsAuthenticationError(rawMessage, credentialStore.hasPassword());
+  const code = error instanceof OBSWebSocketError ? error.code : error?.code ?? null;
+  const lower = rawMessage.toLowerCase();
+
+  if (isAuthenticationError(rawMessage, code)) {
     return { state: STATES.AUTHENTICATION_FAILED, message };
   }
   if (code === 4004 || lower.includes('rpc version') || lower.includes('version')) {
@@ -345,7 +358,17 @@ async function connect() {
   broadcast('connecting');
 
   const url = buildWsUrl(settings.host, settings.port);
-  const password = credentialStore.getPassword();
+  let password;
+  try {
+    password = resolveConnectionPassword();
+  } catch (error) {
+    const classified = classifyConnectionError(error);
+    lastError = classified.message;
+    connectionState = classified.state;
+    broadcast('connectionError', { message: lastError, state: connectionState });
+    if (settings.autoReconnect) scheduleReconnect();
+    return getStatus();
+  }
 
   connectingPromise = withTimeout(
     client.connect(url, password || undefined),
@@ -403,9 +426,19 @@ async function disconnect() {
 async function testConnection(testSettings) {
   const host = String(testSettings?.host || settings.host || DEFAULT_SETTINGS.host).trim();
   const port = Number(testSettings?.port) || settings.port || DEFAULT_SETTINGS.port;
-  const password = testSettings?.password !== undefined
-    ? String(testSettings.password || '')
-    : credentialStore.getPassword();
+  let password;
+  try {
+    password = resolveConnectionPassword(
+      testSettings?.password !== undefined ? testSettings.password : undefined,
+    );
+  } catch (error) {
+    const classified = classifyConnectionError(error);
+    return {
+      ok: false,
+      message: classified.message,
+      state: classified.state,
+    };
+  }
   const url = buildWsUrl(host, port);
   const probe = new OBSWebSocket();
   const timeoutMs = Number(testSettings?.connectionTimeoutMs) || settings.connectionTimeoutMs || DEFAULT_SETTINGS.connectionTimeoutMs;
