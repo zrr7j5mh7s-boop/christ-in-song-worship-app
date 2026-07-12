@@ -137,6 +137,22 @@
       contextKey: "",
       history: [],
     },
+    bibleTranslation: loadValue("bibleTranslation", "KJV"),
+    bibleBookOrder: Number(loadValue("bibleBookOrder", 43)) || 43,
+    bibleChapter: Number(loadValue("bibleChapter", 1)) || 1,
+    bibleVerse: Number(loadValue("bibleVerse", 0)) || 0,
+    bibleMode: loadValue("bibleMode", "live"),
+    bibleSermonMode: loadValue("bibleSermonMode", "false") === "true",
+    indexDisplay: window.CISHymnIndexSettings
+      ? window.CISHymnIndexSettings.load(null, (key, fallback) => loadJson(key, fallback))
+      : {
+        layout: "grid",
+        showCategories: true,
+        showTitles: true,
+        showFavorites: true,
+        density: "comfortable",
+        sort: "number-asc",
+      },
   };
 
   let favorites = new Set(loadJson("favorites", []));
@@ -396,6 +412,515 @@
     audioDockState = { currentTime: 0 };
     paintAudioDock(true);
     setNotice(t("notice.audioRemoved", { number: song.number }));
+  }
+
+  function setupBible() {
+    if (!window.CISBibleReaderUI || !window.CISBibleStore) return;
+    window.CISBibleReaderUI.configure({ escapeHtml });
+    setupBibleProjection();
+  }
+
+  function setupBibleProjection() {
+    if (!window.CISBibleProjectionService || !window.CISBibleLiveUI) return;
+    window.CISBibleLiveUI.configure({ escapeHtml });
+    window.CISBibleProjectionService.configure({
+      escapeHtml,
+      loadSettings: () => (
+        window.CISBibleProjectionSettings
+          ? window.CISBibleProjectionSettings.load(null, (key, fallback) => loadJson(key, fallback))
+          : {}
+      ),
+      saveSettings: (settings) => {
+        if (window.CISBibleProjectionSettings) {
+          window.CISBibleProjectionSettings.save(settings, saveJson);
+        }
+      },
+      onSendLive: ({ slideIndex }) => {
+        const key = window.CISBibleProjectionService.BIBLE_LIVE_KEY;
+        state.presenter.songKey = key;
+        state.presenter.planIndex = null;
+        state.presenter.slideIndex = slideIndex || 0;
+        state.presenter.queueKeys = [];
+        state.presenter.queueIndex = null;
+        if (!window.CISPresenterEngine?.getState?.().active) {
+          startPresenterSession({
+            songKey: key,
+            planIndex: null,
+            slideIndex: state.presenter.slideIndex,
+            queueKeys: [],
+            queueIndex: null,
+          });
+        } else {
+          window.CISPresenterEngine.applyState({
+            songKey: key,
+            planIndex: null,
+            slideIndex: state.presenter.slideIndex,
+            queueKeys: [],
+            queueIndex: null,
+          });
+        }
+        renderPresenterAV();
+        if (state.view === "bible") paintBibleLive();
+      },
+      onClearLive: () => {
+        if (window.CISObsOutputService?.clearOverlay) {
+          window.CISObsOutputService.clearOverlay("scripture").catch(() => {});
+        }
+        if (window.CISPresenterEngine?.getState?.().active
+          && state.presenter.songKey === window.CISBibleProjectionService.BIBLE_LIVE_KEY) {
+          window.CISPresenterEngine.applyState({ songKey: "", planIndex: null, slideIndex: 0 });
+        }
+        renderPresenterAV();
+      },
+    });
+    if (window.CISBibleSpeechService) {
+      window.CISBibleSpeechService.configure({
+        getSettings: () => window.CISBibleProjectionService.getSettings(),
+        onSuggestion: (suggestion) => {
+          if (suggestion?.error) setNotice(suggestion.error);
+          if (state.view === "bible") paintBibleLive();
+        },
+      });
+    }
+    if (!window.CISBibleProjectionService._subscribed) {
+      window.CISBibleProjectionService._subscribed = true;
+      window.CISBibleProjectionService.subscribe(() => {
+        if (state.view === "bible") paintBibleLive();
+      });
+    }
+  }
+
+  function renderBibleSettingsPanel() {
+    const settings = window.CISBibleProjectionService
+      ? window.CISBibleProjectionService.getSettings()
+      : (window.CISBibleProjectionSettings ? window.CISBibleProjectionSettings.load(null, loadJson) : {});
+    const translations = window.CISBibleStore ? window.CISBibleStore.getTranslations() : [];
+    return `
+      <section class="section bible-settings-panel">
+        <h3>Bible Projection</h3>
+        <p class="muted">KJV, ASV, and WEB are bundled (public domain). Import additional translations only when you have permission.</p>
+        <div class="settings-grid">
+          <label>Default Bible version
+            <select data-command="bible-settings" data-setting="defaultTranslation">
+              ${translations.map((item) => `<option value="${escapeHtml(item.code)}" ${settings.defaultTranslation === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}
+            </select>
+          </label>
+          <label>Secondary version (dual display)
+            <select data-command="bible-settings" data-setting="secondaryTranslation">
+              <option value="">None</option>
+              ${translations.map((item) => `<option value="${escapeHtml(item.code)}" ${settings.secondaryTranslation === item.code ? "selected" : ""}>${escapeHtml(item.abbreviation || item.code)}</option>`).join("")}
+            </select>
+          </label>
+          <label>Verses per slide
+            <input type="number" min="1" max="6" data-command="bible-settings" data-setting="versesPerSlide" value="${Number(settings.versesPerSlide) || 1}">
+          </label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="enterSendsPreview" ${settings.enterSendsPreview !== false ? "checked" : ""}> Enter sends to Preview</label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="dualVersion" ${settings.dualVersion ? "checked" : ""}> Dual-version display</label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="enableSpeechDetection" ${settings.enableSpeechDetection ? "checked" : ""}> Enable speech-assisted detection (opt-in)</label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="enableHistory" ${settings.enableHistory !== false ? "checked" : ""}> Scripture session history</label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="showVerseNumbers" ${settings.showVerseNumbers !== false ? "checked" : ""}> Show verse numbers</label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="showTranslationAbbr" ${settings.showTranslationAbbr !== false ? "checked" : ""}> Show translation abbreviation</label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="confirmLiveVersionChange" ${settings.confirmLiveVersionChange !== false ? "checked" : ""}> Confirm before changing Live version</label>
+        </div>
+        <div class="language-status">
+          ${translations.map((item) => `
+            <div class="language-row">
+              <strong>${escapeHtml(item.name)} (${escapeHtml(item.abbreviation || item.code)})</strong>
+              <span class="status-pill ready">${escapeHtml(String(item.verseRecords || ""))} verses</span>
+              <span class="muted">${escapeHtml(item.license || "")}</span>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  async function handleBibleCommand(command, element) {
+    const service = window.CISBibleProjectionService;
+    if (!service) return;
+
+    const inputValue = () => {
+      const input = document.getElementById("bibleLiveReferenceInput");
+      return input ? input.value : "";
+    };
+
+    if (command === "set-mode") {
+      state.bibleMode = element.dataset.mode || "live";
+      saveValue("bibleMode", state.bibleMode);
+      render();
+      return;
+    }
+    if (command === "toggle-sermon-mode") {
+      state.bibleSermonMode = !state.bibleSermonMode;
+      saveValue("bibleSermonMode", state.bibleSermonMode ? "true" : "false");
+      paintBibleLive();
+      return;
+    }
+    if (command === "set-search-mode") {
+      service.setPreviewField("searchMode", element.dataset.mode || "reference");
+      paintBibleLive();
+      return;
+    }
+    if (command === "search-reference" || command === "preview-load") {
+      const settings = service.getSettings();
+      const value = inputValue();
+      const mode = service.getState().preview.searchMode;
+      if (mode === "text" && window.CISBibleSearchService) {
+        const results = await window.CISBibleSearchService.searchText(value, {
+          translation: service.getState().preview.translation,
+          limit: 30,
+        });
+        service.setPreviewField("searchResults", results);
+        service.setPreviewField("referenceInput", value);
+        paintBibleLive();
+        return;
+      }
+      await service.loadPreviewFromInput(value);
+      if (command === "search-reference" && settings.enterSendsPreview === false) return;
+      return;
+    }
+    if (command === "apply-suggestion") {
+      await service.loadPreviewFromInput(element.dataset.reference || "");
+      return;
+    }
+    if (command === "set-preview-version") {
+      const translation = element.value;
+      saveValue("bibleTranslation", translation);
+      state.bibleTranslation = translation;
+      await service.setPreviewTranslation(translation);
+      return;
+    }
+    if (command === "set-destinations") {
+      const selected = [...element.selectedOptions].map((opt) => opt.value);
+      service.setDestinations(selected.length ? selected : ["main"]);
+      return;
+    }
+    if (command === "send-live") {
+      const result = service.sendLive();
+      setNotice(result.message || "");
+      return;
+    }
+    if (command === "change-live-version") {
+      const settings = service.getSettings();
+      const translation = service.getState().preview.translation;
+      if (settings.confirmLiveVersionChange && !window.confirm(`Change Live scripture to ${translation}?`)) return;
+      const result = await service.changeLiveVersion(translation);
+      setNotice(result.message || "");
+      return;
+    }
+    if (command === "clear-scripture") {
+      const result = service.clearLive();
+      setNotice(result.message || "");
+      return;
+    }
+    if (command === "restore-scripture") {
+      const result = service.restorePreviousLive();
+      setNotice(result.message || "");
+      return;
+    }
+    if (command === "show-logo") return setEmergency("logo");
+    if (command === "blackout") return setEmergency("black");
+    if (command === "prev-verse") return service.movePreviewVerse(-1);
+    if (command === "next-verse") return service.movePreviewVerse(1);
+    if (command === "preview-result" || command === "history-preview") {
+      await service.loadPreviewFromInput(element.dataset.reference || "");
+      return;
+    }
+    if (command === "send-result-live" || command === "history-live") {
+      await service.loadPreviewFromInput(element.dataset.reference || "");
+      const result = service.sendLive();
+      setNotice(result.message || "");
+      return;
+    }
+    if (command === "add-result-service") {
+      addBiblePassageToService(element.dataset.reference || "", service.getState().preview.translation);
+      return;
+    }
+    if (command === "history-copy") {
+      const ref = element.dataset.reference || "";
+      if (navigator.clipboard && ref) {
+        navigator.clipboard.writeText(ref).then(() => setNotice(`Copied ${ref}.`)).catch(() => setNotice(ref));
+      }
+      return;
+    }
+    if (command === "clear-history") {
+      if (!window.confirm("Clear scripture history for this session?")) return;
+      service.clearHistory();
+      paintBibleLive();
+      return;
+    }
+    if (command === "speech-start" && window.CISBibleSpeechService) {
+      const result = window.CISBibleSpeechService.start();
+      setNotice(result.message || "");
+      paintBibleLive();
+      return;
+    }
+    if (command === "speech-stop" && window.CISBibleSpeechService) {
+      const result = window.CISBibleSpeechService.stop();
+      setNotice(result.message || "");
+      paintBibleLive();
+      return;
+    }
+    if (command === "speech-preview") {
+      const suggestion = service.getState().speechSuggestion;
+      if (suggestion?.referenceInput) await service.loadPreviewFromInput(suggestion.referenceInput);
+      return;
+    }
+    if (command === "speech-dismiss") {
+      service.dismissSpeechSuggestion();
+      paintBibleLive();
+      return;
+    }
+    if (command === "speech-correct") {
+      const suggestion = service.getState().speechSuggestion;
+      const input = document.getElementById("bibleLiveReferenceInput");
+      if (input && suggestion?.referenceInput) input.value = suggestion.referenceInput;
+      paintBibleLive();
+      return;
+    }
+  }
+
+  function addBiblePassageToService(reference, translation) {
+    if (!reference) return;
+    const slot = createPlanSlot("Scripture Reading", worshipPlan.length, {
+      type: "custom",
+      itemType: "scripture",
+      title: reference,
+      scriptureRef: reference,
+      body: reference,
+      notes: translation ? `Translation: ${translation}` : "",
+    });
+    worshipPlan.push(slot);
+    saveWorshipPlan();
+    if (window.CISBibleProjectionService) {
+      window.CISBibleProjectionService.recordHistory({
+        reference,
+        translation: translation || "KJV",
+        sentLive: false,
+        addedToService: true,
+      });
+    }
+    setNotice(`${reference} added to worship plan.`);
+    render();
+  }
+
+  function paintBibleLive() {
+    const root = document.getElementById("bibleLiveRoot");
+    if (!root || !window.CISBibleLiveUI || !window.CISBibleProjectionService) return;
+    root.innerHTML = window.CISBibleLiveUI.renderLiveWorkspace({
+      translations: window.CISBibleStore.getTranslations(),
+      projectionState: window.CISBibleProjectionService.getState(),
+      settings: window.CISBibleProjectionService.getSettings(),
+      speechState: window.CISBibleSpeechService ? window.CISBibleSpeechService.getState() : null,
+      sermonMode: state.bibleSermonMode,
+      bibleMode: state.bibleMode,
+    });
+    window.CISBibleLiveUI.bindWorkspace(root, handleBibleCommand);
+    const input = root.querySelector("#bibleLiveReferenceInput");
+    if (input && state.bibleSermonMode) input.focus();
+  }
+
+  function bindBibleLive() {
+    if (state.view !== "bible" || state.bibleMode !== "live") return;
+    paintBibleLive();
+  }
+
+  function openBibleLive(reference) {
+    state.view = "bible";
+    state.bibleMode = "live";
+    saveValue("view", "bible");
+    saveValue("bibleMode", "live");
+    render();
+    if (reference && window.CISBibleProjectionService) {
+      window.CISBibleProjectionService.loadPreviewFromInput(reference);
+    }
+  }
+
+  function bibleCacheKey() {
+    return `${state.bibleTranslation}:${state.bibleBookOrder}:${state.bibleChapter}`;
+  }
+
+  function renderBibleShell() {
+    if (!window.CISBibleReaderUI || !window.CISBibleStore) {
+      return `<section class="section"><p class="muted">Bible reader failed to load.</p></section>`;
+    }
+    if (state.bibleMode === "live" && window.CISBibleLiveUI) {
+      return `<div id="bibleLiveRoot">${window.CISBibleLiveUI.renderLiveWorkspace({
+        translations: window.CISBibleStore.getTranslations(),
+        projectionState: window.CISBibleProjectionService ? window.CISBibleProjectionService.getState() : { preview: {}, live: {} },
+        settings: window.CISBibleProjectionService ? window.CISBibleProjectionService.getSettings() : {},
+        speechState: window.CISBibleSpeechService ? window.CISBibleSpeechService.getState() : null,
+        sermonMode: state.bibleSermonMode,
+        bibleMode: state.bibleMode,
+      })}</div>`;
+    }
+    const store = window.CISBibleStore;
+    return `
+      <div id="bibleReaderRoot">
+        <div class="bible-mode-tabs">
+          <button class="secondary-button" type="button" data-bible-command="set-mode" data-mode="read">Read</button>
+          <button class="secondary-button active" type="button" data-bible-command="set-mode" data-mode="live">Bible Live</button>
+        </div>
+        ${window.CISBibleReaderUI.renderReader({
+          translations: store.getTranslations(),
+          books: store.getBooks(),
+          translationCode: state.bibleTranslation,
+          bookOrder: state.bibleBookOrder,
+          chapterNumber: state.bibleChapter,
+          bookPayload: bibleReaderState.bookPayload,
+          chapterPayload: bibleReaderState.chapterPayload,
+          highlightVerse: state.bibleVerse,
+          loading: bibleReaderState.loading,
+          error: bibleReaderState.error,
+          translationMeta: store.getTranslationMeta(state.bibleTranslation),
+          bookMeta: store.getBookMeta(state.bibleBookOrder),
+        })}
+      </div>
+    `;
+  }
+
+  function paintBibleReader() {
+    const root = document.getElementById("bibleReaderRoot");
+    if (!root || state.view !== "bible" || !window.CISBibleReaderUI) return;
+    root.innerHTML = window.CISBibleReaderUI.renderReader({
+      translations: window.CISBibleStore.getTranslations(),
+      books: window.CISBibleStore.getBooks(),
+      translationCode: state.bibleTranslation,
+      bookOrder: state.bibleBookOrder,
+      chapterNumber: state.bibleChapter,
+      bookPayload: bibleReaderState.bookPayload,
+      chapterPayload: bibleReaderState.chapterPayload,
+      highlightVerse: state.bibleVerse,
+      loading: bibleReaderState.loading,
+      error: bibleReaderState.error,
+      translationMeta: window.CISBibleStore.getTranslationMeta(state.bibleTranslation),
+      bookMeta: window.CISBibleStore.getBookMeta(state.bibleBookOrder),
+    });
+    bindBibleHandlers(root);
+  }
+
+  async function loadBibleChapter() {
+    if (!window.CISBibleStore) return;
+    bibleReaderState.loading = true;
+    bibleReaderState.error = "";
+    paintBibleReader();
+    try {
+      const payload = await window.CISBibleStore.loadBook(state.bibleTranslation, state.bibleBookOrder);
+      bibleReaderState.bookPayload = payload;
+      let chapter = window.CISBibleStore.getChapter(payload, state.bibleChapter);
+      if (!chapter) {
+        state.bibleChapter = 1;
+        saveValue("bibleChapter", state.bibleChapter);
+        chapter = window.CISBibleStore.getChapter(payload, 1);
+      }
+      bibleReaderState.chapterPayload = chapter;
+      bibleLoadedKey = bibleCacheKey();
+    } catch (error) {
+      bibleReaderState.error = (error && error.message) ? error.message : "Could not load Bible text.";
+      bibleReaderState.bookPayload = null;
+      bibleReaderState.chapterPayload = null;
+    } finally {
+      bibleReaderState.loading = false;
+      paintBibleReader();
+      if (state.bibleVerse) {
+        const verseEl = document.getElementById(`verse-${state.bibleVerse}`);
+        if (verseEl) verseEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }
+
+  function changeBibleChapter(delta) {
+    if (!window.CISBibleStore) return;
+    const count = window.CISBibleStore.chapterCount(state.bibleBookOrder);
+    const next = Math.max(1, Math.min(count, state.bibleChapter + delta));
+    if (next === state.bibleChapter) return;
+    state.bibleChapter = next;
+    state.bibleVerse = 0;
+    saveValue("bibleChapter", state.bibleChapter);
+    saveValue("bibleVerse", state.bibleVerse);
+    bibleLoadedKey = "";
+    loadBibleChapter();
+  }
+
+  function bindBibleHandlers(root) {
+    if (!root || !window.CISBibleReaderUI) return;
+    window.CISBibleReaderUI.bindReader(root, {
+      handleCommand(command, element) {
+        if (command === "set-translation") {
+          state.bibleTranslation = element.dataset.translation || element.value;
+          saveValue("bibleTranslation", state.bibleTranslation);
+          state.bibleVerse = 0;
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "set-book") {
+          state.bibleBookOrder = Number(element.value);
+          state.bibleChapter = 1;
+          state.bibleVerse = 0;
+          saveValue("bibleBookOrder", state.bibleBookOrder);
+          saveValue("bibleChapter", state.bibleChapter);
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "set-chapter") {
+          state.bibleChapter = Number(element.dataset.chapter);
+          state.bibleVerse = 0;
+          saveValue("bibleChapter", state.bibleChapter);
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "prev-chapter") return changeBibleChapter(-1);
+        if (command === "next-chapter") return changeBibleChapter(1);
+        if (command === "jump") {
+          const input = root.querySelector("[data-bible-command='jump-input']");
+          const ref = window.CISBibleStore.parseReference(input ? input.value : "");
+          if (!ref) {
+            setNotice("Enter a reference like John 3 or John 3:16.");
+            return;
+          }
+          state.bibleBookOrder = ref.bookOrder;
+          state.bibleChapter = ref.chapter;
+          state.bibleVerse = ref.verse || 0;
+          saveValue("bibleBookOrder", state.bibleBookOrder);
+          saveValue("bibleChapter", state.bibleChapter);
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "copy-reference") {
+          const text = window.CISBibleStore.formatReference(state.bibleBookOrder, state.bibleChapter, state.bibleVerse || null);
+          if (navigator.clipboard && text) {
+            navigator.clipboard.writeText(text).then(() => setNotice(`Copied ${text}.`)).catch(() => setNotice(text));
+          } else if (text) {
+            setNotice(text);
+          }
+        }
+      },
+    });
+  }
+
+  async function bindBible() {
+    if (state.view !== "bible") return;
+    if (state.bibleMode === "live") {
+      bindBibleLive();
+      return;
+    }
+    const root = document.getElementById("bibleReaderRoot");
+    if (!root) return;
+    bindBibleHandlers(root);
+    root.querySelectorAll("[data-bible-command='set-mode']").forEach((element) => {
+      element.addEventListener("click", () => handleBibleCommand("set-mode", element));
+    });
+    if (bibleLoadedKey !== bibleCacheKey() || !bibleReaderState.chapterPayload) {
+      await loadBibleChapter();
+    }
   }
 
   function setupSearchEngine() {
@@ -753,6 +1278,14 @@
     if (state.view === "song") {
       const song = selectedSong();
       return song ? `${t("nav.song")} ${song.number}` : t("nav.song");
+    }
+    if (state.view === "bible" && window.CISBibleStore) {
+      if (state.bibleMode === "live" && window.CISBibleProjectionService) {
+        const live = window.CISBibleProjectionService.getState().live;
+        return live.active && !live.cleared ? `Bible Live · ${live.referenceLabel}` : "Bible Live";
+      }
+      const meta = window.CISBibleStore.getBookMeta(state.bibleBookOrder);
+      return meta ? `${meta.name} ${state.bibleChapter}` : navLabel("bible");
     }
     const item = navItems.find((nav) => nav.id === state.view);
     return item ? navLabel(item.id) : navLabel("home");
@@ -2265,6 +2798,10 @@
     const next = state.presenter.slideIndex + delta;
     if (next >= 0 && next < item.slides.length) {
       state.presenter.slideIndex = next;
+      if (window.CISBibleProjectionService
+        && state.presenter.songKey === window.CISBibleProjectionService.BIBLE_LIVE_KEY) {
+        window.CISBibleProjectionService.setLiveSlideIndex(next);
+      }
       return beforeKey !== `${state.presenter.songKey}-${state.presenter.slideIndex}-${state.presenter.planIndex}`;
     }
     if (delta > 0) {
@@ -2761,6 +3298,7 @@
             <button class="secondary-button" type="button" data-command="emergency-black" data-confirm="true">${escapeHtml(t("presenter.blackScreen"))}${helpTrigger("blackout", "Blackout")}</button>
             <button class="secondary-button" type="button" data-command="emergency-white">${escapeHtml(t("presenter.whiteScreen"))}</button>
             <button class="secondary-button" type="button" data-command="emergency-logo">${escapeHtml(t("presenter.logoScreen"))}</button>
+            <button class="secondary-button" type="button" data-command="open-bible-live">Bible Live</button>
           </div>
           <div class="operator-preview-grid">
             <article class="preview-card">
@@ -2932,6 +3470,7 @@
           </aside>
         </div>
         ${backupPanel}
+        ${renderBibleSettingsPanel()}
         ${renderObsSettingsPanel()}
       </div>
     `;
@@ -3281,6 +3820,10 @@
   }
 
   function currentPresenterItem() {
+    if (window.CISBibleProjectionService
+      && state.presenter.songKey === window.CISBibleProjectionService.BIBLE_LIVE_KEY) {
+      return window.CISBibleProjectionService.getPresenterItem();
+    }
     if (state.presenter.songKey) {
       const song = getSongByKey(state.presenter.songKey);
       if (!song) return null;
@@ -3963,6 +4506,36 @@
       if (event.key === "ArrowRight") moveSlide(1);
       if (event.key === "ArrowLeft") moveSlide(-1);
     }
+    if (state.view === "bible" && state.bibleMode === "live" && window.CISBibleProjectionService) {
+      const inReference = event.target?.id === "bibleLiveReferenceInput";
+      if (inReference && event.key === "Enter") {
+        event.preventDefault();
+        handleBibleCommand("search-reference", event.target);
+        return;
+      }
+      if (!typing) {
+        if (event.key.toLowerCase() === "l" && event.shiftKey) {
+          event.preventDefault();
+          handleBibleCommand("send-live", null);
+          return;
+        }
+        if (event.altKey && event.key === "ArrowRight") {
+          event.preventDefault();
+          handleBibleCommand("next-verse", null);
+          return;
+        }
+        if (event.altKey && event.key === "ArrowLeft") {
+          event.preventDefault();
+          handleBibleCommand("prev-verse", null);
+          return;
+        }
+      }
+    }
+    if (!typing && event.altKey && event.key.toLowerCase() === "b") {
+      event.preventDefault();
+      openBibleLive();
+      return;
+    }
     if (event.key === "F1") {
       event.preventDefault();
       state.view = "help";
@@ -4406,6 +4979,242 @@
       window.CISObsOutputService.clearWorshipOverlays()
         .then(() => setNotice("Worship overlays cleared on OBS."))
         .catch((error) => setNotice(error?.message || "Failed to clear overlays."));
+      return;
+    }
+    if (command === "obs-monitor-start" && window.CISObsProgramMonitor) {
+      const monitor = window.CISObsProgramMonitor.getState();
+      window.CISObsProgramMonitor.startMonitor({
+        deviceId: monitor.deviceId,
+        allowSnapshotFallback: true,
+      })
+        .then((result) => setNotice(result.mode === "snapshot" ? "OBS Snapshot Preview started." : "OBS Program Monitor started."))
+        .catch((error) => setNotice(error?.message || "Failed to start OBS Program Monitor."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-stop" && window.CISObsProgramMonitor) {
+      window.CISObsProgramMonitor.stopMonitor()
+        .then(() => setNotice("OBS Program Monitor stopped."))
+        .catch((error) => setNotice(error?.message || "Failed to stop monitor."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-refresh-devices" && window.CISObsProgramMonitor) {
+      window.CISObsProgramMonitor.refreshDevices()
+        .then(() => setNotice("Video devices refreshed."))
+        .catch((error) => setNotice(error?.message || "Failed to refresh devices."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-start-vcam" && window.CISObsControlService) {
+      window.CISObsControlService.startVirtualCamera()
+        .then(() => { setNotice("OBS Virtual Camera started."); render(); })
+        .catch((error) => setNotice(error?.message || "Virtual Camera unavailable or failed."));
+      return;
+    }
+    if (command === "obs-monitor-stop-vcam" && window.CISObsControlService) {
+      window.CISObsControlService.stopVirtualCamera()
+        .then(() => { setNotice("OBS Virtual Camera stopped."); render(); })
+        .catch((error) => setNotice(error?.message || "Failed to stop Virtual Camera."));
+      return;
+    }
+    if (command === "obs-monitor-fullscreen") {
+      const viewport = document.getElementById("obsProgramMonitorViewport");
+      if (viewport && viewport.requestFullscreen) {
+        viewport.requestFullscreen().catch(() => setNotice("Fullscreen is not available."));
+      }
+      return;
+    }
+    if (command === "obs-monitor-detach" && window.CISObsProgramMonitor) {
+      if (!desktopBridge || !desktopBridge.obsMonitor || !desktopBridge.obsMonitor.open) {
+        setNotice("Detach Monitor requires the Electron desktop app.");
+        return;
+      }
+      const monitor = window.CISObsProgramMonitor.getState();
+      publishObsMonitorWorshipContext();
+      window.CISObsProgramMonitor.stopMonitor().finally(() => {
+        window.CISObsProgramMonitor.setDetached(true);
+        desktopBridge.obsMonitor.open({
+          deviceId: monitor.deviceId,
+          deviceLabel: monitor.deviceLabel,
+          worshipContext: getObsMonitorWorshipContext(),
+        });
+        render();
+        setNotice("OBS Program Monitor detached to always-on-top window.");
+      });
+      return;
+    }
+    if (command === "obs-monitor-reconnect" && window.CISObsConnectionService) {
+      window.CISObsConnectionService.connect()
+        .then(() => setNotice("Reconnecting to OBS…"))
+        .catch((error) => setNotice(error?.message || "OBS reconnect failed."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-open-settings") {
+      state.view = "settings";
+      saveValue("view", state.view);
+      render();
+      return;
+    }
+    if (command === "camera-add") {
+      openCameraEditor();
+      return;
+    }
+    if (command === "camera-edit") {
+      openCameraEditor(target.dataset.cameraId);
+      return;
+    }
+    if (command === "camera-save") {
+      saveCameraFromModal();
+      return;
+    }
+    if (command === "camera-save-settings") {
+      saveCameraSettingsFromPanel();
+      return;
+    }
+    if (command === "camera-refresh-devices" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.refreshDevices(true)
+        .then(() => setNotice("Camera devices refreshed."))
+        .catch((error) => setNotice(error?.message || "Failed to refresh devices."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-preview" && window.CISCameraSourceService) {
+      const cameraId = target.dataset.cameraId || window.CISCameraSourceService.getState().settings.defaultCameraId;
+      window.CISCameraSourceService.startPreview(cameraId)
+        .then(() => setNotice("Camera preview started."))
+        .catch((error) => setNotice(error?.message || "Camera preview failed."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-stop-preview" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.stopPreview()
+        .then(() => setNotice("Camera preview stopped."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-send-live") {
+      handleCameraSendLive(target.dataset.cameraId);
+      return;
+    }
+    if (command === "camera-switch-backup" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.useBackupCamera()
+        .then(() => { setNotice("Switched to backup camera."); renderPresenterAV(); })
+        .catch((error) => setNotice(error?.message || "Backup camera unavailable."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-clear" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.clearCamera();
+      setNotice("Camera cleared from live output.");
+      renderPresenterAV();
+      render();
+      return;
+    }
+    if (command === "camera-freeze-toggle" && window.CISCameraSourceService) {
+      const liveState = window.CISCameraSourceService.getState().live;
+      window.CISCameraSourceService.freezeCamera(!liveState.frozen);
+      renderPresenterAV();
+      render();
+      return;
+    }
+    if (command === "camera-freeze-off" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.freezeCamera(false);
+      renderPresenterAV();
+      render();
+      return;
+    }
+    if (command === "camera-restart" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.restartCameraSource()
+        .then(() => setNotice("Camera source restarted."))
+        .catch((error) => setNotice(error?.message || "Camera restart failed."))
+        .finally(() => { renderPresenterAV(); render(); });
+      return;
+    }
+    if (command === "camera-return-previous" && window.CISCameraSourceService) {
+      if (window.CISCameraSourceService.returnToPreviousLive()) {
+        setNotice("Returned to previous live item.");
+        renderPresenterAV();
+      } else setNotice("No previous live camera item.");
+      render();
+      return;
+    }
+    if (command === "camera-set-default" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.setDefaultCamera(target.dataset.cameraId);
+      setNotice("Default camera updated.");
+      render();
+      return;
+    }
+    if (command === "camera-set-backup" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.setBackupCamera(target.dataset.cameraId);
+      setNotice("Backup camera updated.");
+      render();
+      return;
+    }
+    if (command === "camera-remove" && window.CISCameraSourceService) {
+      if (target.dataset.confirm === "true" && !window.confirm("Remove this saved camera?")) return;
+      window.CISCameraSourceService.removeCamera(target.dataset.cameraId);
+      setNotice("Camera removed.");
+      render();
+      return;
+    }
+    if (command === "camera-detach-preview") {
+      if (!desktopBridge || !desktopBridge.cameraPreview || !desktopBridge.cameraPreview.open) {
+        setNotice("Detach preview requires the Electron desktop app.");
+        return;
+      }
+      desktopBridge.cameraPreview.open();
+      setNotice("Camera preview detached.");
+      return;
+    }
+    if (command === "camera-obs-vcam-start" && window.CISObsControlService) {
+      window.CISObsControlService.startVirtualCamera()
+        .then(() => setNotice("OBS Virtual Camera started."))
+        .catch((error) => setNotice(error?.message || "Failed to start Virtual Camera."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-obs-vcam-stop" && window.CISObsControlService) {
+      window.CISObsControlService.stopVirtualCamera()
+        .then(() => setNotice("OBS Virtual Camera stopped."))
+        .catch((error) => setNotice(error?.message || "Failed to stop Virtual Camera."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-obs-vcam-refresh") {
+      if (window.CISObsConnectionService) window.CISObsConnectionService.refreshRuntime?.();
+      if (window.CISCameraSourceService) window.CISCameraSourceService.refreshDevices(false);
+      setNotice("OBS Virtual Camera state refreshed.");
+      render();
+      return;
+    }
+    if (command === "open-camera-sources") {
+      state.view = "cameras";
+      saveValue("view", state.view);
+      render();
+      return;
+    }
+    if (command === "open-bible-live") {
+      openBibleLive(target?.dataset?.reference || "");
+      return;
+    }
+    if (command === "bible-settings" && window.CISBibleProjectionService) {
+      const setting = target.dataset.setting;
+      if (!setting) return;
+      const current = window.CISBibleProjectionService.getSettings();
+      let value;
+      if (target.type === "checkbox") value = target.checked;
+      else if (target.type === "number") value = Number(target.value);
+      else value = target.value;
+      const next = { ...current, [setting]: value };
+      window.CISBibleProjectionService.updateSettings(next, true);
+      if (setting === "defaultTranslation") {
+        state.bibleTranslation = value;
+        saveValue("bibleTranslation", value);
+      }
+      setNotice("Bible projection settings saved.");
+      render();
       return;
     }
     if ((command === "obs-show-source" || command === "obs-hide-source") && window.CISObsSourceService) {

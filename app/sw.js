@@ -1,9 +1,9 @@
-const CACHE_NAME = "christ-in-song-worship-v26";
+const CACHE_NAME = "christ-in-song-worship-v31";
 
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=26",
+  "./styles.css?v=31",
   "./data/songs.js?v=2",
   "./data/extra-packs.js",
   "./lazy-pack-loader.js?v=1",
@@ -23,6 +23,15 @@ const APP_SHELL = [
   "./vendor/fuse.min.js",
   "./hymn-search.js?v=2",
   "./hymn-search-ui.js?v=1",
+  "./data/bible-catalog.js?v=2",
+  "./bible-store.js?v=2",
+  "./bible-reader-ui.js?v=2",
+  "./bible/bible-reference-parser.js?v=1",
+  "./bible/bible-projection-settings.js?v=1",
+  "./bible/bible-projection-service.js?v=1",
+  "./bible/bible-search-service.js?v=1",
+  "./bible/bible-speech-service.js?v=1",
+  "./bible/bible-live-ui.js?v=1",
   "./song-audio-store.js?v=1",
   "./song-audio-player.js?v=1",
   "./song-audio-ui.js?v=1",
@@ -39,7 +48,7 @@ const APP_SHELL = [
   "./obs/obs-connection-service.js?v=1",
   "./obs/obs-scene-service.js?v=2",
   "./obs/obs-source-service.js?v=1",
-  "./obs/obs-output-service.js?v=1",
+  "./obs/obs-output-service.js?v=2",
   "./obs/obs-control-service.js?v=1",
   "./obs/obs-mapping-ui.js?v=2",
   "./obs/obs-control-ui.js?v=2",
