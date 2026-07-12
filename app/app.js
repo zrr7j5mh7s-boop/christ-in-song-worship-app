@@ -878,6 +878,7 @@
       applyEnginePresenterState(window.CISPresenterEngine.getState());
       renderPresenterAV();
     }
+    scheduleSessionRecoverySave("live-change");
     return { ok: true };
   }
 
@@ -2982,6 +2983,7 @@
     if (immediate) {
       if (window.CISBuilderSave) window.CISBuilderSave.flush();
       saveJson("worshipPlan", worshipPlan);
+      scheduleSessionRecoverySave("worship-plan");
       return;
     }
     if (window.CISBuilderSave) {
@@ -5550,6 +5552,331 @@
     refreshStageDisplayDisplays();
   }
 
+  function scheduleSessionRecoverySave(reason) {
+    if (window.CISSessionRecoveryService) {
+      window.CISSessionRecoveryService.scheduleSave(reason);
+    }
+  }
+
+  function describeRecoveryLiveItem(item, session) {
+    if (!item) return null;
+    const songKey = item.songKey || item.hymnId || "";
+    const bibleKey = window.CISBibleProjectionService?.BIBLE_LIVE_KEY;
+    if (songKey && songKey !== bibleKey) {
+      const meta = describeSongKeyForQueue(songKey);
+      if (!meta) return { label: `Hymn ${item.hymnNumber || songKey} (unavailable)`, available: false };
+      const slideIndex = Number(item.slideIndex ?? session?.presenter?.slideIndex) || 0;
+      const song = getSongByKey(songKey);
+      const slide = song?.slides?.[slideIndex];
+      const stanza = slide?.label ? ` · ${slide.label}` : "";
+      return { label: `${meta.shortLabel}${stanza}`, available: Boolean(song) };
+    }
+    if (item.referenceLabel || item.reference) {
+      const translation = item.translation || session?.bible?.translation || state.bibleTranslation;
+      return { label: `${item.referenceLabel || item.reference} · ${translation}`, available: true };
+    }
+    if (item.title || item.shortLabel) {
+      return { label: item.shortLabel || item.title, available: true };
+    }
+    return null;
+  }
+
+  function captureSessionRecoverySnapshot() {
+    const bibleState = window.CISBibleProjectionService?.getPublicState?.() || {};
+    const queueState = window.CISLiveHymnQueueService?.getState?.() || {};
+    const liveSwitch = window.CISLiveSwitchService?.getState?.() || {};
+    const projection = window.CISProjectionSettings
+      ? window.CISProjectionSettings.load((key, fallback) => loadJson(key, fallback))
+      : {};
+    const bibleSettings = window.CISBibleProjectionSettings
+      ? window.CISBibleProjectionSettings.load(null, (key, fallback) => loadJson(key, fallback))
+      : {};
+    const stageState = window.CISStageDisplayService?.getState?.() || {};
+    const cameraState = window.CISCameraSourceService?.getState?.() || {};
+    const obsExport = window.CISObsSettingsStore?.exportForBackup?.() || {};
+    const previousLive = captureLiveSnapshot();
+    const session = {
+      worshipPlan,
+      songService,
+      activeSlot: state.activeSlot,
+      presenter: { ...state.presenter },
+      emergencyMode: state.emergencyMode || "",
+      displayMode: window.CISPresenterEngine?.getState?.().displayMode || state.displayMode,
+      bible: {
+        translation: state.bibleTranslation,
+        bookOrder: state.bibleBookOrder,
+        chapter: state.bibleChapter,
+        verse: state.bibleVerse,
+        live: bibleState.live || null,
+        preview: bibleState.preview || null,
+        previousLive: bibleState.previousLive || null,
+      },
+      hymnQueue: {
+        preview: queueState.preview || null,
+        next: queueState.next || null,
+        queue: queueState.queue || [],
+      },
+      live: {
+        previous: previousLive,
+        preview: queueState.preview || bibleState.preview || null,
+        next: queueState.next || null,
+        contentType: previousLive?.bibleLive?.active ? "bible" : (previousLive?.songKey ? "hymn" : ""),
+        phase: liveSwitch.phase || "",
+      },
+      language: {
+        languageCode: state.languageCode,
+        hymnBookId: state.hymnBookId,
+        editionId: state.editionId,
+        uiLocale: state.uiLocale,
+      },
+      outputs: {
+        destinations: describeServiceOutputDestinations().split(", ").filter(Boolean),
+        themeId: bibleSettings.projectionTheme || projection.themeId || "classic_dark",
+        projection,
+        obs: window.CISSessionRecoverySnapshot
+          ? window.CISSessionRecoverySnapshot.sanitizeObsSettings(obsExport.obsSettings || {})
+          : (obsExport.obsSettings || {}),
+      },
+      stageDisplay: {
+        settings: stageState.settings || {},
+        layoutId: stageState.settings?.layoutId,
+        sermonTitle: stageState.sermonTitle || "",
+        speakerName: stageState.speakerName || "",
+        countdownLabel: stageState.countdownLabel || "",
+        countdownRemaining: stageState.countdownRemaining,
+      },
+      camera: {
+        defaultCameraId: cameraState.settings?.defaultCameraId || "",
+        backupCameraId: cameraState.settings?.backupCameraId || "",
+        activeCameraId: cameraState.live?.cameraId || "",
+      },
+      media: {
+        songKey: loadedAudioSongKey || "",
+        position: hymnAudioPlayer?.getCurrentTime?.() || 0,
+        playing: Boolean(hymnAudioPlayer?.isPlaying?.()),
+      },
+      timer: {
+        seconds: state.timerSeconds,
+        running: state.timerRunning,
+        endsAt: state.timerEndsAt,
+      },
+    };
+    const labels = window.CISSessionRecoverySnapshot?.buildLabels(session, {
+      describeLiveItem: describeRecoveryLiveItem,
+    }) || {};
+    return {
+      version: window.CISSessionRecoverySnapshot?.SNAPSHOT_VERSION || 1,
+      id: `session-${Date.now()}`,
+      savedAt: new Date().toISOString(),
+      sessionActive: isPresentationLiveActive(),
+      session,
+      labels,
+    };
+  }
+
+  async function inspectSessionRecoveryAvailability(snapshot) {
+    const session = snapshot?.session || {};
+    const items = [];
+    const warnings = [];
+    const bibleKey = window.CISBibleProjectionService?.BIBLE_LIVE_KEY;
+
+    const checkSong = (songKey, label) => {
+      if (!songKey || songKey === bibleKey) return;
+      const parsed = parseSongKey(songKey);
+      const pack = getPack(parsed.code, parsed.editionId);
+      const song = getSongByKey(songKey);
+      const available = pack?.status === "ready" && Boolean(song);
+      items.push({
+        id: songKey,
+        label: label || songKey,
+        detail: available ? "Hymn available" : "Hymn edition missing",
+        available,
+      });
+      if (!available) warnings.push(`Missing hymnal content for ${label || songKey}`);
+    };
+
+    checkSong(session.live?.previous?.songKey, "Previous Live");
+    checkSong(session.hymnQueue?.next?.songKey, "Next");
+    checkSong(session.hymnQueue?.preview?.songKey, "Preview");
+    (session.hymnQueue?.queue || []).forEach((item, index) => {
+      checkSong(item.songKey, `Queue item ${index + 1}`);
+    });
+
+    const translation = session.bible?.translation;
+    if (translation) {
+      const available = Boolean(window.CISBibleStore?.getTranslationMeta?.(translation));
+      items.push({
+        id: `bible:${translation}`,
+        label: `Bible ${translation}`,
+        detail: available ? "Translation available" : "Bible version missing",
+        available,
+      });
+      if (!available) warnings.push(`Bible translation ${translation} is not installed.`);
+    }
+
+    if (session.media?.songKey) {
+      items.push({
+        id: session.media.songKey,
+        label: "Linked media",
+        detail: "Media availability verified on restore",
+        available: true,
+      });
+    }
+
+    return { items, warnings };
+  }
+
+  async function applySessionRecoverySnapshot(snapshot, options) {
+    const session = snapshot?.session;
+    if (!session) return { ok: false, message: "Recovery snapshot is empty." };
+    const opts = {
+      openOutputs: false,
+      restoreLive: false,
+      reopenProjector: false,
+      reopenStageDisplay: false,
+      reconnectObs: false,
+      ...(options || {}),
+    };
+
+    worshipPlan = normalizeWorshipPlan(session.worshipPlan || []);
+    songService = normalizeSongService(session.songService || []);
+    saveWorshipPlan(true);
+    saveSongService(true);
+    state.activeSlot = Number(session.activeSlot) || 0;
+    state.presenter = {
+      open: false,
+      songKey: session.presenter?.songKey || "",
+      slideIndex: Number(session.presenter?.slideIndex) || 0,
+      planIndex: session.presenter?.planIndex ?? null,
+      queueKeys: Array.isArray(session.presenter?.queueKeys) ? session.presenter.queueKeys : [],
+      queueIndex: session.presenter?.queueIndex ?? null,
+    };
+    state.emergencyMode = session.emergencyMode || "";
+    state.displayMode = session.displayMode || state.displayMode;
+    state.bibleTranslation = session.bible?.translation || state.bibleTranslation;
+    state.bibleBookOrder = Number(session.bible?.bookOrder) || state.bibleBookOrder;
+    state.bibleChapter = Number(session.bible?.chapter) || state.bibleChapter;
+    state.bibleVerse = Number(session.bible?.verse) || state.bibleVerse;
+    state.languageCode = session.language?.languageCode || state.languageCode;
+    state.hymnBookId = session.language?.hymnBookId || state.hymnBookId;
+    state.editionId = session.language?.editionId || state.editionId;
+    state.uiLocale = session.language?.uiLocale || state.uiLocale;
+    state.timerSeconds = Number(session.timer?.seconds) || state.timerSeconds;
+    state.timerRunning = false;
+    state.timerEndsAt = 0;
+    persistTimer();
+
+    if (window.CISProjectionSettings && session.outputs?.projection) {
+      window.CISProjectionSettings.save(session.outputs.projection, saveJson);
+    }
+    if (window.CISObsSettingsStore && session.outputs?.obs) {
+      window.CISObsSettingsStore.importFromBackup({ obsSettings: session.outputs.obs });
+    }
+    if (window.CISStageDisplayService && session.stageDisplay) {
+      window.CISStageDisplayService.saveSettings({
+        ...(session.stageDisplay.settings || {}),
+        sermonTitle: session.stageDisplay.sermonTitle || "",
+        speakerName: session.stageDisplay.speakerName || "",
+      });
+    }
+    if (window.CISLiveHymnQueueService) {
+      window.CISLiveHymnQueueService.restoreSession({
+        next: session.hymnQueue?.next || null,
+        queue: session.hymnQueue?.queue || [],
+        history: [],
+      });
+    }
+
+    saveValue("language", state.languageCode);
+    saveValue("bibleTranslation", state.bibleTranslation);
+    persistHymnalSelection();
+
+    if (opts.restoreLive && session.live?.previous) {
+      const previous = session.live.previous;
+      if (previous.bibleLive?.active && window.CISBibleProjectionService) {
+        window.CISBibleProjectionService.getState().live = {
+          ...previous.bibleLive,
+          slides: [...(previous.bibleLive.slides || [])],
+        };
+        state.presenter.songKey = window.CISBibleProjectionService.BIBLE_LIVE_KEY;
+        state.presenter.slideIndex = previous.slideIndex || 0;
+      } else if (previous.songKey) {
+        state.presenter.songKey = previous.songKey;
+        state.presenter.slideIndex = previous.slideIndex || 0;
+        state.presenter.planIndex = previous.planIndex ?? null;
+      }
+    }
+
+    if (opts.reopenProjector) {
+      if (opts.restoreLive) {
+        startPresenterSession({
+          songKey: state.presenter.songKey,
+          planIndex: state.presenter.planIndex,
+          slideIndex: state.presenter.slideIndex,
+          queueKeys: state.presenter.queueKeys,
+          queueIndex: state.presenter.queueIndex,
+        });
+        if (window.CISPresenterEngine) window.CISPresenterEngine.publishState();
+      } else {
+        window.CISPresenterEngine?.openOutputSurface?.();
+        state.presenter.open = true;
+      }
+    }
+
+    if (opts.reopenStageDisplay && window.CISStageDisplayService) {
+      await window.CISStageDisplayService.openOutput();
+      window.CISStageDisplayService.publish();
+    }
+
+    if (opts.reconnectObs && window.CISObsConnectionService?.connect) {
+      await window.CISObsConnectionService.connect();
+    }
+
+    render();
+    scheduleSessionRecoverySave("restored");
+    return { ok: true, message: "Session restored without automatic streaming or recording." };
+  }
+
+  function setupSessionRecovery() {
+    if (!window.CISSessionRecoveryService) return;
+    window.CISSessionRecoveryUI?.configure?.({
+      escapeHtml,
+      modalRoot: els.modalRoot,
+    });
+    window.CISSessionRecoveryService.configure({
+      loadSettings: () => window.CISSessionRecoverySettings.load((key, fallback) => loadJson(key, fallback)),
+      captureSession: captureSessionRecoverySnapshot,
+      describeLiveItem: describeRecoveryLiveItem,
+      applySession: applySessionRecoverySnapshot,
+      inspectAvailability: inspectSessionRecoveryAvailability,
+    });
+    window.CISSessionRecoveryService.setupLifecycle();
+
+    if (window.CISPresenterEngine && !window.CISPresenterEngine._recoverySubscribed) {
+      window.CISPresenterEngine._recoverySubscribed = true;
+      window.CISPresenterEngine.subscribe(() => scheduleSessionRecoverySave("presenter"));
+    }
+    if (window.CISLiveHymnQueueService && !window.CISLiveHymnQueueService._recoverySubscribed) {
+      window.CISLiveHymnQueueService._recoverySubscribed = true;
+      window.CISLiveHymnQueueService.subscribe(() => scheduleSessionRecoverySave("queue"));
+    }
+    if (window.CISLiveSwitchService && !window.CISLiveSwitchService._recoverySubscribed) {
+      window.CISLiveSwitchService._recoverySubscribed = true;
+      window.CISLiveSwitchService.subscribe(() => scheduleSessionRecoverySave("live-switch"));
+    }
+    if (window.CISStageDisplayService && !window.CISStageDisplayService._recoverySubscribed) {
+      window.CISStageDisplayService._recoverySubscribed = true;
+      window.CISStageDisplayEngine?.subscribe?.(() => scheduleSessionRecoverySave("stage-display"));
+    }
+  }
+
+  async function maybeOfferSessionRecovery() {
+    if (!window.CISSessionRecoveryService || !window.CISSessionRecoveryUI) return;
+    const result = await window.CISSessionRecoveryService.checkOnStartup();
+    if (!result?.interrupted) return;
+    window.CISSessionRecoveryUI.openRecoveryScreen(result);
+  }
+
   function gatherHelpDiagnosticsReport() {
     if (!window.CISHelpDiagnostics) return {};
     const presenterActive = window.CISPresenterEngine ? window.CISPresenterEngine.getState().active : false;
@@ -7879,6 +8206,54 @@
       render();
       return;
     }
+    if (command === "session-recovery-restore") {
+      void window.CISSessionRecoveryService.restoreSession({
+        openOutputs: false,
+        restoreLive: false,
+      }).then((result) => {
+        window.CISSessionRecoveryUI?.closeRecoveryScreen?.();
+        setNotice(result?.message || "Session restored. Outputs remain closed until you confirm.");
+        render();
+      });
+      return;
+    }
+    if (command === "session-recovery-review") {
+      void window.CISSessionRecoveryService.inspectAvailability().then((inspection) => {
+        const offer = window.CISSessionRecoveryService.getRecoveryOffer();
+        window.CISSessionRecoveryUI?.openReviewScreen?.(offer, inspection);
+      });
+      return;
+    }
+    if (command === "session-recovery-restore-reviewed") {
+      const options = window.CISSessionRecoveryUI?.readReviewOptions?.() || {};
+      if (options.restoreLive && !window.confirm("Restore previous Live content to outputs?")) return;
+      if ((options.reopenProjector || options.reopenStageDisplay) && !window.confirm("Reopen selected output windows?")) return;
+      void window.CISSessionRecoveryService.restoreSession(options).then((result) => {
+        window.CISSessionRecoveryUI?.closeRecoveryScreen?.();
+        setNotice(result?.message || "Recovery options applied.");
+        render();
+      });
+      return;
+    }
+    if (command === "session-recovery-open-without") {
+      window.CISSessionRecoveryUI?.closeRecoveryScreen?.();
+      window.CISSessionRecoveryService.markCleanExit(true);
+      setNotice("Opened without restoring the interrupted session.");
+      return;
+    }
+    if (command === "session-recovery-discard") {
+      void window.CISSessionRecoveryService.discardRecovery().then(() => {
+        window.CISSessionRecoveryUI?.closeRecoveryScreen?.();
+        setNotice("Recovery snapshot discarded.");
+        render();
+      });
+      return;
+    }
+    if (command === "session-recovery-back") {
+      const offer = window.CISSessionRecoveryService.getRecoveryOffer();
+      if (offer) window.CISSessionRecoveryUI?.openRecoveryScreen?.(offer);
+      return;
+    }
     if (command === "stage-display-open") {
       void window.CISStageDisplayService?.openOutput?.().then(() => {
         publishStageDisplay();
@@ -8628,6 +9003,7 @@
   setupBuilderSystems();
   setupPresenterSystem();
   setupStageDisplay();
+  setupSessionRecovery();
   setupObsIntegration();
   setupCameraSources();
   setupHelpCentre();
@@ -8669,6 +9045,7 @@
     }
     scheduleBackgroundWarmup();
     if (window.CISPerformanceMonitor) window.CISPerformanceMonitor.mark("data-ready");
+    await maybeOfferSessionRecovery();
     render();
     if (window.CISPerformanceMonitor) {
       window.CISPerformanceMonitor.measure("startupToFirstRenderMs", "app-start");

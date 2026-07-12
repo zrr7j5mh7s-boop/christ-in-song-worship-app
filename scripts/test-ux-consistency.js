@@ -106,6 +106,7 @@ function testCacheVersion() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   if (!sw.includes("christ-in-song-worship-v41")) fail("Service worker cache should be v41");
   ok("cache version v41 for quiet service mode release");
 =======
@@ -128,6 +129,10 @@ function testCacheVersion() {
   if (!sw.includes("christ-in-song-worship-v44")) fail("Service worker cache should be v44");
   ok("cache version v44 for stage display release");
 >>>>>>> ad24e9c (Add Stage Display so worship leaders and musicians can monitor live lyrics, Scripture, and cues on a private screen without changing congregation projection.)
+=======
+  if (!sw.includes("christ-in-song-worship-v45")) fail("Service worker cache should be v45");
+  ok("cache version v45 for session recovery release");
+>>>>>>> 3c65f4b (Add session recovery so worship operators can restore the last-known-good live session after a crash or unexpected restart.)
 }
 
 testDesignTokens();
