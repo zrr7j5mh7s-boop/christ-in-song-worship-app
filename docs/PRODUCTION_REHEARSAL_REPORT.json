@@ -4,8 +4,8 @@
     "arch": "arm64",
     "node": "v24.18.0",
     "framework": "Electron + offline PWA worship OS",
-    "cacheVersion": "unknown",
-    "testDate": "2026-07-12T10:46:35.938Z"
+    "cacheVersion": "christ-in-song-worship-v46",
+    "testDate": "2026-07-12T11:03:51.309Z"
   },
   "devicesTested": [
     "macOS development host"
@@ -281,23 +281,24 @@
   ],
   "defectsFound": [],
   "defectsFixed": [
-    "Presenter live Bible/hymn transitions used non-exported applyState; now uses patchState with export alias."
+    "Presenter live Bible/hymn transitions used non-exported applyState; now uses patchState with export alias.",
+    "Stale camera-sources test expected removed typing hook; updated to CISKeyboardShortcutsService check."
   ],
   "performance": {
     "iterations": 400,
-    "searchLatencyMedianMs": 4.26,
-    "previewLatencyMedianMs": 0.001,
-    "liveSwitchLatencyMedianMs": 0.006
+    "searchLatencyMedianMs": 4.302,
+    "previewLatencyMedianMs": 0.002,
+    "liveSwitchLatencyMedianMs": 0.009
   },
   "memory": {
-    "heapUsedStartMb": 9.37,
-    "heapUsedEndMb": 12.73,
-    "heapDeltaMb": 3.36,
-    "rssEndMb": 71.06
+    "heapUsedStartMb": 9.36,
+    "heapUsedEndMb": 16.25,
+    "heapDeltaMb": 6.89,
+    "rssEndMb": 79.02
   },
   "accessibility": {
     "keyboardShortcutsRegistered": true,
-    "ariaLiveRegions": false,
+    "ariaLiveRegions": true,
     "focusManager": true,
     "serviceModeTouchTargets": true
   },

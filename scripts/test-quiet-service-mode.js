@@ -146,7 +146,7 @@ function run() {
   assert.match(preloadSource, /quietMode/);
 
   const sw = read("app/sw.js");
-  assert.match(sw, /christ-in-song-worship-v45/);
+  assert.match(sw, /christ-in-song-worship-v46/);
   assert.match(sw, /quiet-service-mode-service\.js/);
 
   const styles = read("app/styles.css");
