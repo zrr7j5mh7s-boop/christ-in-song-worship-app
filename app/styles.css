@@ -5815,4 +5815,322 @@ body.presenter-live .sidebar {
   .camera-controls-toolbar .secondary-button {
     min-height: 44px;
   }
+  .hymn-index-toolbar-primary,
+  .hymn-index-toolbar-secondary {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hymn-index-view-label {
+    display: none;
+  }
+}
+
+/* Hymn Index display modes */
+.hymn-index-section {
+  width: 100%;
+}
+
+.hymn-index-toolbar {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.hymn-index-toolbar-primary,
+.hymn-index-toolbar-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+
+.hymn-index-search {
+  flex: 1 1 240px;
+  min-width: 200px;
+}
+
+.hymn-index-ranges {
+  flex: 2 1 320px;
+}
+
+.hymn-index-control-group,
+.hymn-index-sort-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hymn-index-control-label {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hymn-index-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  min-width: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.hymn-index-view-btn:hover,
+.hymn-index-view-btn:focus-visible {
+  border-color: var(--green);
+  outline: 2px solid rgba(40, 98, 71, 0.25);
+  outline-offset: 2px;
+}
+
+.hymn-index-view-btn.active {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.hymn-index-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.hymn-index-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hymn-index-sort-wrap select {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.hymn-index-display-menu {
+  position: relative;
+}
+
+.hymn-index-options-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+}
+
+.hymn-index-display-panel {
+  position: absolute;
+  right: 0;
+  z-index: 20;
+  margin-top: 6px;
+  min-width: 240px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: var(--shadow-md);
+}
+
+.hymn-index-display-panel fieldset {
+  border: 0;
+  margin: 0 0 10px;
+  padding: 0;
+}
+
+.hymn-index-display-panel legend {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.hymn-index-display-panel label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.hymn-index-filters {
+  margin-top: 2px;
+}
+
+.hymn-index-grid {
+  display: grid;
+  width: 100%;
+  gap: var(--hymn-grid-gap, 12px);
+  grid-template-columns: repeat(auto-fill, minmax(var(--hymn-card-min, 156px), 1fr));
+}
+
+.hymn-index-grid.layout-grid {
+  --hymn-card-min: 156px;
+}
+
+.hymn-index-grid.layout-compact {
+  --hymn-card-min: 108px;
+  --hymn-grid-gap: 8px;
+}
+
+.hymn-index-grid.density-compact {
+  --hymn-grid-gap: 8px;
+}
+
+.hymn-index-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-height: 118px;
+  padding: 14px 12px 12px;
+  border: 1px solid rgba(201, 162, 39, 0.45);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(145deg, var(--navy) 0%, var(--navy-2) 100%);
+  color: var(--cream);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.hymn-index-card.is-compact {
+  min-height: 92px;
+  padding: 10px 9px 9px;
+}
+
+.hymn-index-card:hover,
+.hymn-index-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--gold);
+  box-shadow: 0 12px 28px rgba(19, 31, 56, 0.28);
+  outline: 2px solid rgba(201, 162, 39, 0.35);
+  outline-offset: 2px;
+}
+
+.hymn-card-number {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--gold-light);
+  line-height: 1;
+}
+
+.hymn-index-card.is-compact .hymn-card-number {
+  font-size: 20px;
+}
+
+.hymn-card-title {
+  font-size: 12px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  flex: 1 1 auto;
+}
+
+.hymn-index-card.is-compact .hymn-card-title {
+  font-size: 11px;
+  -webkit-line-clamp: 1;
+}
+
+.hymn-card-fav {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  color: var(--gold);
+  font-size: 13px;
+}
+
+.hymn-card-tags {
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.hymn-card-tags .song-tag-list {
+  gap: 4px;
+}
+
+.hymn-card-tags .song-tag-chip {
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.hymn-index-list {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.hymn-index-list-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto auto;
+  gap: 10px 14px;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.hymn-index-list-row:hover,
+.hymn-index-list-row:focus-visible {
+  border-color: var(--green);
+  box-shadow: var(--shadow-sm);
+  outline: 2px solid rgba(40, 98, 71, 0.2);
+  outline-offset: 2px;
+}
+
+.hymn-list-number {
+  font-family: var(--display);
+  font-weight: 800;
+  color: var(--green);
+}
+
+.hymn-list-title {
+  font-weight: 700;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hymn-list-tags .song-tag-chip {
+  min-height: 24px;
+  pointer-events: none;
+}
+
+.hymn-list-fav {
+  color: var(--gold);
+  font-weight: 800;
+  min-width: 20px;
+  text-align: center;
+}
+
+.hymn-index-list-row:has(.hymn-list-tags:not(:empty)) {
+  grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1.2fr) auto auto;
+}
+
+.hymn-index-empty {
+  text-align: center;
 }
