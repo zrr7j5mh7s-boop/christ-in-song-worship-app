@@ -934,13 +934,17 @@
       window.CISLiveHymnQueueService._subscribed = true;
       window.CISLiveHymnQueueService.subscribe(() => {
         paintLiveHymnQueuePanels();
+        paintServiceModeWorkspace();
         if (window.CISPresenterEngine?.getState?.().active) renderPresenterAV();
       });
     }
   }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
   function isServiceModeActive() {
     return Boolean(window.CISServiceModeService?.getState?.().active);
   }
@@ -1268,6 +1272,7 @@
     }
   }
 
+<<<<<<< HEAD
   function isPresentationLiveActive() {
     return Boolean(
       window.CISPresenterEngine?.getState?.().active
@@ -1433,6 +1438,8 @@
   }
 
 >>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
+=======
+>>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
   async function handleHymnQueueCommand(command, target) {
     const service = window.CISLiveHymnQueueService;
     if (!service) return;
@@ -2608,6 +2615,7 @@
   }
 
   function viewTitle() {
+    if (state.view === "service") return "Service Mode";
     if (state.view === "help") return navLabel("help");
     if (state.view === "song") {
       const song = selectedSong();
@@ -3259,7 +3267,8 @@
     setupBranding();
     els.title.textContent = viewTitle();
     if (state.view !== "song" && hymnAudioPlayer) hymnAudioPlayer.pause();
-    els.content.innerHTML = `${renderNotice()}${renderView()}`;
+    const serviceBar = renderServiceModeContextBar();
+    els.content.innerHTML = `${renderNotice()}${serviceBar}${renderView()}`;
     renderPresenterAV();
     renderObsTopbar();
     renderEmergencyOverlay();
@@ -3272,12 +3281,17 @@
     renderHelpContextOverlay();
     paintLiveHymnQueuePanels();
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     paintServiceModeWorkspace();
     renderLiveLockStrip();
 >>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
+=======
+    paintServiceModeWorkspace();
+>>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
     if (state.view === "presenter" || state.view === "settings") bindObsProgramMonitor();
     if (state.view === "cameras" || state.view === "presenter" || state.view === "settings") bindCameraSources();
+    document.body.classList.toggle("service-mode-active", isServiceModeActive());
     document.body.classList.add("app-ready");
   }
 
@@ -3301,10 +3315,18 @@
   }
 
   function renderNav() {
-    els.nav.innerHTML = navItems.map((item) => `
+    const serviceNavItems = [
+      { id: "service", label: "Service Mode", icon: "⬤" },
+      { id: "search", label: "Search", icon: "⌕" },
+      { id: "index", label: "Hymn Index", icon: "☰" },
+      { id: "bible", label: "Bible", icon: "✞" },
+      { id: "help", label: "Help", icon: "?" },
+    ];
+    const items = isServiceModeActive() ? serviceNavItems : navItems;
+    els.nav.innerHTML = items.map((item) => `
       <button class="rail-btn ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}">
         <span class="ico" aria-hidden="true">${item.icon}</span>
-        <span>${escapeHtml(navLabel(item.id))}</span>
+        <span>${escapeHtml(isServiceModeActive() && item.id === "service" ? "Service Mode" : navLabel(item.id))}</span>
       </button>
     `).join("");
   }
@@ -3325,6 +3347,12 @@
     if (els.topbarEmergencyBtn) {
       els.topbarEmergencyBtn.textContent = t("presenter.emergencyHelp");
       els.topbarEmergencyBtn.title = t("presenter.emergencyHelp");
+    }
+    const serviceBtn = document.getElementById("topbarServiceModeBtn");
+    if (serviceBtn) {
+      serviceBtn.textContent = isServiceModeActive() ? "Exit Service Mode" : "Enter Service Mode";
+      serviceBtn.dataset.command = isServiceModeActive() ? "service-mode-exit" : "service-mode-enter";
+      serviceBtn.setAttribute("aria-pressed", isServiceModeActive() ? "true" : "false");
     }
   }
 
@@ -3397,6 +3425,7 @@
   }
 
   function renderView() {
+    if (state.view === "service") return renderServiceMode();
     if (state.view === "index") return renderIndex();
     if (state.view === "search") return renderSearch();
     if (state.view === "song") return renderSong();
@@ -3475,6 +3504,7 @@
           <div class="button-row">
             <button class="action-button" type="button" data-command="present-current">${escapeHtml(t("common.present"))}</button>
             <button class="secondary-button" type="button" data-view="builder">${escapeHtml(t("home.worshipBuilderBtn"))}</button>
+            <button class="secondary-button service-touch-btn" type="button" data-command="service-mode-enter">Enter Service Mode</button>
           </div>
         </aside>
       </div>
@@ -4922,6 +4952,7 @@
           <p class="muted">${nextInfo ? escapeHtml(t("presenter.next", { title: slotTitle(nextInfo.slot) })) : escapeHtml(t("presenter.nextNone"))}</p>
           <div class="button-row">
             <button class="action-button" type="button" data-command="present-current">${escapeHtml(t("presenter.presentCurrent"))}${helpTrigger("send-live", "Present Current")}</button>
+            <button class="secondary-button service-touch-btn" type="button" data-command="service-mode-enter">Enter Service Mode</button>
             <button class="secondary-button" type="button" data-command="presenter-open-output">${escapeHtml(t("presenter.openProjector"))}</button>
             <button class="secondary-button" type="button" data-command="help-open-emergency">${escapeHtml(t("presenter.emergencyHelp"))}</button>
             <button class="secondary-button" type="button" data-command="emergency-clear">${escapeHtml(t("common.clear"))}${helpTrigger("clear", "Clear")}</button>
@@ -6028,7 +6059,11 @@
     }
     if (command.startsWith("view:")) {
       const view = command.slice(5);
-      if (navItems.some((item) => item.id === view)) {
+      if (navItems.some((item) => item.id === view) || view === "service") {
+        if (isServiceModeActive() && !isServiceModeViewAllowed(view)) {
+          setNotice("That screen is hidden during Service Mode.");
+          return;
+        }
         state.view = view;
         saveValue("view", view);
         render();
@@ -6110,6 +6145,10 @@
 
     const view = target.dataset.view;
     if (view) {
+      if (isServiceModeActive() && !isServiceModeViewAllowed(view)) {
+        setNotice("That screen is hidden during Service Mode. Exit Service Mode for administrative tasks.");
+        return;
+      }
       state.view = view;
       if (view === "help") resetHelpNav();
       saveValue("view", view);
@@ -6327,6 +6366,7 @@
 
   function handleCommand(command, target) {
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     if (command && window.CISLiveLockService) {
       if (window.CISLiveLockService.isCommandBlocked(command)) {
@@ -6341,11 +6381,16 @@
         return;
       }
     }
+=======
+>>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
     if (command && window.CISServiceModeService && !window.CISServiceModeService.isCommandAllowed(command)) {
       setNotice("That action is hidden during Service Mode. Exit Service Mode for administrative tasks.");
       return;
     }
+<<<<<<< HEAD
 >>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
+=======
+>>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
     const slotIndex = Number(target.dataset.slot);
     const serviceSlotIndex = Number(target.dataset.serviceSlot);
     if (command && command.startsWith("hymn-")) {
@@ -6723,6 +6768,7 @@
       return;
     }
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     if (command === "service-mode-enter") return enterServiceMode();
     if (command === "live-lock-enable") {
@@ -6754,6 +6800,9 @@
       renderLiveLockStrip();
       return;
     }
+=======
+    if (command === "service-mode-enter") return enterServiceMode();
+>>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
     if (command === "service-mode-exit") return exitServiceMode();
     if (command === "service-mode-confirm-restore") {
       if (window.CISServiceModeService) window.CISServiceModeService.confirmSessionRestore();
@@ -6769,7 +6818,10 @@
       render();
       return;
     }
+<<<<<<< HEAD
 >>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
+=======
+>>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
     if (command === "present-song") return openPresenter(selectedSong(), null);
     if (command === "present-current" || command === "open-presenter") return presentCurrent();
     if (command === "presenter-next") return presenterMove(1);
@@ -7283,11 +7335,15 @@
   setupHymnalLibrary();
   setupLiveHymnQueue();
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
   setupServiceMode();
   setupLiveSwitch();
   setupLiveLock();
 >>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
+=======
+  setupServiceMode();
+>>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
 
   Promise.all([loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(async () => {
     migrateLegacySongKeys();

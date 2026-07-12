@@ -127,7 +127,11 @@ function run() {
   assert.match(indexHtml, /service-mode-service\.js/);
   assert.match(indexHtml, /service-mode-ui\.js/);
   assert.match(indexHtml, /topbarServiceModeBtn/);
+<<<<<<< HEAD
   assert.match(indexHtml, /styles\.css\?v=37/);
+=======
+  assert.match(indexHtml, /styles\.css\?v=36/);
+>>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
 
   const styles = read("app/styles.css");
   assert.match(styles, /\.service-mode-trio/);
@@ -136,7 +140,11 @@ function run() {
   assert.match(styles, /body\.service-mode-active/);
 
   const sw = read("app/sw.js");
+<<<<<<< HEAD
   assert.match(sw, /christ-in-song-worship-v37/);
+=======
+  assert.match(sw, /christ-in-song-worship-v36/);
+>>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
   assert.match(sw, /service-mode-service\.js/);
 
   const pkg = JSON.parse(read("package.json"));

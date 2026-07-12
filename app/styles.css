@@ -6558,7 +6558,10 @@ body.presenter-live .sidebar {
   margin: 0.5rem 0;
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
 
 /* Service Mode */
 body.service-mode-active .sidebar-actions .icon-button[data-command="emergency-white"] {
@@ -6824,6 +6827,7 @@ body.service-mode-active .language-toolbar {
     flex: 1 1 100%;
   }
 }
+<<<<<<< HEAD
 
 .live-lock-root {
   display: flex;
@@ -6850,3 +6854,5 @@ body.service-mode-active .language-toolbar {
   font-size: 0.95rem;
 }
 >>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
+=======
+>>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
