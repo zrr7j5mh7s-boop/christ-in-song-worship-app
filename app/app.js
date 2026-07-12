@@ -1551,6 +1551,7 @@
     bindBackupSettings();
     bindHelpCentre();
     renderHelpContextOverlay();
+    if (state.view === "presenter" || state.view === "settings") bindObsProgramMonitor();
     document.body.classList.add("app-ready");
   }
 
@@ -2554,6 +2555,8 @@
         item,
       ).catch(() => {});
     }
+    publishObsMonitorWorshipContext();
+    if (state.view === "presenter") renderObsProgramMonitor();
   }
 
   function setupPresenterSystem() {
@@ -2902,12 +2905,14 @@
     if (window.CISObsControlUI) {
       window.CISObsControlUI.configure({ escapeHtml, helpTrigger });
     }
+    setupObsProgramMonitor();
     if (window.CISObsEventService) {
       window.CISObsEventService.subscribe(() => {
         renderObsTopbar();
         refreshObsBrowserUrls().then(() => {
           if (state.view === "settings" || state.view === "presenter") render();
         });
+        if (state.view === "presenter" || state.view === "settings") renderObsProgramMonitor();
       });
     }
     window.CISObsConnectionService.init().then(async () => {
@@ -2924,6 +2929,87 @@
     }).catch(() => {
       renderObsTopbar();
     });
+  }
+
+  function getObsMonitorWorshipContext() {
+    const engineState = window.CISPresenterEngine ? window.CISPresenterEngine.getState() : {};
+    const snapshot = window.CISPresenterEngine ? window.CISPresenterEngine.buildSnapshot() : null;
+    if (!window.CISObsProgramMonitor) {
+      return { worshipPreview: "—", worshipLive: "—", worshipLiveActive: false };
+    }
+    return window.CISObsProgramMonitor.getWorshipOutputLabels(engineState, snapshot);
+  }
+
+  function publishObsMonitorWorshipContext() {
+    const context = getObsMonitorWorshipContext();
+    if (desktopBridge && desktopBridge.obsMonitor && desktopBridge.obsMonitor.setWorshipContext) {
+      desktopBridge.obsMonitor.setWorshipContext(context);
+    }
+    return context;
+  }
+
+  function renderObsProgramMonitor() {
+    const mount = document.getElementById("obsProgramMonitorMount");
+    if (!mount || !window.CISObsProgramMonitorUI || !window.CISObsProgramMonitor) return;
+    const obsSettings = window.CISObsSettingsStore ? window.CISObsSettingsStore.loadSettings() : { enabled: false };
+    if (!obsSettings.enabled) {
+      mount.innerHTML = "";
+      return;
+    }
+    window.CISObsProgramMonitorUI.configure({
+      escapeHtml,
+      getWorshipContext: getObsMonitorWorshipContext,
+    });
+    window.CISObsProgramMonitorUI.render(mount, window.CISObsProgramMonitor.getState());
+  }
+
+  function bindObsProgramMonitor() {
+    renderObsProgramMonitor();
+    const deviceSelect = document.getElementById("obsMonitorDeviceSelect");
+    if (deviceSelect && !deviceSelect.dataset.bound) {
+      deviceSelect.dataset.bound = "1";
+      deviceSelect.addEventListener("change", () => {
+        const option = deviceSelect.selectedOptions[0];
+        window.CISObsProgramMonitor.setDevice(deviceSelect.value, option?.dataset?.label || option?.textContent || "");
+      });
+    }
+    const layoutSelect = document.getElementById("obsMonitorLayoutSelect");
+    if (layoutSelect && !layoutSelect.dataset.bound) {
+      layoutSelect.dataset.bound = "1";
+      layoutSelect.addEventListener("change", () => {
+        window.CISObsProgramMonitor.setLayout(layoutSelect.value);
+        render();
+      });
+    }
+    const viewerUrl = document.getElementById("obsViewerReturnUrl");
+    if (viewerUrl && !viewerUrl.dataset.bound) {
+      viewerUrl.dataset.bound = "1";
+      viewerUrl.addEventListener("change", () => {
+        window.CISObsProgramMonitor.setViewerReturnUrl(viewerUrl.value);
+        renderObsProgramMonitor();
+      });
+    }
+  }
+
+  function setupObsProgramMonitor() {
+    if (!window.CISObsProgramMonitor) return;
+    if (window.CISObsProgramMonitor._appBound) return;
+    window.CISObsProgramMonitor._appBound = true;
+    window.CISObsProgramMonitor.subscribe(() => {
+      if (state.view === "presenter" || state.view === "settings") renderObsProgramMonitor();
+    });
+    if (desktopBridge && desktopBridge.obsMonitor && desktopBridge.obsMonitor.onClosed) {
+      desktopBridge.obsMonitor.onClosed(() => {
+        window.CISObsProgramMonitor.setDetached(false);
+        if (state.view === "presenter" || state.view === "settings") render();
+      });
+    }
+    if (desktopBridge && desktopBridge.obsMonitor && desktopBridge.obsMonitor.onStopped) {
+      desktopBridge.obsMonitor.onStopped(() => {
+        window.CISObsProgramMonitor.stopMonitor();
+        if (state.view === "presenter" || state.view === "settings") render();
+      });
+    }
   }
 
   function startPresenterSession(patch) {
@@ -3013,6 +3099,7 @@
           </div>
         </aside>
       </div>
+      <div id="obsProgramMonitorMount" class="obs-program-monitor-mount"></div>
     `;
   }
 
@@ -3153,7 +3240,7 @@
     const controlPanel = window.CISObsControlUI
       ? window.CISObsControlUI.renderControlPanel(status)
       : "";
-    return `${window.CISObsSettingsUI.renderSettingsPanel(status, settings)}${scenePanel}${sourcePanel}${setupGuide}${controlPanel}`;
+    return `${window.CISObsSettingsUI.renderSettingsPanel(status, settings)}${scenePanel}${sourcePanel}${setupGuide}${controlPanel}<div id="obsProgramMonitorMount" class="obs-program-monitor-mount"></div>`;
   }
 
   function renderAwaitingPack(pack) {
@@ -4608,6 +4695,82 @@
       window.CISObsOutputService.clearWorshipOverlays()
         .then(() => setNotice("Worship overlays cleared on OBS."))
         .catch((error) => setNotice(error?.message || "Failed to clear overlays."));
+      return;
+    }
+    if (command === "obs-monitor-start" && window.CISObsProgramMonitor) {
+      const monitor = window.CISObsProgramMonitor.getState();
+      window.CISObsProgramMonitor.startMonitor({
+        deviceId: monitor.deviceId,
+        allowSnapshotFallback: true,
+      })
+        .then((result) => setNotice(result.mode === "snapshot" ? "OBS Snapshot Preview started." : "OBS Program Monitor started."))
+        .catch((error) => setNotice(error?.message || "Failed to start OBS Program Monitor."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-stop" && window.CISObsProgramMonitor) {
+      window.CISObsProgramMonitor.stopMonitor()
+        .then(() => setNotice("OBS Program Monitor stopped."))
+        .catch((error) => setNotice(error?.message || "Failed to stop monitor."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-refresh-devices" && window.CISObsProgramMonitor) {
+      window.CISObsProgramMonitor.refreshDevices()
+        .then(() => setNotice("Video devices refreshed."))
+        .catch((error) => setNotice(error?.message || "Failed to refresh devices."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-start-vcam" && window.CISObsControlService) {
+      window.CISObsControlService.startVirtualCamera()
+        .then(() => { setNotice("OBS Virtual Camera started."); render(); })
+        .catch((error) => setNotice(error?.message || "Virtual Camera unavailable or failed."));
+      return;
+    }
+    if (command === "obs-monitor-stop-vcam" && window.CISObsControlService) {
+      window.CISObsControlService.stopVirtualCamera()
+        .then(() => { setNotice("OBS Virtual Camera stopped."); render(); })
+        .catch((error) => setNotice(error?.message || "Failed to stop Virtual Camera."));
+      return;
+    }
+    if (command === "obs-monitor-fullscreen") {
+      const viewport = document.getElementById("obsProgramMonitorViewport");
+      if (viewport && viewport.requestFullscreen) {
+        viewport.requestFullscreen().catch(() => setNotice("Fullscreen is not available."));
+      }
+      return;
+    }
+    if (command === "obs-monitor-detach" && window.CISObsProgramMonitor) {
+      if (!desktopBridge || !desktopBridge.obsMonitor || !desktopBridge.obsMonitor.open) {
+        setNotice("Detach Monitor requires the Electron desktop app.");
+        return;
+      }
+      const monitor = window.CISObsProgramMonitor.getState();
+      publishObsMonitorWorshipContext();
+      window.CISObsProgramMonitor.stopMonitor().finally(() => {
+        window.CISObsProgramMonitor.setDetached(true);
+        desktopBridge.obsMonitor.open({
+          deviceId: monitor.deviceId,
+          deviceLabel: monitor.deviceLabel,
+          worshipContext: getObsMonitorWorshipContext(),
+        });
+        render();
+        setNotice("OBS Program Monitor detached to always-on-top window.");
+      });
+      return;
+    }
+    if (command === "obs-monitor-reconnect" && window.CISObsConnectionService) {
+      window.CISObsConnectionService.connect()
+        .then(() => setNotice("Reconnecting to OBS…"))
+        .catch((error) => setNotice(error?.message || "OBS reconnect failed."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-open-settings") {
+      state.view = "settings";
+      saveValue("view", state.view);
+      render();
       return;
     }
     if ((command === "obs-show-source" || command === "obs-hide-source") && window.CISObsSourceService) {
