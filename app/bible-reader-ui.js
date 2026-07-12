@@ -136,7 +136,7 @@
     if (!root || !handlers) return;
     root.querySelectorAll("[data-bible-command]").forEach((element) => {
       const command = element.dataset.bibleCommand;
-      if (command === "set-book" || command === "set-translation") {
+      if (command === "set-book") {
         element.addEventListener("change", () => handlers.handleCommand(command, element));
         return;
       }

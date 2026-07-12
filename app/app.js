@@ -61,6 +61,7 @@
     { id: "home", label: "Home Dashboard", icon: "⌂" },
     { id: "index", label: "Hymn Index", icon: "☰" },
     { id: "search", label: "Search", icon: "⌕" },
+    { id: "bible", label: "Bible", icon: "✞" },
     { id: "builder", label: "Worship Builder", icon: "+" },
     { id: "presenter", label: "Presenter", icon: "▶" },
     { id: "favorites", label: "Favorites", icon: "★" },
@@ -93,6 +94,8 @@
   let embeddedProjectorActive = false;
   let uiLocaleMenuOpen = false;
   let hymnPackMenuOpen = false;
+  let bibleReaderState = { loading: false, error: "", bookPayload: null, chapterPayload: null };
+  let bibleLoadedKey = "";
 
   const state = {
     view: initialView,
@@ -137,6 +140,10 @@
       contextKey: "",
       history: [],
     },
+    bibleTranslation: loadValue("bibleTranslation", "KJV"),
+    bibleBookOrder: Number(loadValue("bibleBookOrder", 43)) || 43,
+    bibleChapter: Number(loadValue("bibleChapter", 1)) || 1,
+    bibleVerse: Number(loadValue("bibleVerse", 0)) || 0,
   };
 
   let favorites = new Set(loadJson("favorites", []));
@@ -396,6 +403,177 @@
     audioDockState = { currentTime: 0 };
     paintAudioDock(true);
     setNotice(t("notice.audioRemoved", { number: song.number }));
+  }
+
+  function setupBible() {
+    if (!window.CISBibleReaderUI || !window.CISBibleStore) return;
+    window.CISBibleReaderUI.configure({ escapeHtml });
+  }
+
+  function bibleCacheKey() {
+    return `${state.bibleTranslation}:${state.bibleBookOrder}:${state.bibleChapter}`;
+  }
+
+  function renderBibleShell() {
+    if (!window.CISBibleReaderUI || !window.CISBibleStore) {
+      return `<section class="section"><p class="muted">Bible reader failed to load.</p></section>`;
+    }
+    const store = window.CISBibleStore;
+    return `
+      <div id="bibleReaderRoot">
+        ${window.CISBibleReaderUI.renderReader({
+          translations: store.getTranslations(),
+          books: store.getBooks(),
+          translationCode: state.bibleTranslation,
+          bookOrder: state.bibleBookOrder,
+          chapterNumber: state.bibleChapter,
+          bookPayload: bibleReaderState.bookPayload,
+          chapterPayload: bibleReaderState.chapterPayload,
+          highlightVerse: state.bibleVerse,
+          loading: bibleReaderState.loading,
+          error: bibleReaderState.error,
+          translationMeta: store.getTranslationMeta(state.bibleTranslation),
+          bookMeta: store.getBookMeta(state.bibleBookOrder),
+        })}
+      </div>
+    `;
+  }
+
+  function paintBibleReader() {
+    const root = document.getElementById("bibleReaderRoot");
+    if (!root || state.view !== "bible" || !window.CISBibleReaderUI) return;
+    root.innerHTML = window.CISBibleReaderUI.renderReader({
+      translations: window.CISBibleStore.getTranslations(),
+      books: window.CISBibleStore.getBooks(),
+      translationCode: state.bibleTranslation,
+      bookOrder: state.bibleBookOrder,
+      chapterNumber: state.bibleChapter,
+      bookPayload: bibleReaderState.bookPayload,
+      chapterPayload: bibleReaderState.chapterPayload,
+      highlightVerse: state.bibleVerse,
+      loading: bibleReaderState.loading,
+      error: bibleReaderState.error,
+      translationMeta: window.CISBibleStore.getTranslationMeta(state.bibleTranslation),
+      bookMeta: window.CISBibleStore.getBookMeta(state.bibleBookOrder),
+    });
+    bindBibleHandlers(root);
+  }
+
+  async function loadBibleChapter() {
+    if (!window.CISBibleStore) return;
+    bibleReaderState.loading = true;
+    bibleReaderState.error = "";
+    paintBibleReader();
+    try {
+      const payload = await window.CISBibleStore.loadBook(state.bibleTranslation, state.bibleBookOrder);
+      bibleReaderState.bookPayload = payload;
+      let chapter = window.CISBibleStore.getChapter(payload, state.bibleChapter);
+      if (!chapter) {
+        state.bibleChapter = 1;
+        saveValue("bibleChapter", state.bibleChapter);
+        chapter = window.CISBibleStore.getChapter(payload, 1);
+      }
+      bibleReaderState.chapterPayload = chapter;
+      bibleLoadedKey = bibleCacheKey();
+    } catch (error) {
+      bibleReaderState.error = (error && error.message) ? error.message : "Could not load Bible text.";
+      bibleReaderState.bookPayload = null;
+      bibleReaderState.chapterPayload = null;
+    } finally {
+      bibleReaderState.loading = false;
+      paintBibleReader();
+      if (state.bibleVerse) {
+        const verseEl = document.getElementById(`verse-${state.bibleVerse}`);
+        if (verseEl) verseEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }
+
+  function changeBibleChapter(delta) {
+    if (!window.CISBibleStore) return;
+    const count = window.CISBibleStore.chapterCount(state.bibleBookOrder);
+    const next = Math.max(1, Math.min(count, state.bibleChapter + delta));
+    if (next === state.bibleChapter) return;
+    state.bibleChapter = next;
+    state.bibleVerse = 0;
+    saveValue("bibleChapter", state.bibleChapter);
+    saveValue("bibleVerse", state.bibleVerse);
+    bibleLoadedKey = "";
+    loadBibleChapter();
+  }
+
+  function bindBibleHandlers(root) {
+    if (!root || !window.CISBibleReaderUI) return;
+    window.CISBibleReaderUI.bindReader(root, {
+      handleCommand(command, element) {
+        if (command === "set-translation") {
+          state.bibleTranslation = element.dataset.translation || element.value;
+          saveValue("bibleTranslation", state.bibleTranslation);
+          state.bibleVerse = 0;
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "set-book") {
+          state.bibleBookOrder = Number(element.value);
+          state.bibleChapter = 1;
+          state.bibleVerse = 0;
+          saveValue("bibleBookOrder", state.bibleBookOrder);
+          saveValue("bibleChapter", state.bibleChapter);
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "set-chapter") {
+          state.bibleChapter = Number(element.dataset.chapter);
+          state.bibleVerse = 0;
+          saveValue("bibleChapter", state.bibleChapter);
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "prev-chapter") return changeBibleChapter(-1);
+        if (command === "next-chapter") return changeBibleChapter(1);
+        if (command === "jump") {
+          const input = root.querySelector("[data-bible-command='jump-input']");
+          const ref = window.CISBibleStore.parseReference(input ? input.value : "");
+          if (!ref) {
+            setNotice("Enter a reference like John 3 or John 3:16.");
+            return;
+          }
+          state.bibleBookOrder = ref.bookOrder;
+          state.bibleChapter = ref.chapter;
+          state.bibleVerse = ref.verse || 0;
+          saveValue("bibleBookOrder", state.bibleBookOrder);
+          saveValue("bibleChapter", state.bibleChapter);
+          saveValue("bibleVerse", state.bibleVerse);
+          bibleLoadedKey = "";
+          loadBibleChapter();
+          return;
+        }
+        if (command === "copy-reference") {
+          const text = window.CISBibleStore.formatReference(state.bibleBookOrder, state.bibleChapter, state.bibleVerse || null);
+          if (navigator.clipboard && text) {
+            navigator.clipboard.writeText(text).then(() => setNotice(`Copied ${text}.`)).catch(() => setNotice(text));
+          } else if (text) {
+            setNotice(text);
+          }
+        }
+      },
+    });
+  }
+
+  async function bindBible() {
+    if (state.view !== "bible") return;
+    const root = document.getElementById("bibleReaderRoot");
+    if (!root) return;
+    bindBibleHandlers(root);
+    if (bibleLoadedKey !== bibleCacheKey() || !bibleReaderState.chapterPayload) {
+      await loadBibleChapter();
+    }
   }
 
   function setupSearchEngine() {
@@ -753,6 +931,10 @@
     if (state.view === "song") {
       const song = selectedSong();
       return song ? `${t("nav.song")} ${song.number}` : t("nav.song");
+    }
+    if (state.view === "bible" && window.CISBibleStore) {
+      const meta = window.CISBibleStore.getBookMeta(state.bibleBookOrder);
+      return meta ? `${meta.name} ${state.bibleChapter}` : navLabel("bible");
     }
     const item = navItems.find((nav) => nav.id === state.view);
     return item ? navLabel(item.id) : navLabel("home");
@@ -1352,6 +1534,7 @@
     if (state.view === "builder") bindBuilderInteractions();
     bindGlobalSearch();
     bindHymnAudio();
+    bindBible();
     bindBackupSettings();
     bindHelpCentre();
     renderHelpContextOverlay();
@@ -1505,6 +1688,7 @@
     if (state.view === "builder") return renderBuilder();
     if (state.view === "presenter") return renderPresenterDashboard();
     if (state.view === "favorites") return renderFavorites();
+    if (state.view === "bible") return renderBibleShell();
     if (state.view === "help") return renderHelpCentre();
     if (state.view === "settings") return renderSettings();
     return renderHome();
@@ -1553,6 +1737,7 @@
           <div class="command-grid">
             ${commandCard("index", "☰", t("home.hymnIndex"), t("home.hymnIndexDetail"))}
             ${commandCard("search", "⌕", t("home.searchCentre"), t("home.searchCentreDetail"))}
+            ${commandCard("bible", "✞", t("home.bible"), t("home.bibleDetail"))}
             ${commandCard("builder", "+", t("home.worshipBuilder"), t("home.worshipBuilderDetail"))}
             ${commandCard("favorites", "★", t("home.favorites"), t("home.favoritesDetail"))}
             ${commandCard("presenter", "▶", t("home.presenterDashboard"), t("home.presenterDashboardDetail"))}
@@ -4495,6 +4680,7 @@
   setupBulletinExport();
   setupSearchEngine();
   setupHymnAudio();
+  setupBible();
 
   Promise.all([loadImportedLanguagePacks(), loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(async () => {
     if (window.CISLazyLoader && window.CISLazyLoader.isPackDeferred(state.languageCode)) {
