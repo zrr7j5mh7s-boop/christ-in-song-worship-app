@@ -29,6 +29,17 @@
   --radius: 10px;
   --radius-sm: 8px;
   --stage-font: 42px;
+  --btn-height: 40px;
+  --btn-height-touch: 44px;
+  --panel-padding: 18px;
+  --panel-gap: 14px;
+  --icon-size: 18px;
+  --focus-ring: 0 0 0 3px rgba(201, 162, 39, 0.35);
+  --panel-bg: var(--surface);
+  --panel-border: var(--line);
+  --status-ready: var(--green);
+  --status-warning: #b45309;
+  --status-off: var(--muted);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--cream-soft);
   color: var(--text);
@@ -1110,9 +1121,32 @@ mark {
   background: #f3f6f2;
 }
 
-.secondary-button:hover {
-  border-color: var(--line-strong);
-  background: #f3f6f2;
+.safety-button {
+  min-height: var(--btn-height);
+  padding: 0 13px;
+  border: 1px solid color-mix(in srgb, var(--wine) 35%, var(--line));
+  border-radius: var(--radius);
+  background: #fff8f6;
+  color: var(--wine);
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.safety-button:hover {
+  background: #fdeeed;
+  border-color: var(--wine);
+}
+
+.safety-button:disabled,
+.action-button:disabled,
+.secondary-button:disabled,
+.danger-button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .secondary-button.active {
@@ -6858,5 +6892,243 @@ body.service-mode-active .language-toolbar {
 }
 
 .live-lock-badge {
-  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  color: var(--status-warning);
+}
+
+.live-lock-badge .ui-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* UX consistency layer */
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.ui-icon {
+  display: inline-block;
+  vertical-align: -0.15em;
+  flex-shrink: 0;
+}
+
+.rail-btn .ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.operator-status-root {
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.operator-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 30px 10px;
+  overflow-x: auto;
+}
+
+.operator-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--cream-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.operator-status-pill.is-ready {
+  border-color: color-mix(in srgb, var(--status-ready) 35%, var(--line));
+  background: color-mix(in srgb, var(--status-ready) 8%, #fff);
+}
+
+.operator-status-pill.is-ready .operator-status-value {
+  color: var(--status-ready);
+}
+
+.operator-status-pill.is-warning {
+  border-color: color-mix(in srgb, var(--status-warning) 35%, var(--line));
+  background: color-mix(in srgb, var(--status-warning) 8%, #fff);
+}
+
+.operator-status-pill.is-warning .operator-status-value {
+  color: var(--status-warning);
+}
+
+.operator-status-pill.is-off {
+  color: var(--muted);
+}
+
+.operator-status-label {
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.operator-status-value {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.operator-primary-actions {
+  margin-bottom: 4px;
+}
+
+.operator-secondary-actions,
+.operator-safety-actions {
+  margin-top: 4px;
+}
+
+.operator-safety-actions .safety-button,
+.service-emergency-btn {
+  min-height: var(--btn-height-touch);
+}
+
+.section,
+.service-mode-panel,
+.live-hymn-panel,
+.preview-card,
+.timer-card {
+  padding: var(--panel-padding);
+}
+
+.hymn-card-title,
+.hymn-list-title,
+.search-result-title,
+.ttile {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.hymn-card-tags {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.hymn-card-tags .song-tag-chip {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(228, 197, 104, 0.35);
+  color: var(--gold-light);
+}
+
+.bible-search-result {
+  padding: var(--panel-padding);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.bible-search-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.empty-state {
+  padding: 22px 18px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--cream-soft);
+  color: var(--muted);
+  text-align: center;
+}
+
+.service-mode-panel,
+.live-hymn-panel {
+  border-color: var(--panel-border);
+  background: var(--panel-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.service-mode-panel-live {
+  border-color: color-mix(in srgb, var(--navy) 25%, var(--line));
+  box-shadow: inset 4px 0 0 var(--navy);
+}
+
+.service-mode-panel-next {
+  border-color: color-mix(in srgb, var(--green) 25%, var(--line));
+  box-shadow: inset 4px 0 0 var(--green);
+}
+
+.service-mode-type-badge,
+.service-readiness {
+  background: var(--cream);
+  color: var(--ink-soft);
+}
+
+.hymn-index-card:hover,
+.hymn-index-card:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.hymn-queue-actions .action-button:only-child,
+.button-row > .action-button:only-of-type {
+  box-shadow: none;
+}
+
+.service-touch-btn {
+  min-height: var(--btn-height-touch);
+  min-width: var(--btn-height-touch);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .hymn-index-card:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .operator-status-strip {
+    padding-inline: 16px;
+  }
+
+  .topbar-tools {
+    flex-wrap: wrap;
+  }
+
+  .button-row {
+    gap: 6px;
+  }
 }

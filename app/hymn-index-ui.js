@@ -213,7 +213,7 @@
         data-song="${escapeHtml(song.number)}"${langAttr}
         aria-label="${escapeHtml(hymnAriaLabel(song, showTitles))}"
       >
-        ${showFav ? '<span class="hymn-card-fav" aria-label="Favourite">★</span>' : ""}
+        ${showFav ? `<span class="hymn-card-fav" aria-label="Favourite">${window.CISUiIcons ? window.CISUiIcons.get("star") : "★"}</span>` : ""}
         <span class="hymn-card-number">${escapeHtml(song.number)}</span>
         ${showTitles ? `<span class="hymn-card-title">${escapeHtml(song.title)}</span>` : ""}
         ${renderTags(tags, ctx.showCategories)}
@@ -244,7 +244,7 @@
         <span class="hymn-list-number">${escapeHtml(song.number)}</span>
         ${showTitles ? `<span class="hymn-list-title">${escapeHtml(song.title)}</span>` : ""}
         ${ctx.showCategories !== false && tags ? `<span class="hymn-list-tags">${tags}</span>` : ""}
-        ${showFav ? `<span class="hymn-list-fav" aria-label="${starred ? "Favourite" : "Not a favourite"}">${starred ? "★" : ""}</span>` : ""}
+        ${showFav ? `<span class="hymn-list-fav" aria-label="${starred ? "Favourite" : "Not a favourite"}">${starred ? (window.CISUiIcons ? window.CISUiIcons.get("star") : "★") : ""}</span>` : ""}
         <span class="hymn-list-action muted">Open</span>
       </button>
       ${actions}

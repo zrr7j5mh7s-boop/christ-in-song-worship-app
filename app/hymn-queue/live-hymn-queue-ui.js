@@ -25,7 +25,7 @@
         <button class="secondary-button" type="button" data-command="hymn-preview" data-song-key="${escapeHtml(songKey)}">Preview</button>
         <button class="secondary-button" type="button" data-command="hymn-set-next" data-song-key="${escapeHtml(songKey)}">Set as Next</button>
         <button class="secondary-button" type="button" data-command="hymn-add-queue" data-song-key="${escapeHtml(songKey)}">Add to Queue</button>
-        <button class="secondary-button" type="button" data-command="hymn-send-live" data-song-key="${escapeHtml(songKey)}">Send Live</button>
+              <button class="secondary-button" type="button" data-command="hymn-send-live" data-song-key="${escapeHtml(songKey)}">Send Live</button>
       </div>
     `;
   }
@@ -75,7 +75,7 @@
             <div class="button-row">
               <button class="secondary-button" type="button" data-command="presenter-prev">Previous Stanza</button>
               <button class="secondary-button" type="button" data-command="presenter-next">Next Stanza</button>
-              <button class="secondary-button" type="button" data-command="emergency-clear">Clear Hymn</button>
+              <button class="secondary-button" type="button" data-command="emergency-clear">Clear</button>
             </div>
           `
     : `<p class="muted">No hymn is currently Live.</p>`}
