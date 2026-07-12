@@ -7835,3 +7835,53 @@ body.quiet-service-mode-active .launch-splash {
   margin-bottom: 1rem;
 }
 
+.session-recovery-modal {
+  max-width: 720px;
+}
+
+.session-recovery-modal.wide {
+  max-width: 960px;
+}
+
+.session-recovery-summary {
+  display: grid;
+  gap: 0.85rem;
+  margin: 1rem 0;
+}
+
+.session-recovery-summary .eyebrow {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.session-recovery-warning,
+.session-recovery-warning-list {
+  color: #b45309;
+}
+
+.session-recovery-review-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.session-recovery-review-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.session-recovery-review-item.missing {
+  border-left: 3px solid #d97706;
+  padding-left: 0.55rem;
+}
+
+.session-recovery-output-options {
+  margin: 1rem 0;
+  border: 1px solid var(--line, #d8dde8);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+

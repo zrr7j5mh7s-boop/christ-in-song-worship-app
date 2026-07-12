@@ -127,7 +127,7 @@ function run() {
   assert.match(indexHtml, /service-mode-service\.js/);
   assert.match(indexHtml, /service-mode-ui\.js/);
   assert.match(indexHtml, /topbarServiceModeBtn/);
-  assert.match(indexHtml, /styles\.css\?v=44/);
+  assert.match(indexHtml, /styles\.css\?v=45/);
 
   const styles = read("app/styles.css");
   assert.match(styles, /\.service-mode-trio/);
@@ -136,7 +136,7 @@ function run() {
   assert.match(styles, /body\.service-mode-active/);
 
   const sw = read("app/sw.js");
-  assert.match(sw, /christ-in-song-worship-v44/);
+  assert.match(sw, /christ-in-song-worship-v45/);
   assert.match(sw, /service-mode-service\.js/);
 
   const pkg = JSON.parse(read("package.json"));
