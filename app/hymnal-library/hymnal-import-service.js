@@ -80,6 +80,7 @@
         sourceFileName: pack.source,
         hymnBookId: createNewBook ? (options.newHymnBookId || window.CISHymnalMigration.slug(hymnBookTitle || pack.name)) : (hymnBookId || meta.hymnBookId),
         hymnBookTitle: createNewBook ? hymnBookTitle : undefined,
+        createNewBook,
         languageCode: meta.languageCode,
         languageName: meta.languageName,
         nativeLanguageName: meta.nativeLanguageName,
