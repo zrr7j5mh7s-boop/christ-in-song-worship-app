@@ -12,7 +12,7 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=32">
+    <link rel="stylesheet" href="./styles.css?v=31">
   </head>
   <body>
     <div id="launchSplash" class="launch-splash" aria-hidden="true">
@@ -50,8 +50,7 @@
             <div id="obsStatusRoot" class="obs-status-root" aria-live="polite"></div>
             <div id="languageToolbar" class="language-toolbar">
               <div id="uiLocaleSwitcher" class="ui-locale-switcher"></div>
-              <div id="hymnBookSwitcher" class="hymn-book-switcher"></div>
-              <div id="hymnEditionSwitcher" class="hymn-edition-switcher"></div>
+              <div id="hymnPackSwitcher" class="hymn-pack-switcher"></div>
             </div>
             <button class="tool-button" type="button" data-command="open-presenter" id="topbarPresenterBtn">Presenter</button>
             <button class="tool-button help-emergency-chip" type="button" data-command="help-open-emergency" title="Emergency Help" id="topbarEmergencyBtn">Emergency</button>
@@ -77,14 +76,8 @@
     <script src="./service-templates.js?v=2"></script>
     <script src="./template-store.js?v=1"></script>
     <script src="./template-ui.js?v=2"></script>
-    <script src="./hymnal-library/hymnal-migration.js?v=2"></script>
-    <script src="./hymnal-library/hymnal-library-settings.js?v=2"></script>
-    <script src="./hymnal-library/hymnal-library-store.js?v=2"></script>
-    <script src="./hymnal-library/hymnal-import-service.js?v=2"></script>
-    <script src="./hymnal-library/hymnal-deletion-service.js?v=1"></script>
-    <script src="./hymnal-library/hymnal-library-ui.js?v=2"></script>
-    <script src="./pack-store.js?v=2"></script>
-    <script src="./pack-import.js?v=2"></script>
+    <script src="./pack-store.js?v=1"></script>
+    <script src="./pack-import.js?v=1"></script>
     <script src="./tag-catalog.js?v=1"></script>
     <script src="./song-tags-store.js?v=1"></script>
     <script src="./song-tags-ui.js?v=1"></script>
@@ -145,7 +138,7 @@
     <script src="./i18n/i18n-catalog.js?v=1"></script>
     <script src="./i18n/i18n-store.js?v=1"></script>
     <script src="./i18n/i18n.js?v=1"></script>
-    <script src="./app.js?v=32"></script>
+    <script src="./app.js?v=30"></script>
     <script>
       if ("serviceWorker" in navigator && !window.electronAPI) {
         window.addEventListener("load", () => {

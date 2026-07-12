@@ -4264,6 +4264,184 @@ body.presenter-live .sidebar {
   margin: 0;
 }
 
+.bible-mode-tabs,
+.bible-live-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bible-live-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.bible-live-workspace.sermon-mode #bibleLiveReferenceInput {
+  font-size: 1.35rem;
+  padding: 14px 16px;
+}
+
+.bible-live-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.bible-live-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) auto minmax(140px, 1fr) minmax(140px, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.bible-live-field {
+  display: grid;
+  gap: 6px;
+  font-size: 0.92rem;
+}
+
+.bible-live-field-wide {
+  grid-column: span 1;
+}
+
+.bible-live-field input,
+.bible-live-field select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.bible-live-passage {
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.bible-live-passage-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.bible-live-passage-head h3 {
+  margin: 0;
+}
+
+.bible-live-translation-badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef6f0;
+  color: var(--green);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.bible-live-verse-text {
+  font-family: var(--serif, Georgia, serif);
+  font-size: 1.08rem;
+  line-height: 1.55;
+}
+
+.bible-live-actions,
+.bible-live-secondary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bible-live-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bible-suggestion-chip {
+  font-size: 0.88rem;
+}
+
+.bible-live-error {
+  color: #9b2c2c;
+  background: #fff5f5;
+  border: 1px solid #f3c1c1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0;
+}
+
+.bible-live-status {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f4f7f1;
+  border: 1px solid var(--line);
+}
+
+.bible-live-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.bible-live-status-label {
+  color: var(--muted);
+  min-width: 120px;
+}
+
+.bible-live-search-results,
+.bible-live-history {
+  display: grid;
+  gap: 10px;
+}
+
+.bible-search-result,
+.bible-history-row {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.bible-search-result-text mark {
+  background: #fff3bf;
+  padding: 0 2px;
+}
+
+.bible-speech-suggestion {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--green);
+  background: #f7fcf8;
+}
+
+.bible-speech-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.bible-settings-panel .settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .bible-live-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
 .backup-center {
   padding: 20px;
 }
