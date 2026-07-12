@@ -63,6 +63,7 @@
     { id: "search", label: "Search", icon: "⌕" },
     { id: "builder", label: "Worship Builder", icon: "+" },
     { id: "presenter", label: "Presenter", icon: "▶" },
+    { id: "cameras", label: "Camera Sources", icon: "◎" },
     { id: "favorites", label: "Favorites", icon: "★" },
     { id: "help", label: "Help Centre", icon: "?" },
     { id: "settings", label: "Settings", icon: "⚙" },
@@ -1355,6 +1356,8 @@
     bindBackupSettings();
     bindHelpCentre();
     renderHelpContextOverlay();
+    if (state.view === "presenter" || state.view === "settings") bindObsProgramMonitor();
+    if (state.view === "cameras" || state.view === "presenter" || state.view === "settings") bindCameraSources();
     document.body.classList.add("app-ready");
   }
 
@@ -1504,6 +1507,7 @@
     if (state.view === "song") return renderSong();
     if (state.view === "builder") return renderBuilder();
     if (state.view === "presenter") return renderPresenterDashboard();
+    if (state.view === "cameras") return renderCameraSources();
     if (state.view === "favorites") return renderFavorites();
     if (state.view === "help") return renderHelpCentre();
     if (state.view === "settings") return renderSettings();
@@ -2341,9 +2345,13 @@
     if (!window.CISPresenterEngine || !window.CISPresenterOutput || !window.CISPresenterControl) return;
     applyEnginePresenterState(window.CISPresenterEngine.getState());
     const snapshot = window.CISPresenterEngine.buildSnapshot();
+    const cameraState = window.CISCameraSourceService ? window.CISCameraSourceService.getState() : null;
     window.CISPresenterControl.render(els.presenterControlRoot, snapshot);
     if (embeddedProjectorActive) {
-      window.CISPresenterOutput.render(els.presenterOutputRoot, snapshot);
+      window.CISPresenterOutput.render(els.presenterOutputRoot, snapshot, cameraState);
+      if (window.CISCameraSourceService) {
+        window.CISPresenterOutput.bindCameraVideos(els.presenterOutputRoot, window.CISCameraSourceService);
+      }
     } else {
       window.CISPresenterOutput.render(els.presenterOutputRoot, { active: false });
     }
@@ -2728,6 +2736,202 @@
     });
   }
 
+  function getObsMonitorWorshipContext() {
+    const engineState = window.CISPresenterEngine ? window.CISPresenterEngine.getState() : {};
+    const snapshot = window.CISPresenterEngine ? window.CISPresenterEngine.buildSnapshot() : null;
+    if (!window.CISObsProgramMonitor) {
+      return { worshipPreview: "—", worshipLive: "—", worshipLiveActive: false };
+    }
+    return window.CISObsProgramMonitor.getWorshipOutputLabels(engineState, snapshot);
+  }
+
+  function publishObsMonitorWorshipContext() {
+    const context = getObsMonitorWorshipContext();
+    if (desktopBridge && desktopBridge.obsMonitor && desktopBridge.obsMonitor.setWorshipContext) {
+      desktopBridge.obsMonitor.setWorshipContext(context);
+    }
+    return context;
+  }
+
+  function renderObsProgramMonitor() {
+    const mount = document.getElementById("obsProgramMonitorMount");
+    if (!mount || !window.CISObsProgramMonitorUI || !window.CISObsProgramMonitor) return;
+    const obsSettings = window.CISObsSettingsStore ? window.CISObsSettingsStore.loadSettings() : { enabled: false };
+    if (!obsSettings.enabled) {
+      mount.innerHTML = "";
+      return;
+    }
+    window.CISObsProgramMonitorUI.configure({
+      escapeHtml,
+      getWorshipContext: getObsMonitorWorshipContext,
+    });
+    window.CISObsProgramMonitorUI.render(mount, window.CISObsProgramMonitor.getState());
+  }
+
+  function bindObsProgramMonitor() {
+    renderObsProgramMonitor();
+    const deviceSelect = document.getElementById("obsMonitorDeviceSelect");
+    if (deviceSelect && !deviceSelect.dataset.bound) {
+      deviceSelect.dataset.bound = "1";
+      deviceSelect.addEventListener("change", () => {
+        const option = deviceSelect.selectedOptions[0];
+        window.CISObsProgramMonitor.setDevice(deviceSelect.value, option?.dataset?.label || option?.textContent || "");
+      });
+    }
+    const layoutSelect = document.getElementById("obsMonitorLayoutSelect");
+    if (layoutSelect && !layoutSelect.dataset.bound) {
+      layoutSelect.dataset.bound = "1";
+      layoutSelect.addEventListener("change", () => {
+        window.CISObsProgramMonitor.setLayout(layoutSelect.value);
+        render();
+      });
+    }
+    const viewerUrl = document.getElementById("obsViewerReturnUrl");
+    if (viewerUrl && !viewerUrl.dataset.bound) {
+      viewerUrl.dataset.bound = "1";
+      viewerUrl.addEventListener("change", () => {
+        window.CISObsProgramMonitor.setViewerReturnUrl(viewerUrl.value);
+        renderObsProgramMonitor();
+      });
+    }
+  }
+
+  function setupObsProgramMonitor() {
+    if (!window.CISObsProgramMonitor) return;
+    if (window.CISObsProgramMonitor._appBound) return;
+    window.CISObsProgramMonitor._appBound = true;
+    window.CISObsProgramMonitor.subscribe(() => {
+      if (state.view === "presenter" || state.view === "settings") renderObsProgramMonitor();
+    });
+    if (desktopBridge && desktopBridge.obsMonitor && desktopBridge.obsMonitor.onClosed) {
+      desktopBridge.obsMonitor.onClosed(() => {
+        window.CISObsProgramMonitor.setDetached(false);
+        if (state.view === "presenter" || state.view === "settings") render();
+      });
+    }
+    if (desktopBridge && desktopBridge.obsMonitor && desktopBridge.obsMonitor.onStopped) {
+      desktopBridge.obsMonitor.onStopped(() => {
+        window.CISObsProgramMonitor.stopMonitor();
+        if (state.view === "presenter" || state.view === "settings") render();
+      });
+    }
+  }
+
+  function renderCameraSources() {
+    if (!window.CISCameraSourceUI || !window.CISCameraSourceService) {
+      return `<section class="section"><p class="muted">Camera Sources module is not loaded.</p></section>`;
+    }
+    window.CISCameraSourceUI.configure({ escapeHtml, t });
+    return window.CISCameraSourceUI.renderPage(window.CISCameraSourceService.getState());
+  }
+
+  function bindCameraSources() {
+    if (!window.CISCameraSourceUI || !window.CISCameraSourceService) return;
+    const root = state.view === "cameras" ? els.content : document;
+    window.CISCameraSourceUI.bindPreviewVideos(root);
+  }
+
+  function openCameraEditor(cameraId) {
+    if (!window.CISCameraSourceUI || !window.CISCameraSourceService) return;
+    const cam = cameraId ? window.CISCameraSourceService.getSavedCamera(cameraId) : null;
+    els.modalRoot.innerHTML = window.CISCameraSourceUI.renderAddEditModal(cam, cameraId ? "edit" : "add");
+  }
+
+  function saveCameraFromModal() {
+    if (!window.CISCameraSourceService) return;
+    const id = document.getElementById("cameraEditId")?.value || "";
+    const name = plain(document.getElementById("cameraEditName")?.value) || "Camera";
+    const role = document.getElementById("cameraEditRole")?.value || "main";
+    const picker = document.getElementById("cameraDevicePicker");
+    const option = picker?.selectedOptions?.[0];
+    const deviceLabel = option?.dataset?.label || option?.textContent?.split(" (")[0]?.trim() || "";
+    const preferredDeviceId = picker?.value || "";
+    const layout = document.getElementById("cameraEditLayout")?.value || "fullscreen";
+    const transition = document.getElementById("cameraEditTransition")?.value || "cut";
+    const audioMode = document.getElementById("cameraEditAudio")?.value || "video-only";
+    const destinations = [...document.querySelectorAll('input[name="cameraDest"]:checked')].map((el) => el.value);
+    const payload = {
+      name,
+      role,
+      deviceLabel,
+      preferredDeviceId,
+      layout,
+      transition,
+      audioMode,
+      destinations: destinations.length ? destinations : ["main"],
+    };
+    if (id) window.CISCameraSourceService.updateCamera(id, payload);
+    else window.CISCameraSourceService.addCamera(payload);
+    closeModal();
+    setNotice(id ? "Camera updated." : "Camera added.");
+  }
+
+  function saveCameraSettingsFromPanel() {
+    if (!window.CISCameraSourceService) return;
+    window.CISCameraSourceService.persistSettings({
+      preferredWidth: Number(document.getElementById("cameraPrefWidth")?.value) || 1280,
+      preferredFrameRate: Number(document.getElementById("cameraPrefFps")?.value) || 30,
+      defaultLayout: document.getElementById("cameraDefaultLayout")?.value || "fullscreen",
+      defaultTransition: document.getElementById("cameraDefaultTransition")?.value || "cut",
+      audioDisabledByDefault: document.getElementById("cameraAudioOff")?.checked !== false,
+      prepareNextCamera: document.getElementById("cameraPrepareNext")?.checked !== false,
+      showLogoOnFailure: document.getElementById("cameraLogoOnFail")?.checked !== false,
+      warnObsRecursion: document.getElementById("cameraWarnRecursion")?.checked !== false,
+    });
+    setNotice("Camera settings saved.");
+  }
+
+  function handleCameraSendLive(cameraId, force) {
+    if (!window.CISCameraSourceService) return;
+    const id = cameraId || window.CISCameraSourceService.getState().settings.defaultCameraId;
+    const savedCam = window.CISCameraSourceService.getSavedCamera(id);
+    const recursion = window.CISCameraSourceService.checkRecursion(savedCam);
+    if (recursion.blocked && !force) {
+      if (window.confirm(`${recursion.message}\n\nSend to local projectors only?`)) {
+        window.CISCameraSourceService.acknowledgeRecursionWarning();
+        return handleCameraSendLive(cameraId, true);
+      }
+      return;
+    }
+    if (!window.CISPresenterEngine?.getState?.().active) {
+      startPresenterSession({ songKey: "", planIndex: null, slideIndex: 0 });
+    }
+    window.CISCameraSourceService.sendCameraLive({ cameraId: id })
+      .then(() => {
+        setNotice("Camera sent live to local outputs.");
+        renderPresenterAV();
+      })
+      .catch((error) => setNotice(error?.message || "Failed to send camera live."))
+      .finally(() => render());
+  }
+
+  function setupCameraSources() {
+    if (!window.CISCameraSourceService) return;
+    if (window.CISCameraSourceService._appBound) return;
+    window.CISCameraSourceService._appBound = true;
+    window.CISCameraSourceService.subscribe(() => {
+      if (state.view === "cameras" || state.view === "presenter" || state.view === "settings") {
+        if (state.view === "cameras") {
+          const mount = els.content.querySelector(".camera-sources-page");
+          if (mount && window.CISCameraSourceUI) {
+            window.CISCameraSourceUI.configure({ escapeHtml, t });
+            mount.outerHTML = window.CISCameraSourceUI.renderPage(window.CISCameraSourceService.getState());
+            bindCameraSources();
+          }
+        }
+        renderPresenterAV();
+      }
+    });
+    if (window.CISCameraSourceUI) {
+      window.CISCameraSourceUI.configure({ escapeHtml, t });
+    }
+    if (desktopBridge && desktopBridge.cameraPreview && desktopBridge.cameraPreview.onClosed) {
+      desktopBridge.cameraPreview.onClosed(() => {
+        if (state.view === "cameras") render();
+      });
+    }
+  }
+
   function startPresenterSession(patch) {
     if (!window.CISPresenterEngine) return;
     state.presenter.open = true;
@@ -2815,6 +3019,10 @@
           </div>
         </aside>
       </div>
+      ${window.CISCameraSourceUI && window.CISCameraSourceService
+        ? window.CISCameraSourceUI.renderLocalPresentationPanel(window.CISCameraSourceService.getLocalPresentationStatus())
+        : ""}
+      <div id="obsProgramMonitorMount" class="obs-program-monitor-mount"></div>
     `;
   }
 
@@ -2933,8 +3141,15 @@
         </div>
         ${backupPanel}
         ${renderObsSettingsPanel()}
+        ${renderCameraSettingsMount()}
       </div>
     `;
+  }
+
+  function renderCameraSettingsMount() {
+    if (!window.CISCameraSourceUI || !window.CISCameraSourceService) return "";
+    window.CISCameraSourceUI.configure({ escapeHtml, t });
+    return `<div id="cameraSettingsMount">${window.CISCameraSourceUI.renderSettingsPanel(window.CISCameraSourceService.getState())}</div>`;
   }
 
   function renderObsSettingsPanel() {
@@ -3103,6 +3318,23 @@
   function addContentItem(contentType) {
     const meta = window.CISSlideContent ? window.CISSlideContent.getSlideType(contentType) : null;
     if (!meta) return;
+    if (contentType === "camera") {
+      const slot = createPlanSlot(meta.role, worshipPlan.length, {
+        type: "camera",
+        itemType: "camera",
+        title: meta.label,
+        cameraRole: "main",
+        cameraLayout: "fullscreen",
+        cameraDestinations: ["main", "secondary"],
+      });
+      worshipPlan.push(slot);
+      state.activeSlot = worshipPlan.length - 1;
+      state.showAddContent = false;
+      saveValue("activeSlot", state.activeSlot);
+      saveWorshipPlan();
+      render();
+      return;
+    }
     const slot = createPlanSlot(meta.role, worshipPlan.length, {
       type: contentType,
       itemType: contentType,
@@ -3265,6 +3497,21 @@
     if (isCustomSlot(slot)) {
       const type = resolveSlotType(slot);
       const meta = window.CISSlideContent ? window.CISSlideContent.getSlideType(type) : null;
+      if (type === "camera") {
+        return {
+          type: "custom",
+          contentKind: "camera",
+          title: slot.title || slot.role || "Camera",
+          shortTitle: meta ? meta.label : "Camera",
+          subtitle: slot.role || "",
+          slides: slotSlides(slot),
+          song: null,
+          songKey: "",
+          planIndex: index,
+          cameraId: slot.cameraId || "",
+          cameraRole: slot.cameraRole || slot.role || "",
+        };
+      }
       return {
         type: "custom",
         contentKind: type,
@@ -3323,6 +3570,32 @@
   function openCustomPresenter(planIndex) {
     const item = presenterItemFromSlot(worshipPlan[planIndex], planIndex);
     if (!item) return;
+    if (item.contentKind === "camera" && window.CISCameraSourceService) {
+      const slide = item.slides?.[0] || {};
+      const cameraId = slide.cameraId || item.cameraId || "";
+      state.presenter.songKey = "";
+      state.presenter.slideIndex = 0;
+      state.presenter.planIndex = planIndex;
+      state.presenter.queueKeys = [];
+      state.presenter.queueIndex = null;
+      startPresenterSession({
+        songKey: "",
+        planIndex,
+        queueKeys: [],
+        queueIndex: null,
+        slideIndex: 0,
+      });
+      window.CISCameraSourceService.sendCameraLive({
+        cameraId,
+        layout: slide.cameraLayout,
+        destinations: slide.cameraDestinations,
+        transition: slide.cameraTransition,
+        audioMode: slide.cameraAudioMode,
+      }).then(() => setNotice("Camera service item sent live."))
+        .catch((error) => setNotice(error?.message || "Camera item failed."))
+        .finally(() => render());
+      return;
+    }
     state.presenter.songKey = "";
     state.presenter.slideIndex = 0;
     state.presenter.planIndex = planIndex;
@@ -3933,11 +4206,29 @@
   });
 
   document.addEventListener("keydown", (event) => {
+    const tag = event.target?.tagName || "";
+    const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || event.target?.isContentEditable;
     if (state.emergencyMode) {
       if (event.key === "Escape") clearEmergency();
       return;
     }
     if (state.presenter.open || (window.CISPresenterEngine && window.CISPresenterEngine.getState().active)) {
+      if (!typing) {
+        if (event.key.toLowerCase() === "v") {
+          event.preventDefault();
+          handleCameraSendLive();
+          return;
+        }
+        if (event.key.toLowerCase() === "n" && window.CISCameraSourceService) {
+          event.preventDefault();
+          const cameras = window.CISCameraSourceService.getState().savedCameras;
+          const currentId = window.CISCameraSourceService.getState().live.cameraId;
+          const index = cameras.findIndex((cam) => cam.id === currentId);
+          const next = cameras[(index + 1) % cameras.length];
+          if (next) handleCameraSendLive(next.id);
+          return;
+        }
+      }
       if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
         event.preventDefault();
         presenterMove(1);
@@ -4408,6 +4699,220 @@
         .catch((error) => setNotice(error?.message || "Failed to clear overlays."));
       return;
     }
+    if (command === "obs-monitor-start" && window.CISObsProgramMonitor) {
+      const monitor = window.CISObsProgramMonitor.getState();
+      window.CISObsProgramMonitor.startMonitor({
+        deviceId: monitor.deviceId,
+        allowSnapshotFallback: true,
+      })
+        .then((result) => setNotice(result.mode === "snapshot" ? "OBS Snapshot Preview started." : "OBS Program Monitor started."))
+        .catch((error) => setNotice(error?.message || "Failed to start OBS Program Monitor."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-stop" && window.CISObsProgramMonitor) {
+      window.CISObsProgramMonitor.stopMonitor()
+        .then(() => setNotice("OBS Program Monitor stopped."))
+        .catch((error) => setNotice(error?.message || "Failed to stop monitor."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-refresh-devices" && window.CISObsProgramMonitor) {
+      window.CISObsProgramMonitor.refreshDevices()
+        .then(() => setNotice("Video devices refreshed."))
+        .catch((error) => setNotice(error?.message || "Failed to refresh devices."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-start-vcam" && window.CISObsControlService) {
+      window.CISObsControlService.startVirtualCamera()
+        .then(() => { setNotice("OBS Virtual Camera started."); render(); })
+        .catch((error) => setNotice(error?.message || "Virtual Camera unavailable or failed."));
+      return;
+    }
+    if (command === "obs-monitor-stop-vcam" && window.CISObsControlService) {
+      window.CISObsControlService.stopVirtualCamera()
+        .then(() => { setNotice("OBS Virtual Camera stopped."); render(); })
+        .catch((error) => setNotice(error?.message || "Failed to stop Virtual Camera."));
+      return;
+    }
+    if (command === "obs-monitor-fullscreen") {
+      const viewport = document.getElementById("obsProgramMonitorViewport");
+      if (viewport && viewport.requestFullscreen) {
+        viewport.requestFullscreen().catch(() => setNotice("Fullscreen is not available."));
+      }
+      return;
+    }
+    if (command === "obs-monitor-detach" && window.CISObsProgramMonitor) {
+      if (!desktopBridge || !desktopBridge.obsMonitor || !desktopBridge.obsMonitor.open) {
+        setNotice("Detach Monitor requires the Electron desktop app.");
+        return;
+      }
+      const monitor = window.CISObsProgramMonitor.getState();
+      publishObsMonitorWorshipContext();
+      window.CISObsProgramMonitor.stopMonitor().finally(() => {
+        window.CISObsProgramMonitor.setDetached(true);
+        desktopBridge.obsMonitor.open({
+          deviceId: monitor.deviceId,
+          deviceLabel: monitor.deviceLabel,
+          worshipContext: getObsMonitorWorshipContext(),
+        });
+        render();
+        setNotice("OBS Program Monitor detached to always-on-top window.");
+      });
+      return;
+    }
+    if (command === "obs-monitor-reconnect" && window.CISObsConnectionService) {
+      window.CISObsConnectionService.connect()
+        .then(() => setNotice("Reconnecting to OBS…"))
+        .catch((error) => setNotice(error?.message || "OBS reconnect failed."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-open-settings") {
+      state.view = "settings";
+      saveValue("view", state.view);
+      render();
+      return;
+    }
+    if (command === "camera-add") {
+      openCameraEditor();
+      return;
+    }
+    if (command === "camera-edit") {
+      openCameraEditor(target.dataset.cameraId);
+      return;
+    }
+    if (command === "camera-save") {
+      saveCameraFromModal();
+      return;
+    }
+    if (command === "camera-save-settings") {
+      saveCameraSettingsFromPanel();
+      return;
+    }
+    if (command === "camera-refresh-devices" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.refreshDevices(true)
+        .then(() => setNotice("Camera devices refreshed."))
+        .catch((error) => setNotice(error?.message || "Failed to refresh devices."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-preview" && window.CISCameraSourceService) {
+      const cameraId = target.dataset.cameraId || window.CISCameraSourceService.getState().settings.defaultCameraId;
+      window.CISCameraSourceService.startPreview(cameraId)
+        .then(() => setNotice("Camera preview started."))
+        .catch((error) => setNotice(error?.message || "Camera preview failed."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-stop-preview" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.stopPreview()
+        .then(() => setNotice("Camera preview stopped."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-send-live") {
+      handleCameraSendLive(target.dataset.cameraId);
+      return;
+    }
+    if (command === "camera-switch-backup" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.useBackupCamera()
+        .then(() => { setNotice("Switched to backup camera."); renderPresenterAV(); })
+        .catch((error) => setNotice(error?.message || "Backup camera unavailable."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-clear" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.clearCamera();
+      setNotice("Camera cleared from live output.");
+      renderPresenterAV();
+      render();
+      return;
+    }
+    if (command === "camera-freeze-toggle" && window.CISCameraSourceService) {
+      const liveState = window.CISCameraSourceService.getState().live;
+      window.CISCameraSourceService.freezeCamera(!liveState.frozen);
+      renderPresenterAV();
+      render();
+      return;
+    }
+    if (command === "camera-freeze-off" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.freezeCamera(false);
+      renderPresenterAV();
+      render();
+      return;
+    }
+    if (command === "camera-restart" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.restartCameraSource()
+        .then(() => setNotice("Camera source restarted."))
+        .catch((error) => setNotice(error?.message || "Camera restart failed."))
+        .finally(() => { renderPresenterAV(); render(); });
+      return;
+    }
+    if (command === "camera-return-previous" && window.CISCameraSourceService) {
+      if (window.CISCameraSourceService.returnToPreviousLive()) {
+        setNotice("Returned to previous live item.");
+        renderPresenterAV();
+      } else setNotice("No previous live camera item.");
+      render();
+      return;
+    }
+    if (command === "camera-set-default" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.setDefaultCamera(target.dataset.cameraId);
+      setNotice("Default camera updated.");
+      render();
+      return;
+    }
+    if (command === "camera-set-backup" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.setBackupCamera(target.dataset.cameraId);
+      setNotice("Backup camera updated.");
+      render();
+      return;
+    }
+    if (command === "camera-remove" && window.CISCameraSourceService) {
+      if (target.dataset.confirm === "true" && !window.confirm("Remove this saved camera?")) return;
+      window.CISCameraSourceService.removeCamera(target.dataset.cameraId);
+      setNotice("Camera removed.");
+      render();
+      return;
+    }
+    if (command === "camera-detach-preview") {
+      if (!desktopBridge || !desktopBridge.cameraPreview || !desktopBridge.cameraPreview.open) {
+        setNotice("Detach preview requires the Electron desktop app.");
+        return;
+      }
+      desktopBridge.cameraPreview.open();
+      setNotice("Camera preview detached.");
+      return;
+    }
+    if (command === "camera-obs-vcam-start" && window.CISObsControlService) {
+      window.CISObsControlService.startVirtualCamera()
+        .then(() => setNotice("OBS Virtual Camera started."))
+        .catch((error) => setNotice(error?.message || "Failed to start Virtual Camera."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-obs-vcam-stop" && window.CISObsControlService) {
+      window.CISObsControlService.stopVirtualCamera()
+        .then(() => setNotice("OBS Virtual Camera stopped."))
+        .catch((error) => setNotice(error?.message || "Failed to stop Virtual Camera."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-obs-vcam-refresh") {
+      if (window.CISObsConnectionService) window.CISObsConnectionService.refreshRuntime?.();
+      if (window.CISCameraSourceService) window.CISCameraSourceService.refreshDevices(false);
+      setNotice("OBS Virtual Camera state refreshed.");
+      render();
+      return;
+    }
+    if (command === "open-camera-sources") {
+      state.view = "cameras";
+      saveValue("view", state.view);
+      render();
+      return;
+    }
     if ((command === "obs-show-source" || command === "obs-hide-source") && window.CISObsSourceService) {
       const sourceKey = target.dataset.sourceKey || "";
       const action = command === "obs-show-source"
@@ -4489,6 +4994,7 @@
   setupBuilderSystems();
   setupPresenterSystem();
   setupObsIntegration();
+  setupCameraSources();
   setupHelpCentre();
   setupSongTags();
   setupBackupRestore();
