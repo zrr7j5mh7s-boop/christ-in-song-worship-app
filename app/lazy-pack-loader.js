@@ -8,6 +8,8 @@
   const DEFERRED_PACK_META = {
     sda: {
       code: "sda",
+      editionId: "sda-hymnal-english",
+      hymnBookId: "sda-hymnal",
       name: "SDA Hymnal",
       status: "loading",
       songCount: 695,

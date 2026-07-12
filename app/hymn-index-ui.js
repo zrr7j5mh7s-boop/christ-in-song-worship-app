@@ -50,7 +50,9 @@
   function renderToolbar(ctx) {
     const settings = ctx.settings || {};
     const layout = settings.layout || "grid";
+    const selectorRow = typeof ctx.renderHymnalSelectors === "function" ? ctx.renderHymnalSelectors() : "";
     return `
+      ${selectorRow}
       <div class="hymn-index-toolbar">
         <div class="hymn-index-toolbar-primary">
           <label class="search-box hymn-index-search">
@@ -166,7 +168,7 @@
     const compact = ctx.layout === "compact";
     const showTitles = ctx.showTitles !== false;
     const showFav = ctx.showFavorites !== false && starred;
-    const langAttr = ctx.langCode ? ` data-lang-jump="${escapeHtml(ctx.langCode)}"` : "";
+    const langAttr = ctx.langCode ? ` data-lang-jump="${escapeHtml(ctx.langCode)}" data-edition="${escapeHtml(ctx.editionId || "")}"` : "";
     return `
       <button
         class="hymn-index-card ${compact ? "is-compact" : "is-standard"}"
@@ -188,7 +190,7 @@
     const tags = ctx.showCategories !== false ? ctx.renderSongTags(song) : "";
     const showTitles = ctx.showTitles !== false;
     const showFav = ctx.showFavorites !== false;
-    const langAttr = ctx.langCode ? ` data-lang-jump="${escapeHtml(ctx.langCode)}"` : "";
+    const langAttr = ctx.langCode ? ` data-lang-jump="${escapeHtml(ctx.langCode)}" data-edition="${escapeHtml(ctx.editionId || "")}"` : "";
     return `
       <button
         class="hymn-index-list-row"

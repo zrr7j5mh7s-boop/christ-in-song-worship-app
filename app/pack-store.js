@@ -187,6 +187,14 @@
   }
 
   async function getAllPacks() {
+    if (window.CISHymnalLibraryStore && window.CISHymnalLibraryStore.getImportedPacksForLegacyApi) {
+      try {
+        const imported = await window.CISHymnalLibraryStore.getImportedPacksForLegacyApi();
+        if (imported.length) return imported.map(normalizePack).filter(Boolean);
+      } catch (_error) {
+        /* fall through */
+      }
+    }
     if (!supportsIndexedDb()) return readLegacyPacks().map(normalizePack).filter(Boolean);
     const rows = await withStore(PACK_STORE, "readonly", (store) => new Promise((resolve, reject) => {
       const request = store.getAll();
@@ -199,6 +207,12 @@
   async function savePack(pack) {
     const normalized = normalizePack(pack);
     if (!normalized) throw new Error("Invalid language pack.");
+    if (window.CISHymnalLibraryStore && window.CISHymnalImportService) {
+      await window.CISHymnalLibraryStore.importEdition(normalized, {
+        sourceFileName: normalized.source,
+        duplicateStrategy: "overwrite",
+      });
+    }
     if (supportsIndexedDb()) {
       await withStore(PACK_STORE, "readwrite", (store) => store.put(normalized));
     }
