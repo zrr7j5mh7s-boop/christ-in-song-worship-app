@@ -26,12 +26,12 @@
   function renderEmergencyStrip() {
     return `
       <nav class="service-emergency-strip" aria-label="Emergency controls">
-        <button class="service-emergency-btn" type="button" data-command="emergency-clear">Clear</button>
-        <button class="service-emergency-btn" type="button" data-command="emergency-logo">Show Logo</button>
-        <button class="service-emergency-btn" type="button" data-command="emergency-black" data-confirm="true">Blackout</button>
-        <button class="service-emergency-btn" type="button" data-command="hymn-restore-previous">Restore</button>
-        <button class="service-emergency-btn" type="button" data-command="presenter-open-output">Restart Output</button>
-        <button class="service-emergency-btn service-emergency-help" type="button" data-command="help-open-emergency">Emergency Help</button>
+        <button class="service-emergency-btn live-touch-btn" type="button" data-command="emergency-clear" aria-label="Clear congregation output">Clear</button>
+        <button class="service-emergency-btn live-touch-btn" type="button" data-command="emergency-logo" aria-label="Show logo screen">Show Logo</button>
+        <button class="service-emergency-btn live-touch-btn" type="button" data-command="emergency-black" data-confirm="true" aria-label="Blackout congregation outputs">Blackout</button>
+        <button class="service-emergency-btn live-touch-btn" type="button" data-command="hymn-restore-previous" aria-label="Restore previous hymn">Restore</button>
+        <button class="service-emergency-btn live-touch-btn" type="button" data-command="presenter-open-output" aria-label="Restart congregation output">Restart Output</button>
+        <button class="service-emergency-btn service-emergency-help live-touch-btn" type="button" data-command="help-open-emergency" aria-label="Open Emergency Help">Emergency Help</button>
       </nav>
     `;
   }
@@ -47,10 +47,11 @@
         <p class="service-mode-primary"><strong>${escapeHtml(item.title || "Nothing Live")}</strong></p>
         <p class="service-mode-meta">${escapeHtml(item.position || "No active stanza or verse")}</p>
         <p class="service-mode-meta">Outputs: ${escapeHtml(item.destinations || "—")}</p>
-        <div class="service-mode-transport button-row">
-          <button class="secondary-button service-touch-btn" type="button" data-command="presenter-prev">Previous</button>
-          <button class="secondary-button service-touch-btn" type="button" data-command="presenter-next">Next</button>
-          <button class="secondary-button service-touch-btn" type="button" data-command="emergency-clear">Clear Live</button>
+        <div class="service-mode-transport button-row live-touch-row">
+          <button class="secondary-button service-touch-btn" type="button" data-command="presenter-prev" aria-label="Previous stanza or verse">Previous</button>
+          <button class="secondary-button service-touch-btn" type="button" data-command="presenter-next" aria-label="Next stanza or verse">Next</button>
+          <button class="secondary-button service-touch-btn" type="button" data-command="show-chorus" aria-label="Show chorus">Chorus</button>
+          <button class="secondary-button service-touch-btn" type="button" data-command="emergency-clear" aria-label="Clear live output">Clear Live</button>
         </div>
       </article>
     `;
@@ -128,9 +129,17 @@
     ? items.map((item, index) => `
               <div class="service-queue-row" role="listitem">
                 <span class="service-queue-index" aria-hidden="true">${index + 1}</span>
-                <div>
+                <div class="service-queue-copy">
                   <strong>${escapeHtml(item.title || "Queue item")}</strong>
                   <p class="muted">${escapeHtml(item.meta || "")}</p>
+                </div>
+                <div class="button-row service-queue-actions" role="group" aria-label="Queue item actions for ${escapeHtml(item.title || "item")}">
+                  <button class="secondary-button service-touch-btn" type="button" data-command="hymn-queue-top" data-queue-id="${escapeHtml(item.id || "")}" ${index === 0 ? "disabled" : ""} aria-label="Move to top">Top</button>
+                  <button class="secondary-button service-touch-btn" type="button" data-command="hymn-queue-up" data-queue-id="${escapeHtml(item.id || "")}" ${index === 0 ? "disabled" : ""} aria-label="Move up">Up</button>
+                  <button class="secondary-button service-touch-btn" type="button" data-command="hymn-queue-down" data-queue-id="${escapeHtml(item.id || "")}" ${index >= items.length - 1 ? "disabled" : ""} aria-label="Move down">Down</button>
+                  <button class="secondary-button service-touch-btn" type="button" data-command="hymn-queue-bottom" data-queue-id="${escapeHtml(item.id || "")}" ${index >= items.length - 1 ? "disabled" : ""} aria-label="Move to bottom">Bottom</button>
+                  <button class="secondary-button service-touch-btn" type="button" data-command="hymn-queue-set-next" data-queue-id="${escapeHtml(item.id || "")}" aria-label="Set as Next">Next</button>
+                  <button class="secondary-button service-touch-btn warn-touch-btn" type="button" data-command="hymn-queue-remove" data-queue-id="${escapeHtml(item.id || "")}" aria-label="Remove">Remove</button>
                 </div>
               </div>
             `).join("")

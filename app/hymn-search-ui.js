@@ -261,6 +261,26 @@
     call("onOpenSong", item.number, item.code, item.editionId);
   }
 
+  function previewActiveResult() {
+    if (activeIndex < 0 || !lastPayload.flat[activeIndex]) return false;
+    const item = lastPayload.flat[activeIndex];
+    if (typeof callbacks.onPreviewSong === "function") {
+      callbacks.onPreviewSong(item.songKey || `${item.code}:${item.editionId}:${item.number}`);
+      return true;
+    }
+    call("onOpenSong", item.number, item.code, item.editionId);
+    return true;
+  }
+
+  function getActiveResult() {
+    if (activeIndex < 0 || !lastPayload.flat[activeIndex]) return null;
+    const item = lastPayload.flat[activeIndex];
+    return {
+      ...item,
+      songKey: item.songKey || `${item.code}:${item.editionId || "default"}:${item.number}`,
+    };
+  }
+
   function bind() {
     const input = document.getElementById("globalSearchInput");
     const root = document.getElementById("globalSearchResults");
@@ -287,7 +307,8 @@
       if (event.key === "Enter") {
         if (activeIndex >= 0) {
           event.preventDefault();
-          openActiveResult();
+          if (typeof callbacks.onPreviewSong === "function") previewActiveResult();
+          else openActiveResult();
         }
         return;
       }
@@ -322,6 +343,8 @@
     configure,
     renderPage,
     bind,
+    getActiveResult,
+    previewActiveResult,
     refresh: () => {
       const session = ensureSearchSession();
       if (session) return session.runImmediate(runSearchNow);

@@ -183,6 +183,16 @@
     return true;
   }
 
+  function moveQueueItemToEdge(id, edge) {
+    const index = state.queue.findIndex((item) => item.id === id);
+    if (index < 0) return false;
+    const [item] = state.queue.splice(index, 1);
+    if (edge === "top") state.queue.unshift(item);
+    else state.queue.push(item);
+    notify();
+    return true;
+  }
+
   function promoteQueueItem(id) {
     const index = state.queue.findIndex((item) => item.id === id);
     if (index < 0) return false;
@@ -389,6 +399,7 @@
     removeNext,
     clearQueue,
     moveQueueItem,
+    moveQueueItemToEdge,
     promoteQueueItem,
     removeQueueItem,
     duplicateQueueItem,
