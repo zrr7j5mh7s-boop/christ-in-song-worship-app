@@ -64,6 +64,19 @@
   }
 
   function renderGroup(group) {
+    const indexCollection = call("renderIndexCollection");
+    if (typeof indexCollection === "function") {
+      const songs = (group.results || []).map((item) => item.song).filter(Boolean);
+      return `
+        <section class="search-language-group">
+          <div class="search-language-head">
+            <span class="language-badge">${escapeHtml(group.packName)}</span>
+            <span class="muted">${group.results.length} match${group.results.length === 1 ? "" : "es"}</span>
+          </div>
+          ${indexCollection(songs, { code: group.code, query: call("getQuery") || "" })}
+        </section>
+      `;
+    }
     return `
       <section class="search-language-group">
         <div class="search-language-head">
