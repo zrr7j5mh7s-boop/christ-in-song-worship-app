@@ -6822,3 +6822,28 @@ body.service-mode-active .language-toolbar {
     flex: 1 1 100%;
   }
 }
+
+.live-lock-root {
+  display: flex;
+  align-items: center;
+}
+
+.live-lock-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--border, #d8dde8);
+  font-size: 0.88rem;
+}
+
+.live-lock-strip.live-lock-on {
+  border-color: color-mix(in srgb, var(--warning, #d97706) 45%, var(--border, #d8dde8));
+  background: color-mix(in srgb, var(--warning, #d97706) 8%, var(--panel, #fff));
+}
+
+.live-lock-badge {
+  font-size: 0.95rem;
+}

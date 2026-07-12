@@ -812,6 +812,13 @@
   }
 
   async function goLiveFromQueue(payload) {
+    if (window.CISLiveSwitchService) {
+      return window.CISLiveSwitchService.commitHymnLive(payload);
+    }
+    return applyHymnLiveDirect(payload);
+  }
+
+  async function applyHymnLiveDirect(payload) {
     const songKey = payload?.songKey;
     if (!songKey) return { ok: false, message: "Hymn unavailable." };
     const parsed = parseSongKey(songKey);
@@ -1260,6 +1267,170 @@
     }
   }
 
+  function isPresentationLiveActive() {
+    return Boolean(
+      window.CISPresenterEngine?.getState?.().active
+      || state.presenter.open
+      || state.emergencyMode
+      || window.CISCameraSourceService?.getState?.().live?.active
+      || (window.CISBibleProjectionService?.getState?.().live?.active
+        && !window.CISBibleProjectionService.getState().live.cleared),
+    );
+  }
+
+  function hasLyricLiveContent() {
+    if (window.CISBibleProjectionService) {
+      const bibleLive = window.CISBibleProjectionService.getState().live;
+      if (bibleLive.active && !bibleLive.cleared && bibleLive.slides?.length) return true;
+    }
+    if (state.presenter.songKey
+      && (!window.CISBibleProjectionService
+        || state.presenter.songKey !== window.CISBibleProjectionService.BIBLE_LIVE_KEY)) {
+      const song = getSongByKey(state.presenter.songKey);
+      if (song && song.slides?.length) return true;
+    }
+    if (typeof state.presenter.planIndex === "number" && worshipPlan[state.presenter.planIndex]) return true;
+    return false;
+  }
+
+  function captureLiveSnapshot() {
+    const engine = window.CISPresenterEngine?.getState?.() || {};
+    return {
+      songKey: state.presenter.songKey,
+      slideIndex: state.presenter.slideIndex,
+      planIndex: state.presenter.planIndex,
+      displayMode: engine.displayMode || state.emergencyMode || "lyrics",
+      queueKeys: [...(state.presenter.queueKeys || [])],
+      queueIndex: state.presenter.queueIndex,
+      capturedAt: Date.now(),
+      hymnMeta: getLiveHymnMeta(),
+      bibleLive: window.CISBibleProjectionService
+        ? { ...window.CISBibleProjectionService.getState().live }
+        : null,
+    };
+  }
+
+  function setupLiveSwitch() {
+    if (!window.CISLiveSwitchService) return;
+    window.CISLiveSwitchService.configure({
+      loadSettings: () => (
+        window.CISLiveSwitchSettings
+          ? window.CISLiveSwitchSettings.load((key, fallback) => loadJson(key, fallback))
+          : {}
+      ),
+      saveSettings: (settings) => {
+        if (window.CISLiveSwitchSettings) {
+          window.CISLiveSwitchSettings.save(settings, saveJson);
+        }
+      },
+      captureLiveSnapshot,
+      prepareContent: async (descriptor) => {
+        const item = descriptor || {};
+        if (item.type === "hymn") {
+          const songKey = item.songKey;
+          if (!songKey) return { ok: false, message: "No hymn selected." };
+          const parsed = parseSongKey(songKey);
+          if (!(await ensureLanguagePackLoaded(parsed.code))) {
+            return { ok: false, message: "Hymn pack could not be loaded. Current Live output is unchanged." };
+          }
+          const song = getSongByKey(songKey);
+          if (!song || !song.slides?.length) {
+            return { ok: false, message: "Hymn lyrics are missing. Current Live output is unchanged." };
+          }
+          const slideIndex = Math.max(0, Math.min(song.slides.length - 1, Number(item.slideIndex) || 0));
+          return {
+            ok: true,
+            staging: {
+              type: "hymn",
+              ready: true,
+              songKey,
+              slideIndex,
+              transition: item.transition,
+              destinations: item.destinations,
+            },
+          };
+        }
+        if (item.type === "bible") {
+          const bible = window.CISBibleProjectionService;
+          if (!bible) return { ok: false, message: "Bible projection unavailable." };
+          const preview = bible.getState().preview;
+          if (preview.loading) {
+            return { ok: false, message: "Passage is still loading. Current Live output is unchanged." };
+          }
+          if (preview.error && !preview.slides?.length) {
+            return { ok: false, message: preview.error || "Passage is not ready." };
+          }
+          if (!preview.slides?.length) {
+            return { ok: false, message: "Load a passage in Preview before sending Live." };
+          }
+          return { ok: true, staging: { type: "bible", ready: true } };
+        }
+        return { ok: true, staging: { type: item.type || "unknown", ready: true } };
+      },
+      applyLive: async (descriptor) => {
+        const item = descriptor || {};
+        if (item.type === "hymn") {
+          const result = await applyHymnLiveDirect({
+            songKey: item.songKey || item.staging?.songKey,
+            slideIndex: item.slideIndex ?? item.staging?.slideIndex,
+            transition: item.transition || item.staging?.transition,
+            destinations: item.destinations || item.staging?.destinations,
+            hymnBookId: item.hymnBookId,
+            editionId: item.editionId,
+          });
+          return { ...result, displayMode: "lyrics" };
+        }
+        if (item.type === "bible" && window.CISBibleProjectionService) {
+          const result = window.CISBibleProjectionService.sendLive();
+          return { ...result, displayMode: "lyrics" };
+        }
+        return { ok: false, message: "Unsupported Live content." };
+      },
+    });
+    if (window.CISCameraSourceService) {
+      window.CISCameraSourceService.configure({
+        hasLyricLiveContent: hasLyricLiveContent,
+      });
+    }
+  }
+
+  function setupLiveLock() {
+    if (!window.CISLiveLockService || !window.CISLiveLockUI) return;
+    window.CISLiveLockUI.configure({ escapeHtml });
+    window.CISLiveLockService.configure({
+      isPresentationActive: isPresentationLiveActive,
+      loadSettings: () => (
+        window.CISLiveLockSettings
+          ? window.CISLiveLockSettings.load((key, fallback) => loadJson(key, fallback))
+          : {}
+      ),
+      saveSettings: (settings) => {
+        if (window.CISLiveLockSettings) {
+          window.CISLiveLockSettings.save(settings, saveJson);
+        }
+      },
+    });
+    if (!window.CISLiveLockService._beforeUnloadBound) {
+      window.CISLiveLockService._beforeUnloadBound = true;
+      window.addEventListener("beforeunload", (event) => {
+        if (!window.CISLiveLockService?.shouldConfirmClose()) return;
+        event.preventDefault();
+        event.returnValue = "";
+      });
+    }
+    if (!window.CISLiveLockService._subscribed) {
+      window.CISLiveLockService._subscribed = true;
+      window.CISLiveLockService.subscribe(() => renderLiveLockStrip());
+    }
+    renderLiveLockStrip();
+  }
+
+  function renderLiveLockStrip() {
+    const root = document.getElementById("liveLockRoot");
+    if (!root || !window.CISLiveLockUI || !window.CISLiveLockService) return;
+    root.innerHTML = window.CISLiveLockUI.renderStrip(window.CISLiveLockService.getState());
+  }
+
   async function handleHymnQueueCommand(command, target) {
     const service = window.CISLiveHymnQueueService;
     if (!service) return;
@@ -1269,6 +1440,9 @@
 
     if (command === "hymn-preview" || command === "hymn-preview-open") {
       if (!songKey) return;
+      if (window.CISLiveSwitchService) {
+        window.CISLiveSwitchService.markPreview({ type: "hymn", songKey });
+      }
       service.setPreview(songKey, { startSlideIndex: state.slideIndex });
       const parsed = parseSongKey(songKey);
       void openSong(parsed.number, parsed.code, parsed.editionId);
@@ -1487,6 +1661,11 @@
       return;
     }
     if (command === "send-live") {
+      if (window.CISLiveSwitchService) {
+        const result = await window.CISLiveSwitchService.commit({ type: "bible" });
+        setNotice(result.message || (result.ok ? "Scripture sent Live." : "Send Live cancelled."));
+        return;
+      }
       const result = service.sendLive();
       setNotice(result.message || "");
       return;
@@ -3093,6 +3272,7 @@
     renderHelpContextOverlay();
     paintLiveHymnQueuePanels();
     paintServiceModeWorkspace();
+    renderLiveLockStrip();
     if (state.view === "presenter" || state.view === "settings") bindObsProgramMonitor();
     if (state.view === "cameras" || state.view === "presenter" || state.view === "settings") bindCameraSources();
     document.body.classList.toggle("service-mode-active", isServiceModeActive());
@@ -6169,6 +6349,19 @@
   });
 
   function handleCommand(command, target) {
+    if (command && window.CISLiveLockService) {
+      if (window.CISLiveLockService.isCommandBlocked(command)) {
+        setNotice("Live Lock is enabled. Unlock to perform this action.");
+        return;
+      }
+      if (window.CISLiveLockService.isCommandBlocked(command, { confirmed: target?.dataset?.confirmed === "true" })) {
+        if (window.confirm("Live Lock is enabled. Reassign outputs anyway?")) {
+          target.dataset.confirmed = "true";
+          handleCommand(command, target);
+        }
+        return;
+      }
+    }
     if (command && window.CISServiceModeService && !window.CISServiceModeService.isCommandAllowed(command)) {
       setNotice("That action is hidden during Service Mode. Exit Service Mode for administrative tasks.");
       return;
@@ -6550,6 +6743,35 @@
       return;
     }
     if (command === "service-mode-enter") return enterServiceMode();
+    if (command === "live-lock-enable") {
+      if (window.CISLiveLockService) setNotice(window.CISLiveLockService.enable().message);
+      renderLiveLockStrip();
+      return;
+    }
+    if (command === "live-lock-unlock" || command === "live-lock-disable") {
+      if (!window.CISLiveLockService) return;
+      const result = window.CISLiveLockService.disable();
+      if (result.needsConfirm) {
+        if (window.confirm(result.message)) {
+          setNotice(window.CISLiveLockService.disable({ confirmed: true }).message);
+        }
+      } else {
+        setNotice(result.message);
+      }
+      renderLiveLockStrip();
+      return;
+    }
+    if (command === "live-lock-toggle") {
+      if (!window.CISLiveLockService) return;
+      const result = window.CISLiveLockService.toggle();
+      if (result.needsConfirm && window.confirm(result.message)) {
+        setNotice(window.CISLiveLockService.disable({ confirmed: true }).message);
+      } else if (!result.needsConfirm) {
+        setNotice(result.message);
+      }
+      renderLiveLockStrip();
+      return;
+    }
     if (command === "service-mode-exit") return exitServiceMode();
     if (command === "service-mode-confirm-restore") {
       if (window.CISServiceModeService) window.CISServiceModeService.confirmSessionRestore();
@@ -7078,6 +7300,8 @@
   setupHymnalLibrary();
   setupLiveHymnQueue();
   setupServiceMode();
+  setupLiveSwitch();
+  setupLiveLock();
 
   Promise.all([loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(async () => {
     migrateLegacySongKeys();

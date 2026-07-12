@@ -250,7 +250,9 @@
   }
 
   async function takeNextLive(options) {
-    if (takingLive) return { ok: false, message: "Hymn switch already in progress." };
+    if (takingLive || window.CISLiveSwitchService?.isSwitching?.()) {
+      return { ok: false, message: "A Live switch is already in progress." };
+    }
     if (!state.next) return { ok: false, message: "No next hymn is prepared." };
     takingLive = true;
     state.lastError = "";
