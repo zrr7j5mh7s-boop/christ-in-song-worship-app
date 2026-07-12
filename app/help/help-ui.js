@@ -203,6 +203,14 @@
           <button type="button" class="help-emergency-btn" data-command="help-open-diagnostics">Open diagnostics</button>
           <button type="button" class="help-emergency-btn" data-command="help-copy-diagnostics">Copy diagnostic report</button>
           <button type="button" class="help-emergency-btn" data-command="export-backup">Create backup now</button>
+          <button type="button" class="help-emergency-btn" data-command="camera-switch-backup">Switch to backup camera</button>
+          <button type="button" class="help-emergency-btn" data-command="camera-send-live">Show main camera</button>
+          <button type="button" class="help-emergency-btn" data-command="camera-freeze-off">Stop frozen camera</button>
+          <button type="button" class="help-emergency-btn" data-command="camera-restart">Restart camera source</button>
+          <button type="button" class="help-emergency-btn" data-command="camera-refresh-devices">Refresh camera devices</button>
+          <button type="button" class="help-emergency-btn" data-command="emergency-logo">Show church logo</button>
+          <button type="button" class="help-emergency-btn warn" data-command="emergency-black" data-confirm="true">Blackout selected projectors</button>
+          <button type="button" class="help-emergency-btn" data-command="camera-return-previous">Return to previous live item</button>
         </div>
       </section>
     `;
