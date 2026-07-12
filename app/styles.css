@@ -4004,6 +4004,122 @@ body.presenter-live .sidebar {
   gap: 18px;
 }
 
+.bible-reader {
+  display: grid;
+  gap: 16px;
+}
+
+.bible-reader-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.bible-reader-head h2 {
+  margin: 0 0 4px;
+}
+
+.bible-version-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bible-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.bible-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 14px;
+}
+
+.bible-control select,
+.bible-jump input {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font: inherit;
+}
+
+.bible-jump input {
+  flex: 1 1 180px;
+}
+
+.bible-chapter-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.bible-chapter-chip {
+  min-width: 38px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 700;
+}
+
+.bible-chapter-chip.active {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.bible-text-stage {
+  min-height: 320px;
+}
+
+.bible-verses {
+  display: grid;
+  gap: 10px;
+  font-size: calc(16px * var(--reader-scale, 1));
+  line-height: 1.65;
+}
+
+.bible-verse {
+  margin: 0;
+}
+
+.bible-verse.highlight {
+  background: #eef6f0;
+  border-radius: 8px;
+  padding: 4px 6px;
+}
+
+.bible-verse-num {
+  display: inline-block;
+  min-width: 1.6em;
+  margin-right: 6px;
+  color: var(--green);
+  font-weight: 800;
+  font-size: 0.78em;
+  vertical-align: super;
+}
+
+.bible-nav-row {
+  position: sticky;
+  bottom: 0;
+  padding-bottom: 4px;
+  background: linear-gradient(180deg, rgba(247, 249, 245, 0), var(--bg) 28%);
+}
+
+.bible-status {
+  margin: 0;
+}
+
 .backup-center {
   padding: 20px;
 }
@@ -4770,6 +4886,224 @@ body.presenter-live .sidebar {
   }
 }
 
+/* OBS Program Monitor */
+.obs-program-monitor-mount {
+  margin-top: 16px;
+}
+
+.obs-program-monitor {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(19, 31, 56, 0.04), rgba(255, 255, 255, 0.7));
+}
+
+.obs-monitor-heading {
+  align-items: center;
+}
+
+.obs-monitor-live-badge {
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+
+.obs-monitor-live-badge.live {
+  color: #fff;
+  background: #b42318;
+  border-color: #b42318;
+}
+
+.obs-monitor-live-badge.record {
+  color: #fff;
+  background: #9b2c2c;
+}
+
+.obs-monitor-live-badge.idle {
+  color: var(--ink);
+  background: rgba(201, 162, 77, 0.2);
+}
+
+.obs-monitor-controls {
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.obs-monitor-controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.obs-monitor-stage {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.obs-monitor-stage.layout-side-by-side {
+  grid-template-columns: minmax(180px, 1fr) minmax(280px, 2fr) minmax(180px, 1fr);
+}
+
+.obs-monitor-side-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.obs-monitor-side-card.live {
+  border-color: rgba(201, 162, 77, 0.65);
+  box-shadow: inset 0 0 0 1px rgba(201, 162, 77, 0.25);
+}
+
+.obs-monitor-side-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.9em;
+}
+
+.obs-monitor-program-wrap {
+  position: relative;
+}
+
+.obs-monitor-program-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.obs-monitor-viewport {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #0a1020;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(19, 31, 56, 0.35);
+}
+
+.obs-monitor-video,
+.obs-monitor-snapshot {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #000;
+}
+
+.obs-monitor-empty {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 24px;
+  color: #d7deef;
+  min-height: 220px;
+}
+
+.obs-monitor-empty p {
+  max-width: 42ch;
+}
+
+.obs-monitor-status-overlay {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(10, 16, 32, 0.82);
+  color: #eef2ff;
+  font-size: 0.78em;
+  display: grid;
+  gap: 3px;
+  max-height: 46%;
+  overflow: auto;
+}
+
+.obs-monitor-status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.obs-monitor-status-row span {
+  opacity: 0.8;
+}
+
+.obs-monitor-error {
+  color: #ffb4ab;
+  margin: 4px 0 0;
+}
+
+.obs-monitor-mode-tag {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  background: rgba(201, 162, 77, 0.92);
+  color: #131f38;
+  font-size: 0.75em;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.obs-monitor-viewer-return {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+
+.obs-monitor-viewer-return.placeholder {
+  opacity: 0.9;
+}
+
+.obs-monitor-detached-note {
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(201, 162, 77, 0.12);
+}
+
+.obs-monitor-window-body {
+  margin: 0;
+  background: #0a1020;
+  color: #eef2ff;
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.obs-monitor-window-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #131f38;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.obs-monitor-window-root {
+  padding: 12px;
+}
+
+.obs-program-monitor.layout-compact .obs-monitor-viewport {
+  max-height: 220px;
+}
+
+@media (max-width: 1100px) {
+  .obs-monitor-stage.layout-side-by-side {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Help Centre */
 .help-header {
   margin-bottom: 12px;
@@ -5163,5 +5497,322 @@ body.presenter-live .sidebar {
   .range-button:hover,
   .slot-button:hover {
     transform: none;
+  }
+  .projector-camera-stage.projector-transition-fade,
+  .projector-camera-stage.projector-transition-crossfade {
+    transition: none;
+  }
+}
+
+/* Camera Sources — Local Presentation Mode */
+.camera-sources-page {
+  display: grid;
+  gap: 20px;
+}
+
+.camera-page-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.camera-page-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr);
+  gap: 20px;
+}
+
+.camera-source-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.camera-source-card {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.camera-source-card:focus-visible {
+  outline: 2px solid rgba(201, 162, 39, 0.45);
+  outline-offset: 2px;
+}
+
+.camera-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.camera-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 12px 0;
+  font-size: 0.92rem;
+}
+
+.camera-card-meta dt {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.camera-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(40, 98, 71, 0.12);
+  color: var(--green);
+}
+
+.camera-badge.backup {
+  background: rgba(201, 162, 39, 0.18);
+  color: var(--gold-dark);
+}
+
+.camera-status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.camera-status-pill.status-connected { background: rgba(40, 98, 71, 0.15); color: var(--green); }
+.camera-status-pill.status-unavailable,
+.camera-status-pill.status-error,
+.camera-status-pill.status-disconnected { background: rgba(192, 57, 43, 0.12); color: #7a1f1f; }
+.camera-status-pill.status-loading { background: rgba(201, 162, 39, 0.18); color: var(--gold-dark); }
+
+.camera-preview-frame {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #0a1020;
+}
+
+.camera-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--navy);
+  color: #fff;
+}
+
+.camera-preview-video-wrap {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+
+.camera-preview-video,
+.projector-camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.camera-preview-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.92rem;
+}
+
+.camera-controls-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.camera-local-status {
+  margin-top: 12px;
+}
+
+.camera-local-status h3 {
+  font-size: 0.88rem;
+  letter-spacing: 0.06em;
+  color: var(--green);
+}
+
+.camera-local-status-grid {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+.camera-local-status-grid dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.camera-error-banner {
+  padding: 10px 12px;
+  border-left: 4px solid #c0392b;
+  background: rgba(192, 57, 43, 0.08);
+  border-radius: var(--radius);
+}
+
+.camera-terminology {
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+.camera-presenter-panel {
+  margin-top: 12px;
+}
+
+.camera-destinations-fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.projector-camera-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  background: #000;
+  overflow: hidden;
+}
+
+.projector-camera-stage.is-hidden .projector-camera-video {
+  visibility: hidden;
+}
+
+.projector-camera-stage.is-frozen .projector-camera-video {
+  filter: contrast(1.02);
+}
+
+.projector-camera-overlay-content {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.projector-camera-layout-fullscreen .projector-camera-video {
+  object-fit: cover;
+}
+
+.projector-camera-layout-pip-bottom-right .projector-camera-overlay-content {
+  inset: auto 4% 6% auto;
+  width: 72%;
+  max-height: 78%;
+}
+
+.projector-camera-layout-pip-bottom-right .projector-camera-video {
+  position: absolute;
+  right: 3%;
+  bottom: 4%;
+  width: 28%;
+  height: auto;
+  max-height: 32%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  z-index: 2;
+}
+
+.projector-camera-layout-pip-bottom-left .projector-camera-video {
+  position: absolute;
+  left: 3%;
+  bottom: 4%;
+  width: 28%;
+  max-height: 32%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  z-index: 2;
+}
+
+.projector-camera-layout-split-screen {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.projector-camera-layout-split-screen .projector-camera-video {
+  grid-column: 1;
+}
+
+.projector-camera-layout-split-screen .projector-camera-overlay-content {
+  position: relative;
+  grid-column: 2;
+}
+
+.projector-camera-layout-transparent-overlay .projector-camera-overlay-content {
+  background: rgba(10, 16, 32, 0.42);
+}
+
+.projector-camera-layout-scripture-overlay .projector-camera-overlay-content,
+.projector-camera-layout-hymn-overlay .projector-camera-overlay-content {
+  display: flex;
+  align-items: flex-end;
+  padding: 5%;
+  background: linear-gradient(transparent 35%, rgba(10, 16, 32, 0.72));
+}
+
+.projector-camera-logo-badge {
+  position: absolute;
+  top: 4%;
+  right: 4%;
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(19, 31, 56, 0.72);
+  color: #fff;
+  text-align: center;
+  z-index: 3;
+}
+
+.projector-camera-safe-guides::before,
+.projector-camera-safe-guides::after {
+  content: "";
+  position: absolute;
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+}
+
+.projector-camera-safe-guides::before {
+  inset: 8%;
+}
+
+.projector-camera-safe-guides::after {
+  inset: 12% 10% 18%;
+}
+
+.projector-transition-fade { transition: opacity 0.35s ease; }
+.projector-transition-crossfade { transition: opacity 0.5s ease; }
+
+.camera-preview-detached-root,
+.camera-preview-window-body {
+  margin: 0;
+  min-height: 100vh;
+  background: #0a1020;
+}
+
+@media (max-width: 900px) {
+  .camera-page-grid {
+    grid-template-columns: 1fr;
+  }
+  .camera-card-meta {
+    grid-template-columns: 1fr;
+  }
+  .camera-controls-toolbar .action-button,
+  .camera-controls-toolbar .secondary-button {
+    min-height: 44px;
   }
 }

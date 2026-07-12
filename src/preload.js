@@ -83,4 +83,45 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     getLive: () => ipcRenderer.invoke('obs-http:get-live'),
   },
+
+  obsMonitor: {
+    open: (payload) => ipcRenderer.invoke('obs-monitor:open', payload),
+
+    close: () => ipcRenderer.invoke('obs-monitor:close'),
+
+    getStartPrefs: () => ipcRenderer.invoke('obs-monitor:get-start-prefs'),
+
+    getWorshipContext: () => ipcRenderer.invoke('obs-monitor:get-worship-context'),
+
+    setWorshipContext: (payload) => ipcRenderer.invoke('obs-monitor:set-worship-context', payload),
+
+    notifyStopped: () => ipcRenderer.invoke('obs-monitor:stopped'),
+
+    onClosed: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = () => callback();
+      ipcRenderer.on('obs-monitor-closed', listener);
+      return () => ipcRenderer.removeListener('obs-monitor-closed', listener);
+    },
+
+    onStopped: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = () => callback();
+      ipcRenderer.on('obs-monitor-stopped', listener);
+      return () => ipcRenderer.removeListener('obs-monitor-stopped', listener);
+    },
+  },
+
+  cameraPreview: {
+    open: () => ipcRenderer.invoke('camera-preview:open'),
+
+    close: () => ipcRenderer.invoke('camera-preview:close'),
+
+    onClosed: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = () => callback();
+      ipcRenderer.on('camera-preview-closed', listener);
+      return () => ipcRenderer.removeListener('camera-preview-closed', listener);
+    },
+  },
 });

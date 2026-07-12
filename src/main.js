@@ -15,7 +15,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain, shell, Menu, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, screen, session } = require('electron');
 const log = require('electron-log/main');
 
 log.initialize();
@@ -40,6 +40,14 @@ if (!gotSingleInstanceLock) {
 let mainWindow = null;
 let splashWindow = null;
 let projectorWindow = null;
+let obsMonitorWindow = null;
+let cameraPreviewWindow = null;
+let obsMonitorWorshipContext = {
+  worshipPreview: "—",
+  worshipLive: "—",
+  worshipLiveActive: false,
+};
+let obsMonitorStartPrefs = { deviceId: "", deviceLabel: "" };
 let updater = null;
 
 const isDev = process.argv.includes('--dev') || !app.isPackaged;
@@ -251,6 +259,131 @@ ipcMain.handle('presenter:publish', (_event, payload) => {
   return { delivered: true };
 });
 
+function createObsMonitorWindow() {
+  if (obsMonitorWindow && !obsMonitorWindow.isDestroyed()) {
+    obsMonitorWindow.focus();
+    return obsMonitorWindow;
+  }
+
+  const win = new BrowserWindow({
+    width: 960,
+    height: 620,
+    minWidth: 640,
+    minHeight: 420,
+    title: 'Christ in Song · OBS Program Monitor',
+    backgroundColor: '#0A1020',
+    autoHideMenuBar: true,
+    alwaysOnTop: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+    },
+  });
+
+  win.loadFile(path.join(__dirname, '..', 'app', 'obs', 'obs-program-monitor-window.html'));
+  win.once('ready-to-show', () => win.show());
+  win.on('closed', () => {
+    obsMonitorWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('obs-monitor-closed');
+    }
+  });
+  obsMonitorWindow = win;
+  return win;
+}
+
+ipcMain.handle('obs-monitor:open', (_event, payload) => {
+  obsMonitorStartPrefs = {
+    deviceId: payload?.deviceId || '',
+    deviceLabel: payload?.deviceLabel || '',
+  };
+  if (payload?.worshipContext) {
+    obsMonitorWorshipContext = { ...obsMonitorWorshipContext, ...payload.worshipContext };
+  }
+  createObsMonitorWindow();
+  return { opened: true };
+});
+
+ipcMain.handle('obs-monitor:close', () => {
+  if (obsMonitorWindow && !obsMonitorWindow.isDestroyed()) {
+    obsMonitorWindow.close();
+  }
+  obsMonitorWindow = null;
+  return { closed: true };
+});
+
+ipcMain.handle('obs-monitor:get-start-prefs', () => ({ ...obsMonitorStartPrefs }));
+
+ipcMain.handle('obs-monitor:get-worship-context', () => ({ ...obsMonitorWorshipContext }));
+
+ipcMain.handle('obs-monitor:set-worship-context', (_event, payload) => {
+  if (payload && typeof payload === 'object') {
+    obsMonitorWorshipContext = { ...obsMonitorWorshipContext, ...payload };
+  }
+  return { ok: true };
+});
+
+ipcMain.handle('obs-monitor:stopped', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('obs-monitor-stopped');
+  }
+  return { ok: true };
+});
+
+function createCameraPreviewWindow() {
+  if (cameraPreviewWindow && !cameraPreviewWindow.isDestroyed()) {
+    cameraPreviewWindow.focus();
+    return cameraPreviewWindow;
+  }
+
+  const win = new BrowserWindow({
+    width: 720,
+    height: 480,
+    minWidth: 480,
+    minHeight: 320,
+    title: 'Christ in Song · Camera Preview',
+    backgroundColor: '#131F38',
+    autoHideMenuBar: true,
+    alwaysOnTop: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+    },
+  });
+
+  win.loadFile(path.join(__dirname, '..', 'app', 'camera', 'camera-preview-window.html'));
+  win.once('ready-to-show', () => win.show());
+  win.on('closed', () => {
+    cameraPreviewWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('camera-preview-closed');
+    }
+  });
+  cameraPreviewWindow = win;
+  return win;
+}
+
+ipcMain.handle('camera-preview:open', () => {
+  createCameraPreviewWindow();
+  return { opened: true };
+});
+
+ipcMain.handle('camera-preview:close', () => {
+  if (cameraPreviewWindow && !cameraPreviewWindow.isDestroyed()) {
+    cameraPreviewWindow.close();
+  }
+  cameraPreviewWindow = null;
+  return { closed: true };
+});
+
 obsManager.registerIpc(ipcMain);
 
 const obsHttpServer = require('./obs/obs-http-server');
@@ -260,6 +393,14 @@ obsHttpServer.registerIpc(ipcMain);
 // App lifecycle
 // ---------------------------------------------------------------------
 app.whenReady().then(() => {
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    if (permission === 'media' || permission === 'camera' || permission === 'videoCapture') {
+      callback(true);
+      return;
+    }
+    callback(false);
+  });
+
   splashWindow = createSplashWindow();
   mainWindow = createMainWindow();
   obsManager.setMainWindow(mainWindow);
