@@ -137,6 +137,22 @@
       contextKey: "",
       history: [],
     },
+    bibleTranslation: loadValue("bibleTranslation", "KJV"),
+    bibleBookOrder: Number(loadValue("bibleBookOrder", 43)) || 43,
+    bibleChapter: Number(loadValue("bibleChapter", 1)) || 1,
+    bibleVerse: Number(loadValue("bibleVerse", 0)) || 0,
+    bibleMode: loadValue("bibleMode", "live"),
+    bibleSermonMode: loadValue("bibleSermonMode", "false") === "true",
+    indexDisplay: window.CISHymnIndexSettings
+      ? window.CISHymnIndexSettings.load(null, (key, fallback) => loadJson(key, fallback))
+      : {
+        layout: "grid",
+        showCategories: true,
+        showTitles: true,
+        showFavorites: true,
+        density: "comfortable",
+        sort: "number-asc",
+      },
   };
 
   let favorites = new Set(loadJson("favorites", []));
@@ -471,301 +487,6 @@
       window.CISBibleProjectionService.subscribe(() => {
         if (state.view === "bible") paintBibleLive();
       });
-    }
-  }
-
-  function describeSongKeyForQueue(songKey) {
-    const parsed = parseSongKey(songKey);
-    const song = getSong(parsed.number, parsed.code, parsed.editionId);
-    if (!song) return null;
-    const edition = getEdition(parsed.editionId);
-    const store = window.CISHymnalLibraryStore;
-    const book = edition && store ? store.getBookById(edition.hymnBookId) : null;
-    const pack = getPack(parsed.code, parsed.editionId);
-    const bookTitle = book?.title || pack?.bookTitle || pack?.name || "Hymnal";
-    const lang = edition?.languageName || pack?.name || parsed.code;
-    const chorusSlide = (song.slides || []).find((slide) => /chorus|refrain|pinda|impinda/i.test(slide.label || ""));
-    return {
-      hymnBookId: edition?.hymnBookId || state.hymnBookId || "",
-      editionId: parsed.editionId,
-      hymnId: songKey,
-      hymnNumber: song.number,
-      title: song.title,
-      shortLabel: `${bookTitle} · ${lang} · Hymn ${song.number}`,
-      chorusLabel: song.chorusLabel || chorusSlide?.label || "Chorus",
-    };
-  }
-
-  function findChorusSlide(song) {
-    if (!song?.slides?.length) return -1;
-    return song.slides.findIndex((slide) => /chorus|refrain|pinda|impinda/i.test(slide.label || ""));
-  }
-
-  async function resolveSongForQueue(songKey) {
-    const parsed = parseSongKey(songKey);
-    await ensureLanguagePackLoaded(parsed.code);
-    return getSongByKey(songKey);
-  }
-
-  function getLiveHymnMeta() {
-    if (!state.presenter.songKey) return null;
-    if (window.CISBibleProjectionService
-      && state.presenter.songKey === window.CISBibleProjectionService.BIBLE_LIVE_KEY) {
-      return null;
-    }
-    const song = getSongByKey(state.presenter.songKey);
-    if (!song) return null;
-    const meta = describeSongKeyForQueue(state.presenter.songKey);
-    if (!meta) return null;
-    const slide = song.slides[state.presenter.slideIndex] || song.slides[0];
-    return {
-      ...meta,
-      songKey: state.presenter.songKey,
-      slideIndex: state.presenter.slideIndex,
-      stanzaLabel: slide?.label ? `${slide.label}` : "",
-      destinations: [],
-    };
-  }
-
-  async function goLiveFromQueue(payload) {
-    const songKey = payload?.songKey;
-    if (!songKey) return { ok: false, message: "Hymn unavailable." };
-    const parsed = parseSongKey(songKey);
-    if (!(await ensureLanguagePackLoaded(parsed.code))) {
-      return { ok: false, message: "Hymn pack could not be loaded." };
-    }
-    const song = getSongByKey(songKey);
-    if (!song) return { ok: false, message: "Hymn not found." };
-    const slideIndex = Math.max(0, Math.min(song.slides.length - 1, Number(payload?.slideIndex) || 0));
-    addRecent(song, parsed.code, parsed.editionId);
-    if (!window.CISPresenterEngine?.getState?.().active) {
-      state.presenter.songKey = songKey;
-      state.presenter.slideIndex = slideIndex;
-      state.presenter.planIndex = null;
-      state.presenter.queueKeys = [];
-      state.presenter.queueIndex = null;
-      startPresenterSession({
-        songKey,
-        planIndex: null,
-        slideIndex,
-        queueKeys: [],
-        queueIndex: null,
-      });
-    } else {
-      state.presenter.songKey = songKey;
-      state.presenter.slideIndex = slideIndex;
-      state.presenter.planIndex = null;
-      window.CISPresenterEngine.applyState({
-        songKey,
-        planIndex: null,
-        slideIndex,
-        displayMode: "lyrics",
-        paused: false,
-      });
-      applyEnginePresenterState(window.CISPresenterEngine.getState());
-      renderPresenterAV();
-    }
-    return { ok: true };
-  }
-
-  function resolveSongKeyFromTarget(target) {
-    if (!target) return "";
-    if (target.dataset.songKey) return target.dataset.songKey;
-    const number = target.dataset.song;
-    if (!number) return "";
-    const edition = target.dataset.editionJump || target.dataset.edition || state.editionId;
-    return makeSongKey(edition, number);
-  }
-
-  function renderHymnQueueActions(songKey, compact) {
-    if (!window.CISLiveHymnQueueUI || !songKey) return "";
-    return window.CISLiveHymnQueueUI.renderQueueActions(songKey, compact);
-  }
-
-  function renderLiveHymnQueueMount(full) {
-    if (full) return `<div id="liveHymnQueueMount" class="live-hymn-queue-mount" aria-live="polite"></div>`;
-    return `<div id="liveHymnQueueCompactMount" class="live-hymn-queue-compact-mount" aria-live="polite"></div>`;
-  }
-
-  function paintLiveHymnQueuePanels() {
-    if (!window.CISLiveHymnQueueService || !window.CISLiveHymnQueueUI) return;
-    const queueState = window.CISLiveHymnQueueService.getState();
-    const liveMeta = getLiveHymnMeta();
-    const mount = document.getElementById("liveHymnQueueMount");
-    if (mount) {
-      mount.innerHTML = window.CISLiveHymnQueueUI.renderWorkspace({
-        queueState,
-        liveMeta,
-        showQuickSearch: state.view === "presenter" || state.view === "song",
-      });
-    }
-    const compactMount = document.getElementById("liveHymnQueueCompactMount");
-    if (compactMount) {
-      compactMount.innerHTML = window.CISLiveHymnQueueUI.renderCompactNextPanel(queueState);
-    }
-  }
-
-  function setupLiveHymnQueue() {
-    if (!window.CISLiveHymnQueueService || !window.CISLiveHymnQueueUI) return;
-    window.CISLiveHymnQueueUI.configure({ escapeHtml });
-    window.CISLiveHymnQueueService.configure({
-      resolveSong: resolveSongForQueue,
-      describeSongKey: describeSongKeyForQueue,
-      getLiveMeta: getLiveHymnMeta,
-      goLive: goLiveFromQueue,
-      findChorusSlide,
-      saveSession: (payload) => {
-        try {
-          sessionStorage.setItem("cis-live-hymn-queue-session", JSON.stringify(payload));
-        } catch (_error) {
-          /* ignore */
-        }
-      },
-      loadSession: () => {
-        try {
-          return JSON.parse(sessionStorage.getItem("cis-live-hymn-queue-session") || "null");
-        } catch (_error) {
-          return null;
-        }
-      },
-      loadSettings: () => (
-        window.CISLiveHymnQueueSettings
-          ? window.CISLiveHymnQueueSettings.load((key, fallback) => loadJson(key, fallback))
-          : {}
-      ),
-      saveSettings: (settings) => {
-        if (window.CISLiveHymnQueueSettings) {
-          window.CISLiveHymnQueueSettings.save(settings, saveJson);
-        }
-      },
-    });
-    if (!window.CISLiveHymnQueueService._subscribed) {
-      window.CISLiveHymnQueueService._subscribed = true;
-      window.CISLiveHymnQueueService.subscribe(() => {
-        paintLiveHymnQueuePanels();
-        if (window.CISPresenterEngine?.getState?.().active) renderPresenterAV();
-      });
-    }
-  }
-
-  async function handleHymnQueueCommand(command, target) {
-    const service = window.CISLiveHymnQueueService;
-    if (!service) return;
-    const songKey = resolveSongKeyFromTarget(target);
-    const queueId = target?.dataset?.queueId || "";
-    const settings = service.getState().settings || {};
-
-    if (command === "hymn-preview" || command === "hymn-preview-open") {
-      if (!songKey) return;
-      service.setPreview(songKey, { startSlideIndex: state.slideIndex });
-      const parsed = parseSongKey(songKey);
-      void openSong(parsed.number, parsed.code, parsed.editionId);
-      paintLiveHymnQueuePanels();
-      setNotice("Preview updated. Live output unchanged.");
-      return;
-    }
-    if (command === "hymn-preview-clear") {
-      service.clearPreview();
-      paintLiveHymnQueuePanels();
-      return;
-    }
-    if (command === "hymn-set-next") {
-      if (!songKey) return;
-      service.setAsNext(songKey, { startSlideIndex: 0 });
-      paintLiveHymnQueuePanels();
-      setNotice("Set as Next. Current hymn remains Live.");
-      return;
-    }
-    if (command === "hymn-add-queue") {
-      if (!songKey) return;
-      service.addToQueue(songKey, { startSlideIndex: 0 });
-      paintLiveHymnQueuePanels();
-      setNotice("Added to live queue.");
-      return;
-    }
-    if (command === "hymn-send-live" || command === "hymn-queue-send-live") {
-      const key = songKey || (queueId ? service.getState().queue.find((item) => item.id === queueId)?.songKey : "");
-      if (!key) return;
-      if (settings.confirmReplaceLive
-        && window.CISPresenterEngine?.getState?.().active
-        && !window.confirm("Send this hymn Live now and replace the current Live hymn?")) {
-        return;
-      }
-      if (!confirmTrainingLiveAction("Send hymn Live now")) return;
-      const result = command === "hymn-queue-send-live" && queueId
-        ? await service.sendQueueItemLive(queueId, { skipConfirm: true })
-        : await service.sendLiveNow(key, { skipConfirm: true });
-      paintLiveHymnQueuePanels();
-      setNotice(result?.message || (result?.ok ? "Hymn sent Live." : "Could not send hymn Live."));
-      return;
-    }
-    if (command === "hymn-take-next") {
-      if (settings.confirmBeforeLive
-        && window.CISPresenterEngine?.getState?.().active
-        && !window.confirm("Take the prepared Next hymn Live?")) {
-        return;
-      }
-      if (!confirmTrainingLiveAction("Take Next Live")) return;
-      const result = await service.takeNextLive();
-      paintLiveHymnQueuePanels();
-      setNotice(result?.message || (result?.ok ? "Next hymn is now Live." : "Take Next Live failed."));
-      return;
-    }
-    if (command === "hymn-remove-next") {
-      service.removeNext();
-      paintLiveHymnQueuePanels();
-      setNotice("Next hymn removed.");
-      return;
-    }
-    if (command === "hymn-clear-queue") {
-      if (!window.confirm("Clear the upcoming hymn queue?")) return;
-      service.clearQueue();
-      paintLiveHymnQueuePanels();
-      setNotice("Queue cleared.");
-      return;
-    }
-    if (command === "hymn-queue-up") {
-      service.moveQueueItem(queueId, -1);
-      paintLiveHymnQueuePanels();
-      return;
-    }
-    if (command === "hymn-queue-down") {
-      service.moveQueueItem(queueId, 1);
-      paintLiveHymnQueuePanels();
-      return;
-    }
-    if (command === "hymn-queue-set-next") {
-      service.promoteQueueItem(queueId);
-      paintLiveHymnQueuePanels();
-      setNotice("Queue item promoted to Next.");
-      return;
-    }
-    if (command === "hymn-queue-remove") {
-      service.removeQueueItem(queueId);
-      paintLiveHymnQueuePanels();
-      return;
-    }
-    if (command === "hymn-queue-duplicate") {
-      service.duplicateQueueItem(queueId);
-      paintLiveHymnQueuePanels();
-      setNotice("Queue item duplicated.");
-      return;
-    }
-    if (command === "hymn-restore-previous") {
-      const result = await service.restorePrevious();
-      paintLiveHymnQueuePanels();
-      setNotice(result?.message || "Previous hymn restored.");
-      return;
-    }
-    if (command === "hymn-queue-from-plan") {
-      const start = Number(target?.dataset?.slot);
-      const slots = worshipPlan.slice(Number.isNaN(start) ? 0 : start).filter((slot) => slot?.songKey);
-      slots.forEach((slot, index) => {
-        if (index === 0) service.setAsNext(slot.songKey, { startSlideIndex: 0 });
-        else service.addToQueue(slot.songKey, { startSlideIndex: 0 });
-      });
-      paintLiveHymnQueuePanels();
-      setNotice(slots.length ? `${slots.length} service hymn(s) queued.` : "No service hymns to queue.");
     }
   }
 
@@ -1584,6 +1305,14 @@
     if (state.view === "song") {
       const song = selectedSong();
       return song ? `${t("nav.song")} ${song.number}` : t("nav.song");
+    }
+    if (state.view === "bible" && window.CISBibleStore) {
+      if (state.bibleMode === "live" && window.CISBibleProjectionService) {
+        const live = window.CISBibleProjectionService.getState().live;
+        return live.active && !live.cleared ? `Bible Live · ${live.referenceLabel}` : "Bible Live";
+      }
+      const meta = window.CISBibleStore.getBookMeta(state.bibleBookOrder);
+      return meta ? `${meta.name} ${state.bibleChapter}` : navLabel("bible");
     }
     const item = navItems.find((nav) => nav.id === state.view);
     return item ? navLabel(item.id) : navLabel("home");
@@ -3139,6 +2868,10 @@
     const next = state.presenter.slideIndex + delta;
     if (next >= 0 && next < item.slides.length) {
       state.presenter.slideIndex = next;
+      if (window.CISBibleProjectionService
+        && state.presenter.songKey === window.CISBibleProjectionService.BIBLE_LIVE_KEY) {
+        window.CISBibleProjectionService.setLiveSlideIndex(next);
+      }
       return beforeKey !== `${state.presenter.songKey}-${state.presenter.slideIndex}-${state.presenter.planIndex}`;
     }
     if (delta > 0) {
@@ -3636,6 +3369,7 @@
             <button class="secondary-button" type="button" data-command="emergency-black" data-confirm="true">${escapeHtml(t("presenter.blackScreen"))}${helpTrigger("blackout", "Blackout")}</button>
             <button class="secondary-button" type="button" data-command="emergency-white">${escapeHtml(t("presenter.whiteScreen"))}</button>
             <button class="secondary-button" type="button" data-command="emergency-logo">${escapeHtml(t("presenter.logoScreen"))}</button>
+            <button class="secondary-button" type="button" data-command="open-bible-live">Bible Live</button>
           </div>
           <div class="operator-preview-grid">
             <article class="preview-card">
@@ -3816,6 +3550,7 @@
           </aside>
         </div>
         ${backupPanel}
+        ${renderBibleSettingsPanel()}
         ${renderObsSettingsPanel()}
       </div>
     `;
@@ -4165,6 +3900,10 @@
   }
 
   function currentPresenterItem() {
+    if (window.CISBibleProjectionService
+      && state.presenter.songKey === window.CISBibleProjectionService.BIBLE_LIVE_KEY) {
+      return window.CISBibleProjectionService.getPresenterItem();
+    }
     if (state.presenter.songKey) {
       const song = getSongByKey(state.presenter.songKey);
       if (!song) return null;
@@ -4873,6 +4612,36 @@
       if (event.key === "ArrowRight") moveSlide(1);
       if (event.key === "ArrowLeft") moveSlide(-1);
     }
+    if (state.view === "bible" && state.bibleMode === "live" && window.CISBibleProjectionService) {
+      const inReference = event.target?.id === "bibleLiveReferenceInput";
+      if (inReference && event.key === "Enter") {
+        event.preventDefault();
+        handleBibleCommand("search-reference", event.target);
+        return;
+      }
+      if (!typing) {
+        if (event.key.toLowerCase() === "l" && event.shiftKey) {
+          event.preventDefault();
+          handleBibleCommand("send-live", null);
+          return;
+        }
+        if (event.altKey && event.key === "ArrowRight") {
+          event.preventDefault();
+          handleBibleCommand("next-verse", null);
+          return;
+        }
+        if (event.altKey && event.key === "ArrowLeft") {
+          event.preventDefault();
+          handleBibleCommand("prev-verse", null);
+          return;
+        }
+      }
+    }
+    if (!typing && event.altKey && event.key.toLowerCase() === "b") {
+      event.preventDefault();
+      openBibleLive();
+      return;
+    }
     if (event.key === "F1") {
       event.preventDefault();
       state.view = "help";
@@ -5320,6 +5089,242 @@
       window.CISObsOutputService.clearWorshipOverlays()
         .then(() => setNotice("Worship overlays cleared on OBS."))
         .catch((error) => setNotice(error?.message || "Failed to clear overlays."));
+      return;
+    }
+    if (command === "obs-monitor-start" && window.CISObsProgramMonitor) {
+      const monitor = window.CISObsProgramMonitor.getState();
+      window.CISObsProgramMonitor.startMonitor({
+        deviceId: monitor.deviceId,
+        allowSnapshotFallback: true,
+      })
+        .then((result) => setNotice(result.mode === "snapshot" ? "OBS Snapshot Preview started." : "OBS Program Monitor started."))
+        .catch((error) => setNotice(error?.message || "Failed to start OBS Program Monitor."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-stop" && window.CISObsProgramMonitor) {
+      window.CISObsProgramMonitor.stopMonitor()
+        .then(() => setNotice("OBS Program Monitor stopped."))
+        .catch((error) => setNotice(error?.message || "Failed to stop monitor."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-refresh-devices" && window.CISObsProgramMonitor) {
+      window.CISObsProgramMonitor.refreshDevices()
+        .then(() => setNotice("Video devices refreshed."))
+        .catch((error) => setNotice(error?.message || "Failed to refresh devices."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-start-vcam" && window.CISObsControlService) {
+      window.CISObsControlService.startVirtualCamera()
+        .then(() => { setNotice("OBS Virtual Camera started."); render(); })
+        .catch((error) => setNotice(error?.message || "Virtual Camera unavailable or failed."));
+      return;
+    }
+    if (command === "obs-monitor-stop-vcam" && window.CISObsControlService) {
+      window.CISObsControlService.stopVirtualCamera()
+        .then(() => { setNotice("OBS Virtual Camera stopped."); render(); })
+        .catch((error) => setNotice(error?.message || "Failed to stop Virtual Camera."));
+      return;
+    }
+    if (command === "obs-monitor-fullscreen") {
+      const viewport = document.getElementById("obsProgramMonitorViewport");
+      if (viewport && viewport.requestFullscreen) {
+        viewport.requestFullscreen().catch(() => setNotice("Fullscreen is not available."));
+      }
+      return;
+    }
+    if (command === "obs-monitor-detach" && window.CISObsProgramMonitor) {
+      if (!desktopBridge || !desktopBridge.obsMonitor || !desktopBridge.obsMonitor.open) {
+        setNotice("Detach Monitor requires the Electron desktop app.");
+        return;
+      }
+      const monitor = window.CISObsProgramMonitor.getState();
+      publishObsMonitorWorshipContext();
+      window.CISObsProgramMonitor.stopMonitor().finally(() => {
+        window.CISObsProgramMonitor.setDetached(true);
+        desktopBridge.obsMonitor.open({
+          deviceId: monitor.deviceId,
+          deviceLabel: monitor.deviceLabel,
+          worshipContext: getObsMonitorWorshipContext(),
+        });
+        render();
+        setNotice("OBS Program Monitor detached to always-on-top window.");
+      });
+      return;
+    }
+    if (command === "obs-monitor-reconnect" && window.CISObsConnectionService) {
+      window.CISObsConnectionService.connect()
+        .then(() => setNotice("Reconnecting to OBS…"))
+        .catch((error) => setNotice(error?.message || "OBS reconnect failed."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "obs-monitor-open-settings") {
+      state.view = "settings";
+      saveValue("view", state.view);
+      render();
+      return;
+    }
+    if (command === "camera-add") {
+      openCameraEditor();
+      return;
+    }
+    if (command === "camera-edit") {
+      openCameraEditor(target.dataset.cameraId);
+      return;
+    }
+    if (command === "camera-save") {
+      saveCameraFromModal();
+      return;
+    }
+    if (command === "camera-save-settings") {
+      saveCameraSettingsFromPanel();
+      return;
+    }
+    if (command === "camera-refresh-devices" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.refreshDevices(true)
+        .then(() => setNotice("Camera devices refreshed."))
+        .catch((error) => setNotice(error?.message || "Failed to refresh devices."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-preview" && window.CISCameraSourceService) {
+      const cameraId = target.dataset.cameraId || window.CISCameraSourceService.getState().settings.defaultCameraId;
+      window.CISCameraSourceService.startPreview(cameraId)
+        .then(() => setNotice("Camera preview started."))
+        .catch((error) => setNotice(error?.message || "Camera preview failed."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-stop-preview" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.stopPreview()
+        .then(() => setNotice("Camera preview stopped."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-send-live") {
+      handleCameraSendLive(target.dataset.cameraId);
+      return;
+    }
+    if (command === "camera-switch-backup" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.useBackupCamera()
+        .then(() => { setNotice("Switched to backup camera."); renderPresenterAV(); })
+        .catch((error) => setNotice(error?.message || "Backup camera unavailable."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-clear" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.clearCamera();
+      setNotice("Camera cleared from live output.");
+      renderPresenterAV();
+      render();
+      return;
+    }
+    if (command === "camera-freeze-toggle" && window.CISCameraSourceService) {
+      const liveState = window.CISCameraSourceService.getState().live;
+      window.CISCameraSourceService.freezeCamera(!liveState.frozen);
+      renderPresenterAV();
+      render();
+      return;
+    }
+    if (command === "camera-freeze-off" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.freezeCamera(false);
+      renderPresenterAV();
+      render();
+      return;
+    }
+    if (command === "camera-restart" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.restartCameraSource()
+        .then(() => setNotice("Camera source restarted."))
+        .catch((error) => setNotice(error?.message || "Camera restart failed."))
+        .finally(() => { renderPresenterAV(); render(); });
+      return;
+    }
+    if (command === "camera-return-previous" && window.CISCameraSourceService) {
+      if (window.CISCameraSourceService.returnToPreviousLive()) {
+        setNotice("Returned to previous live item.");
+        renderPresenterAV();
+      } else setNotice("No previous live camera item.");
+      render();
+      return;
+    }
+    if (command === "camera-set-default" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.setDefaultCamera(target.dataset.cameraId);
+      setNotice("Default camera updated.");
+      render();
+      return;
+    }
+    if (command === "camera-set-backup" && window.CISCameraSourceService) {
+      window.CISCameraSourceService.setBackupCamera(target.dataset.cameraId);
+      setNotice("Backup camera updated.");
+      render();
+      return;
+    }
+    if (command === "camera-remove" && window.CISCameraSourceService) {
+      if (target.dataset.confirm === "true" && !window.confirm("Remove this saved camera?")) return;
+      window.CISCameraSourceService.removeCamera(target.dataset.cameraId);
+      setNotice("Camera removed.");
+      render();
+      return;
+    }
+    if (command === "camera-detach-preview") {
+      if (!desktopBridge || !desktopBridge.cameraPreview || !desktopBridge.cameraPreview.open) {
+        setNotice("Detach preview requires the Electron desktop app.");
+        return;
+      }
+      desktopBridge.cameraPreview.open();
+      setNotice("Camera preview detached.");
+      return;
+    }
+    if (command === "camera-obs-vcam-start" && window.CISObsControlService) {
+      window.CISObsControlService.startVirtualCamera()
+        .then(() => setNotice("OBS Virtual Camera started."))
+        .catch((error) => setNotice(error?.message || "Failed to start Virtual Camera."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-obs-vcam-stop" && window.CISObsControlService) {
+      window.CISObsControlService.stopVirtualCamera()
+        .then(() => setNotice("OBS Virtual Camera stopped."))
+        .catch((error) => setNotice(error?.message || "Failed to stop Virtual Camera."))
+        .finally(() => render());
+      return;
+    }
+    if (command === "camera-obs-vcam-refresh") {
+      if (window.CISObsConnectionService) window.CISObsConnectionService.refreshRuntime?.();
+      if (window.CISCameraSourceService) window.CISCameraSourceService.refreshDevices(false);
+      setNotice("OBS Virtual Camera state refreshed.");
+      render();
+      return;
+    }
+    if (command === "open-camera-sources") {
+      state.view = "cameras";
+      saveValue("view", state.view);
+      render();
+      return;
+    }
+    if (command === "open-bible-live") {
+      openBibleLive(target?.dataset?.reference || "");
+      return;
+    }
+    if (command === "bible-settings" && window.CISBibleProjectionService) {
+      const setting = target.dataset.setting;
+      if (!setting) return;
+      const current = window.CISBibleProjectionService.getSettings();
+      let value;
+      if (target.type === "checkbox") value = target.checked;
+      else if (target.type === "number") value = Number(target.value);
+      else value = target.value;
+      const next = { ...current, [setting]: value };
+      window.CISBibleProjectionService.updateSettings(next, true);
+      if (setting === "defaultTranslation") {
+        state.bibleTranslation = value;
+        saveValue("bibleTranslation", value);
+      }
+      setNotice("Bible projection settings saved.");
+      render();
       return;
     }
     if ((command === "obs-show-source" || command === "obs-hide-source") && window.CISObsSourceService) {
