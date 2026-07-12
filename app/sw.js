@@ -1,9 +1,9 @@
-const CACHE_NAME = "christ-in-song-worship-v40";
+const CACHE_NAME = "christ-in-song-worship-v41";
 
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=40",
+  "./styles.css?v=41",
   "./data/songs.js?v=2",
   "./data/extra-packs.js",
   "./lazy-pack-loader.js?v=1",
@@ -52,6 +52,10 @@ const APP_SHELL = [
   "./service-mode/service-mode-settings.js?v=1",
   "./service-mode/service-mode-service.js?v=1",
   "./service-mode/service-mode-ui.js?v=1",
+  "./quiet-service-mode/notification-classifier.js?v=1",
+  "./quiet-service-mode/quiet-service-mode-settings.js?v=1",
+  "./quiet-service-mode/quiet-service-mode-service.js?v=1",
+  "./quiet-service-mode/quiet-service-mode-ui.js?v=1",
   "./presentation/presentation-state-model.js?v=1",
   "./presentation/live-switch-settings.js?v=1",
   "./presentation/live-switch-service.js?v=1",
@@ -108,7 +112,7 @@ const APP_SHELL = [
   "./i18n/i18n-catalog.js?v=1",
   "./i18n/i18n-store.js?v=1",
   "./i18n/i18n.js?v=1",
-  "./app.js?v=40",
+  "./app.js?v=41",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",

@@ -12,7 +12,7 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=40">
+    <link rel="stylesheet" href="./styles.css?v=41">
   </head>
   <body>
     <div id="launchSplash" class="launch-splash" aria-hidden="true">
@@ -55,11 +55,13 @@
             </div>
             <button class="tool-button" type="button" data-command="open-presenter" id="topbarPresenterBtn">Presenter</button>
             <button class="tool-button service-mode-enter-btn" type="button" data-command="service-mode-enter" id="topbarServiceModeBtn" aria-pressed="false">Enter Service Mode</button>
+            <button class="tool-button quiet-service-mode-btn" type="button" data-command="quiet-service-mode-enter" id="topbarQuietServiceModeBtn" aria-pressed="false">Enter Quiet Service Mode</button>
             <div id="liveLockRoot" class="live-lock-root" aria-live="polite"></div>
             <button class="tool-button help-emergency-chip" type="button" data-command="help-open-emergency" title="Emergency Help" id="topbarEmergencyBtn">Emergency</button>
             <button class="tool-button" type="button" data-view="help" id="topbarHelpBtn" title="Help Centre (F1)">Help</button>
           </div>
         </header>
+        <div id="quietServiceModeRoot" class="quiet-service-mode-root" aria-live="polite"></div>
         <div id="operatorStatusRoot" class="operator-status-root" aria-live="polite"></div>
         <section id="content" class="content" aria-live="polite"></section>
       </main>
@@ -119,6 +121,10 @@
     <script src="./service-mode/service-mode-settings.js?v=1"></script>
     <script src="./service-mode/service-mode-service.js?v=1"></script>
     <script src="./service-mode/service-mode-ui.js?v=1"></script>
+    <script src="./quiet-service-mode/notification-classifier.js?v=1"></script>
+    <script src="./quiet-service-mode/quiet-service-mode-settings.js?v=1"></script>
+    <script src="./quiet-service-mode/quiet-service-mode-service.js?v=1"></script>
+    <script src="./quiet-service-mode/quiet-service-mode-ui.js?v=1"></script>
     <script src="./presentation/presentation-state-model.js?v=1"></script>
     <script src="./presentation/live-switch-settings.js?v=1"></script>
     <script src="./presentation/live-switch-service.js?v=1"></script>

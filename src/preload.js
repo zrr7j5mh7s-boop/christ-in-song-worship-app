@@ -29,6 +29,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('update-status', listener);
   },
 
+  quietMode: {
+    setActive: (enabled) => ipcRenderer.invoke('quiet-mode:set-active', { enabled: Boolean(enabled) }),
+    setPowerBlocker: (enabled) => ipcRenderer.invoke('quiet-mode:set-power-blocker', { enabled: Boolean(enabled) }),
+  },
+
   openProjector: () => ipcRenderer.invoke('presenter:open'),
 
   closeProjector: () => ipcRenderer.invoke('presenter:close'),

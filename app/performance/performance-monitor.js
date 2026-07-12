@@ -28,6 +28,11 @@
   }
 
   function record(name, value) {
+    if (window.CISQuietServiceModeService?.shouldPauseBackgroundTask?.(
+      window.CISQuietServiceModeService.BACKGROUND_TASKS.analytics
+    )) {
+      return;
+    }
     metrics[name] = value;
   }
 
