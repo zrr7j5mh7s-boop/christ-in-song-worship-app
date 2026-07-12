@@ -1,9 +1,9 @@
-const CACHE_NAME = "christ-in-song-worship-v26";
+const CACHE_NAME = "christ-in-song-worship-v32";
 
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=26",
+  "./styles.css?v=32",
   "./data/songs.js?v=2",
   "./data/extra-packs.js",
   "./lazy-pack-loader.js?v=1",
@@ -12,8 +12,13 @@ const APP_SHELL = [
   "./service-templates.js?v=2",
   "./template-store.js?v=1",
   "./template-ui.js?v=2",
-  "./pack-store.js?v=1",
-  "./pack-import.js?v=1",
+  "./pack-store.js?v=2",
+  "./pack-import.js?v=2",
+  "./hymnal-library/hymnal-migration.js?v=1",
+  "./hymnal-library/hymnal-library-settings.js?v=1",
+  "./hymnal-library/hymnal-library-store.js?v=1",
+  "./hymnal-library/hymnal-import-service.js?v=1",
+  "./hymnal-library/hymnal-library-ui.js?v=1",
   "./tag-catalog.js?v=1",
   "./song-tags-store.js?v=1",
   "./song-tags-ui.js?v=1",

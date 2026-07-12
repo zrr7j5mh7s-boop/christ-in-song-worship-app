@@ -471,13 +471,78 @@ h3 {
   text-overflow: ellipsis;
 }
 
-.hymn-pack-switcher .locale-dropdown-trigger.ready {
-  border-color: rgba(40, 98, 71, 0.35);
+.hymn-pack-switcher .locale-dropdown-trigger.ready,
+.hymn-book-switcher .locale-dropdown-trigger.ready,
+.hymn-edition-switcher .locale-dropdown-trigger.ready {
+  border-color: rgba(46, 125, 90, 0.35);
 }
 
-.hymn-pack-switcher .locale-dropdown-trigger.awaiting {
-  color: var(--muted);
-  background: #f0f2ef;
+.hymn-pack-switcher .locale-dropdown-trigger.awaiting,
+.hymn-book-switcher .locale-dropdown-trigger.awaiting,
+.hymn-edition-switcher .locale-dropdown-trigger.awaiting {
+  border-color: rgba(180, 120, 20, 0.35);
+}
+
+.hymnal-selector-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hymn-index-selectors {
+  margin-bottom: 12px;
+}
+
+.hymnal-library-settings .hymnal-book-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+  background: var(--surface);
+}
+
+.hymnal-book-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.hymnal-edition-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.hymnal-edition-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised, var(--surface));
+}
+
+.hymnal-edition-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hymnal-import-target fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.hymnal-import-target .hidden {
+  display: none;
 }
 
 .language-switcher {

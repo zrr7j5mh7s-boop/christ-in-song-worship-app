@@ -5,6 +5,18 @@
     sda: "./data/sda-hymnal-pack.js?v=2",
   };
 
+  const DEFERRED_PACK_META = {
+    sda: {
+      code: "sda",
+      editionId: "sda-hymnal-english",
+      hymnBookId: "sda-hymnal",
+      name: "SDA Hymnal",
+      status: "loading",
+      songCount: 695,
+      source: "SDA_Hymnal_English_PowerPoint_Pack.pptx",
+    },
+  };
+
   const DEFERRED_BUNDLES = {
     pdfmake: [
       "./vendor/pdfmake.min.js",

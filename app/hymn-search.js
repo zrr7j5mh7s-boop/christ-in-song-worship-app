@@ -54,8 +54,12 @@
       else verses.push(body);
     });
     const lyrics = [...verses, ...choruses].join(" ");
+    const editionId = pack.editionId || pack.code;
+    const hymnId = song.hymnId || `${editionId}:${song.number}`;
     return {
-      id: `${pack.code}:${song.number}`,
+      id: hymnId,
+      hymnId,
+      editionId,
       code: pack.code,
       packName: pack.name || pack.code,
       number: String(song.number || ""),
@@ -79,8 +83,10 @@
     for (const song of pack.songs || []) {
       records.push(buildRecord(song, pack));
     }
-    packIndexes.set(pack.code, {
+    const indexKey = pack.editionId || pack.code;
+    packIndexes.set(indexKey, {
       code: pack.code,
+      editionId: pack.editionId || pack.code,
       records,
       fuse: createFuse(records),
       songCount: (pack.songs || []).length,
@@ -91,7 +97,8 @@
 
   function ensurePackIndexed(pack) {
     if (!pack || pack.status !== "ready") return 0;
-    const existing = packIndexes.get(pack.code);
+    const indexKey = pack.editionId || pack.code;
+    const existing = packIndexes.get(indexKey);
     if (existing && existing.songCount === (pack.songs || []).length) {
       return existing.records.length;
     }
