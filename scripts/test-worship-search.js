@@ -223,10 +223,10 @@ function run() {
 
       const indexHtml = read("app/index.html");
       assert.match(indexHtml, /worship-search-engine\.js/);
-      assert.match(indexHtml, /styles\.css\?v=45/);
+      assert.match(indexHtml, /styles\.css\?v=46/);
 
       const sw = read("app/sw.js");
-      assert.match(sw, /christ-in-song-worship-v45/);
+      assert.match(sw, /christ-in-song-worship-v46/);
 
       const pkg = JSON.parse(read("package.json"));
       assert.ok(pkg.scripts["test:worship-search"]);

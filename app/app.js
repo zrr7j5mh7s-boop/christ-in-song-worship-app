@@ -3516,6 +3516,9 @@
       modalRoot: els.modalRoot,
       setNotice,
       render,
+      getAppVersion: () => state.desktopInfo?.version || window.CISReleaseMetadata?.VERSION || "1.0.0-rc.1",
+      getBuildNumber: () => state.desktopInfo?.build || window.CISReleaseMetadata?.BUILD_NUMBER || 1,
+      getReleaseChannel: () => state.desktopInfo?.releaseChannel || window.CISReleaseMetadata?.RELEASE_CHANNEL || "rc",
       gatherSnapshot: async () => {
         const obsExport = window.CISObsSettingsStore
           ? window.CISObsSettingsStore.exportForBackup()
@@ -6622,7 +6625,9 @@
             <dl class="settings-product-info">
               <div><dt>Application</dt><dd>${escapeHtml(brandAppName())}</dd></div>
               <div><dt>Short name</dt><dd>${escapeHtml(brandShortName())}</dd></div>
-              <div><dt>Version</dt><dd>${escapeHtml(state.desktopInfo?.version || "1.0.0")}</dd></div>
+              <div><dt>Version</dt><dd>${escapeHtml(state.desktopInfo?.version || window.CISReleaseMetadata?.VERSION || "1.0.0-rc.1")}</dd></div>
+              <div><dt>Build</dt><dd>${escapeHtml(String(state.desktopInfo?.build || window.CISReleaseMetadata?.BUILD_NUMBER || "1"))}</dd></div>
+              <div><dt>Release</dt><dd>${escapeHtml(state.desktopInfo?.releaseLabel || window.CISReleaseMetadata?.RELEASE_LABEL || "Release Candidate")}</dd></div>
             </dl>
             <hr>
             <h3>${escapeHtml(t("nav.help"))}</h3>

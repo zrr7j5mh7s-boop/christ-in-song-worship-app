@@ -253,18 +253,22 @@
   }
 
   function renderAbout(desktopInfo) {
-    const version = desktopInfo?.version || "1.0.0";
+    const version = desktopInfo?.version || window.CISReleaseMetadata?.VERSION || "1.0.0-rc.1";
+    const build = desktopInfo?.build || window.CISReleaseMetadata?.BUILD_NUMBER || "";
+    const releaseLabel = desktopInfo?.releaseLabel || window.CISReleaseMetadata?.RELEASE_LABEL || "";
     const brand = window.CISBrandConfig ? window.CISBrandConfig.BRAND : { appName: "VaChinoda Worship App", shortName: "VaChinoda" };
     const seen = window.CISHelpStore ? window.CISHelpStore.getWhatsNewSeen() : "";
     const whatsNew = version !== seen;
     return `
       <section class="section help-about">
         <h2>About and Updates</h2>
-        ${whatsNew ? `<div class="help-whats-new"><strong>What's New in v${escapeHtml(version)}</strong><ul><li>Help Centre with offline search and emergency tools</li><li>OBS Studio integration (WebSocket 5.x, Browser Sources)</li><li>Interactive pre-service and setup checklists</li><li>Training Mode for operator practice</li></ul><button type="button" class="secondary-button" data-command="help-dismiss-whats-new">Dismiss</button></div>` : ""}
+        ${whatsNew ? `<div class="help-whats-new"><strong>What's New in v${escapeHtml(version)}</strong><ul><li>Release Candidate 1 — worship-system hardening and session recovery</li><li>Stage Display for private worship-team monitors</li><li>Unified Worship Search across hymns, Bible, media, and service items</li><li>Quiet Service Mode and keyboard shortcut improvements</li></ul><button type="button" class="secondary-button" data-command="help-dismiss-whats-new">Dismiss</button></div>` : ""}
         <dl class="help-about-grid">
           <div><dt>Application</dt><dd>${escapeHtml(brand.appName)}</dd></div>
           <div><dt>Short name</dt><dd>${escapeHtml(brand.shortName)}</dd></div>
           <div><dt>Version</dt><dd>${escapeHtml(version)}</dd></div>
+          ${build ? `<div><dt>Build</dt><dd>${escapeHtml(String(build))}</dd></div>` : ""}
+          ${releaseLabel ? `<div><dt>Release</dt><dd>${escapeHtml(releaseLabel)}</dd></div>` : ""}
           <div><dt>OBS integration</dt><dd>WebSocket 5.x · Browser Source server</dd></div>
           <div><dt>Bible translations</dt><dd>KJV, ASV, WEB (public domain)</dd></div>
           <div><dt>Support</dt><dd>juliuschinoda@gmail.com</dd></div>

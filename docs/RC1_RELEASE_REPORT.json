@@ -1,0 +1,34 @@
+{
+  "releaseVersion": "1.0.0-rc.1",
+  "buildNumber": 1,
+  "releaseLabel": "Release Candidate 1",
+  "framework": "Electron 31.7.7 + electron-builder 24.13.3",
+  "packaging": "asar desktop bundle",
+  "appId": "com.vachinoda.christinsong",
+  "platformsBuilt": [
+    "mac-arm64-dmg",
+    "mac-arm64-zip",
+    "mac-x64-zip",
+    "mac-arm64-unpacked-app"
+  ],
+  "platformsFailed": [
+    "mac-x64-dmg (hdiutil resize resource error)"
+  ],
+  "cacheVersion": "christ-in-song-worship-v46",
+  "criticalDefects": [],
+  "highDefects": [],
+  "knownLimitations": [
+    "macOS build unsigned — Gatekeeper may block first open",
+    "mac-x64 DMG failed on build host; x64 ZIP available",
+    "OBS, projector, camera hardware validated by mocks; worship-pilot checklist required on site",
+    "OBS WebSocket password not exported in backups by design",
+    "Multi-hour soak via 400-iteration automated proxy"
+  ],
+  "automatedTests": {
+    "testRc1": "pass",
+    "testProductionRehearsal": "pass",
+    "verifyRelease": "pass",
+    "buildWebAssets": "pass (135 files)"
+  },
+  "releaseRecommendation": "Approved with documented limitations"
+}

@@ -107,6 +107,7 @@ function testCacheVersion() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   if (!sw.includes("christ-in-song-worship-v41")) fail("Service worker cache should be v41");
   ok("cache version v41 for quiet service mode release");
 =======
@@ -133,6 +134,10 @@ function testCacheVersion() {
   if (!sw.includes("christ-in-song-worship-v45")) fail("Service worker cache should be v45");
   ok("cache version v45 for session recovery release");
 >>>>>>> 3c65f4b (Add session recovery so worship operators can restore the last-known-good live session after a crash or unexpected restart.)
+=======
+  if (!sw.includes("christ-in-song-worship-v46")) fail("Service worker cache should be v46");
+  ok("cache version v46 for RC1 release");
+>>>>>>> 52f084e (Prepare Release Candidate 1.0.0-rc.1 with versioned metadata, RC gate tests, and release documentation.)
 }
 
 testDesignTokens();
