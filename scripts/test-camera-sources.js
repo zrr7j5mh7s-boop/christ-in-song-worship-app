@@ -174,7 +174,11 @@ async function run() {
   assert.ok(appSource.includes('id: "cameras"'));
   assert.ok(appSource.includes("camera-send-live"));
   assert.ok(appSource.includes("setupCameraSources"));
-  assert.ok(appSource.includes("typing"));
+  assert.ok(
+    appSource.includes("CISKeyboardShortcutsService")
+    || appSource.includes("isTypingTarget"),
+    "camera shortcuts should respect typing targets via keyboard shortcut service",
+  );
 
   const slideSource = read("app/slide-content.js");
   assert.ok(slideSource.includes('"camera"'));

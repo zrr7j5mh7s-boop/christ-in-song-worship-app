@@ -46,6 +46,7 @@
     "test:worship-search": "node scripts/test-worship-search.js",
     "test:stage-display": "node scripts/test-stage-display.js",
     "test:session-recovery": "node scripts/test-session-recovery.js",
+    "test:production-rehearsal": "node scripts/test-production-rehearsal.js",
     "test:projection-rendering": "node scripts/test-projection-rendering.js",
     "benchmark:performance": "node scripts/benchmark-performance.js",
     "build:web-assets": "node scripts/build-production-assets.js",

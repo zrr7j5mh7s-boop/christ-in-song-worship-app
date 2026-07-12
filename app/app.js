@@ -734,7 +734,7 @@
             queueIndex: null,
           });
         } else {
-          window.CISPresenterEngine.applyState({
+          window.CISPresenterEngine.patchState({
             songKey: key,
             planIndex: null,
             slideIndex: state.presenter.slideIndex,
@@ -751,7 +751,7 @@
         }
         if (window.CISPresenterEngine?.getState?.().active
           && state.presenter.songKey === window.CISBibleProjectionService.BIBLE_LIVE_KEY) {
-          window.CISPresenterEngine.applyState({ songKey: "", planIndex: null, slideIndex: 0 });
+          window.CISPresenterEngine.patchState({ songKey: "", planIndex: null, slideIndex: 0 });
         }
         renderPresenterAV();
       },
@@ -861,7 +861,7 @@
       state.presenter.songKey = songKey;
       state.presenter.slideIndex = slideIndex;
       state.presenter.planIndex = null;
-      window.CISPresenterEngine.applyState({
+      window.CISPresenterEngine.patchState({
         songKey,
         planIndex: null,
         slideIndex,
