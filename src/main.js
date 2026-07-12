@@ -191,6 +191,17 @@ ipcMain.handle('app:info', () => ({
   packaged: app.isPackaged,
 }));
 
+ipcMain.handle('app:open-logs', () => {
+  try {
+    const logPath = log.transports.file.getFile().path;
+    shell.showItemInFolder(logPath);
+    return { ok: true, path: logPath };
+  } catch (err) {
+    log.warn('[main] Could not open logs folder:', err.message);
+    return { ok: false, message: err.message };
+  }
+});
+
 ipcMain.handle('updates:check', () => {
   if (updater) updater.checkForUpdates();
   return { started: true };

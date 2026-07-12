@@ -131,6 +131,37 @@ body {
   animation-delay: 0.3s;
 }
 
+.launch-splash-error {
+  margin-top: 18px;
+  max-width: 420px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  text-align: left;
+}
+
+.launch-splash-error[hidden] {
+  display: none;
+}
+
+.launch-splash-error p {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #f8d7da;
+}
+
+.launch-splash-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.launch-splash-actions .btn {
+  min-width: 110px;
+}
+
 @keyframes launch-pulse {
   0%, 80%, 100% {
     opacity: 0.35;

@@ -138,10 +138,10 @@ function run() {
 
   const indexHtml = read("app/index.html");
   assert.match(indexHtml, /stage-display-engine\.js/);
-  assert.match(indexHtml, /styles\.css\?v=46/);
+  assert.match(indexHtml, /styles\.css\?v=47/);
 
   const sw = read("app/sw.js");
-  assert.match(sw, /christ-in-song-worship-v46/);
+  assert.match(sw, /christ-in-song-worship-v47/);
   assert.match(sw, /stage-display-screen\.html/);
 
   const screenSource = read("app/stage-display/stage-display-screen.js");
