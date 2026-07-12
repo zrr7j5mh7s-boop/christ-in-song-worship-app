@@ -6,7 +6,7 @@
     churchSubtitle: "",
     serviceTitle: "Sabbath Worship Service",
     headerText: "",
-    footerText: "Christ in Song · VaChinoda Worship",
+    footerText: "VaChinoda Worship App",
     dateLabel: "",
     includeSongService: true,
     includeNotes: true,

@@ -50,13 +50,15 @@
   }
 
   function renderEmergency(mode) {
+    const appName = window.CISBrandConfig ? window.CISBrandConfig.BRAND.appName.toUpperCase() : "VACHINODA WORSHIP APP";
+    const shortName = window.CISBrandConfig ? window.CISBrandConfig.BRAND.shortName : "VaChinoda";
     if (mode === "logo") {
       return `
         <div class="projector-emergency logo">
           <div class="projector-logo-lockup">
             <span class="projector-logo-mark" aria-hidden="true">✦</span>
-            <strong>CHRIST IN SONG</strong>
-            <span>VaChinoda Worship</span>
+            <strong>${escapeHtml(appName)}</strong>
+            <span>${escapeHtml(shortName)}</span>
           </div>
           ${renderEmergencyReturn()}
         </div>
