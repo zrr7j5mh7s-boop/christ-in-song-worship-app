@@ -101,8 +101,13 @@ function testHymnCardLongTitles() {
 
 function testCacheVersion() {
   const sw = read("sw.js");
+<<<<<<< HEAD
   if (!sw.includes("christ-in-song-worship-v41")) fail("Service worker cache should be v41");
   ok("cache version v41 for quiet service mode release");
+=======
+  if (!sw.includes("christ-in-song-worship-v39")) fail("Service worker cache should be v39");
+  ok("cache version v39 for UX release");
+>>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
 }
 
 testDesignTokens();

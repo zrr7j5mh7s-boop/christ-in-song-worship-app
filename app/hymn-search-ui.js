@@ -53,7 +53,7 @@
         </div>
         <div class="global-search-toolbar">
           <label class="search-box global-search-input">
-            <span aria-hidden="true">⌕</span>
+            <span aria-hidden="true">${window.CISUiIcons ? window.CISUiIcons.get("search") : "⌕"}</span>
             <input
               id="globalSearchInput"
               type="search"

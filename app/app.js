@@ -132,10 +132,14 @@
     emergencyOverlay: document.getElementById("emergencyOverlay"),
     obsStatusRoot: document.getElementById("obsStatusRoot"),
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     operatorStatusRoot: document.getElementById("operatorStatusRoot"),
     quietServiceModeRoot: document.getElementById("quietServiceModeRoot"),
 >>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
+=======
+    operatorStatusRoot: document.getElementById("operatorStatusRoot"),
+>>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
   };
 
   let embeddedProjectorActive = false;
@@ -3502,10 +3506,14 @@
     renderPresenterAV();
     renderObsTopbar();
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     renderOperatorStatus();
     renderQuietServiceModeBanner();
 >>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
+=======
+    renderOperatorStatus();
+>>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
     renderEmergencyOverlay();
     if (state.view === "builder") bindBuilderInteractions();
     bindGlobalSearch();
@@ -3582,7 +3590,10 @@
   }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
   function navIconMarkup(id, fallback) {
     if (window.CISUiIcons) return window.CISUiIcons.nav(id);
     return fallback || "";
@@ -3602,10 +3613,15 @@
     });
     items.push({
       label: "Current Service",
+<<<<<<< HEAD
       value: isQuietServiceModeActive()
         ? "Quiet Service Mode"
         : (isServiceModeActive() ? "Service Mode" : (presenter?.active ? "Live" : "Browse")),
       tone: presenter?.active || isServiceModeActive() || isQuietServiceModeActive() ? "ready" : "off",
+=======
+      value: isServiceModeActive() ? "Service Mode" : (presenter?.active ? "Live" : "Browse"),
+      tone: presenter?.active || isServiceModeActive() ? "ready" : "off",
+>>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
     });
 
     if (obs) {
@@ -3670,7 +3686,10 @@
     }
   }
 
+<<<<<<< HEAD
 >>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
+=======
+>>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
   function renderNav() {
     const serviceNavItems = [
       { id: "service", label: "Service Mode", icon: "⬤" },
@@ -3681,8 +3700,8 @@
     ];
     const items = isServiceModeActive() ? serviceNavItems : navItems;
     els.nav.innerHTML = items.map((item) => `
-      <button class="rail-btn ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}">
-        <span class="ico" aria-hidden="true">${item.icon}</span>
+      <button class="rail-btn ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}" aria-current="${state.view === item.id ? "page" : "false"}">
+        <span class="ico" aria-hidden="true">${navIconMarkup(item.id, item.icon)}</span>
         <span>${escapeHtml(isServiceModeActive() && item.id === "service" ? "Service Mode" : navLabel(item.id))}</span>
       </button>
     `).join("");
@@ -3817,7 +3836,7 @@
         <h2>${escapeHtml(t("home.title"))}</h2>
         <p>${escapeHtml(t("home.subtitle"))}</p>
         <label class="hero-search">
-          <span aria-hidden="true">⌕</span>
+          <span aria-hidden="true">${window.CISUiIcons ? window.CISUiIcons.get("search") : "⌕"}</span>
           <input id="homeSearchInput" type="search" value="" placeholder="${escapeHtml(t("home.searchPlaceholder"))}">
         </label>
         <div class="stat-row">
@@ -3875,9 +3894,10 @@
   }
 
   function commandCard(view, icon, title, detail) {
+    const iconMarkup = window.CISUiIcons ? (window.CISUiIcons.nav(view) || window.CISUiIcons.get(icon) || icon) : icon;
     return `
       <button class="command-card" type="button" data-view="${view}">
-        <span class="command-icon" aria-hidden="true">${icon}</span>
+        <span class="command-icon" aria-hidden="true">${iconMarkup}</span>
         <span>
           <strong>${escapeHtml(title)}</strong>
           <span>${escapeHtml(detail)}</span>
@@ -3950,7 +3970,7 @@
         <section class="section">
           <div class="toolbar">
             <label class="search-box">
-              <span aria-hidden="true">⌕</span>
+              <span aria-hidden="true">${window.CISUiIcons ? window.CISUiIcons.get("search") : "⌕"}</span>
               <input id="indexSearchInput" type="search" value="${escapeHtml(state.query)}" placeholder="Search hymns">
             </label>
             <div class="tab-row">
@@ -4002,7 +4022,7 @@
       <section class="section">
         <div class="toolbar">
           <label class="search-box">
-            <span aria-hidden="true">⌕</span>
+            <span aria-hidden="true">${window.CISUiIcons ? window.CISUiIcons.get("search") : "⌕"}</span>
             <input id="globalSearchInput" type="search" value="${escapeHtml(state.query)}" placeholder="Search number, title, verse, or chorus">
           </label>
           <span class="muted">${results.length} result${results.length === 1 ? "" : "s"}</span>
@@ -4057,10 +4077,10 @@
             </div>
             <div class="song-actions">
               <button class="secondary-button ${state.practiceMode ? "active" : ""}" type="button" data-command="toggle-practice-mode">${state.practiceMode ? "Close Practice" : "Practice"}</button>
-              <button class="secondary-button" type="button" data-command="toggle-favorite">${isFavorite ? "★ Saved" : "☆ Save"}</button>
+              <button class="secondary-button" type="button" data-command="toggle-favorite" aria-pressed="${isFavorite ? "true" : "false"}">${isFavorite ? `${window.CISUiIcons ? window.CISUiIcons.get("star") : "★"} Saved` : `${window.CISUiIcons ? window.CISUiIcons.get("starOutline") : "☆"} Save`}</button>
               <button class="secondary-button" type="button" data-command="open-slot-picker">Add to Set</button>
               ${renderHymnQueueActions(key)}
-              <button class="action-button" type="button" data-command="present-song">Present</button>
+              <button class="secondary-button" type="button" data-command="present-song">Present</button>
             </div>
           </div>
           <div id="hymnAudioDock"></div>
@@ -4471,7 +4491,7 @@
           ${current ? `<button class="secondary-button" type="button" data-command="assign-current-service">Use Hymn ${escapeHtml(current.number)} in Song Service</button>` : ""}
           <hr>
           <label class="search-box">
-            <span aria-hidden="true">⌕</span>
+            <span aria-hidden="true">${window.CISUiIcons ? window.CISUiIcons.get("search") : "⌕"}</span>
             <input id="builderSearchInput" type="search" value="${escapeHtml(state.builderQuery)}" placeholder="${escapeHtml(t("builder.findHymn"))}">
           </label>
           <div class="result-list">
@@ -5314,16 +5334,21 @@
       ? escapeHtml(t("presenter.current", { title: `${t("notice.hymnPrefix", { number: currentSong.number })} · ${currentSong.title}` }))
       : escapeHtml(t("presenter.currentNone"))}</h2>
           <p class="muted">${nextInfo ? escapeHtml(t("presenter.next", { title: slotTitle(nextInfo.slot) })) : escapeHtml(t("presenter.nextNone"))}</p>
-          <div class="button-row">
-            <button class="action-button" type="button" data-command="present-current">${escapeHtml(t("presenter.presentCurrent"))}${helpTrigger("send-live", "Present Current")}</button>
+          <div class="button-row operator-primary-actions">
+            <button class="action-button" type="button" data-command="present-current">${escapeHtml(t("presenter.presentCurrent"))}${helpTrigger("send-live", "Send Live")}</button>
+          </div>
+          <div class="button-row operator-secondary-actions">
             <button class="secondary-button service-touch-btn" type="button" data-command="service-mode-enter">Enter Service Mode</button>
             <button class="secondary-button" type="button" data-command="presenter-open-output">${escapeHtml(t("presenter.openProjector"))}</button>
-            <button class="secondary-button" type="button" data-command="help-open-emergency">${escapeHtml(t("presenter.emergencyHelp"))}</button>
-            <button class="secondary-button" type="button" data-command="emergency-clear">${escapeHtml(t("common.clear"))}${helpTrigger("clear", "Clear")}</button>
-            <button class="secondary-button" type="button" data-command="emergency-black" data-confirm="true">${escapeHtml(t("presenter.blackScreen"))}${helpTrigger("blackout", "Blackout")}</button>
-            <button class="secondary-button" type="button" data-command="emergency-white">${escapeHtml(t("presenter.whiteScreen"))}</button>
-            <button class="secondary-button" type="button" data-command="emergency-logo">${escapeHtml(t("presenter.logoScreen"))}</button>
             <button class="secondary-button" type="button" data-command="open-bible-live">Bible Live</button>
+            <button class="secondary-button" type="button" data-command="help-open-emergency">${escapeHtml(t("presenter.emergencyHelp"))}</button>
+          </div>
+          <div class="button-row operator-safety-actions" role="group" aria-label="Safety controls">
+            <button class="safety-button service-touch-btn" type="button" data-command="emergency-clear">${escapeHtml(t("common.clear"))}${helpTrigger("clear", "Clear")}</button>
+            <button class="safety-button service-touch-btn" type="button" data-command="emergency-logo">${escapeHtml(t("presenter.logoScreen"))}${helpTrigger("logo", "Show Logo")}</button>
+            <button class="safety-button service-touch-btn" type="button" data-command="emergency-black" data-confirm="true">${escapeHtml(t("presenter.blackScreen"))}${helpTrigger("blackout", "Blackout")}</button>
+            <button class="safety-button service-touch-btn" type="button" data-command="hymn-restore-previous">Restore</button>
+            <button class="safety-button service-touch-btn" type="button" data-command="emergency-white">${escapeHtml(t("presenter.whiteScreen"))}</button>
           </div>
           <div class="operator-preview-grid">
             <article class="preview-card">
@@ -7754,7 +7779,11 @@
 >>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
 =======
   setupPerformance();
+<<<<<<< HEAD
 >>>>>>> 1f16699 (Improve worship app responsiveness with debounced search, cancellation, and resource cleanup.)
+=======
+  setupUx();
+>>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
 
   Promise.all([loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(async () => {
     migrateLegacySongKeys();

@@ -40,6 +40,7 @@
     "test:help": "node scripts/test-help-centre.js",
     "test:performance": "node scripts/test-performance.js",
     "test:performance-audit": "node scripts/test-performance-audit.js",
+    "test:ux-consistency": "node scripts/test-ux-consistency.js",
     "benchmark:performance": "node scripts/benchmark-performance.js",
     "build:web-assets": "node scripts/build-production-assets.js",
     "pack": "electron-builder --dir",

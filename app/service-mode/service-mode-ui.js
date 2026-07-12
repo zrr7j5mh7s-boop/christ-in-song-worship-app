@@ -29,7 +29,7 @@
         <button class="service-emergency-btn" type="button" data-command="emergency-clear">Clear</button>
         <button class="service-emergency-btn" type="button" data-command="emergency-logo">Show Logo</button>
         <button class="service-emergency-btn" type="button" data-command="emergency-black" data-confirm="true">Blackout</button>
-        <button class="service-emergency-btn" type="button" data-command="hymn-restore-previous">Restore Previous</button>
+        <button class="service-emergency-btn" type="button" data-command="hymn-restore-previous">Restore</button>
         <button class="service-emergency-btn" type="button" data-command="presenter-open-output">Restart Output</button>
         <button class="service-emergency-btn service-emergency-help" type="button" data-command="help-open-emergency">Emergency Help</button>
       </nav>
@@ -144,9 +144,10 @@
     const s = status || {};
     return `
       <div class="service-status-bar" role="group" aria-label="Output status">
-        ${statusPill("Projector", s.projectorStatus || "unknown", s.projectorDetail || "—")}
-        ${statusPill("Stage", s.stageStatus || "unknown", s.stageDetail || "—")}
+        ${statusPill("Local Outputs", s.projectorStatus || "unknown", s.projectorDetail || "—")}
+        ${statusPill("Stage Display", s.stageStatus || "unknown", s.stageDetail || "—")}
         ${s.obsEnabled ? statusPill("OBS", s.obsStatus || "unknown", s.obsDetail || "—") : ""}
+        ${s.streaming ? statusPill("Internet Streaming", s.streamingStatus || "off", s.streamingDetail || "Off") : ""}
       </div>
     `;
   }

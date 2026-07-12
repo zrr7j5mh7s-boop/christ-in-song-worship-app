@@ -130,6 +130,7 @@ function run() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   assert.match(indexHtml, /styles\.css\?v=37/);
 =======
   assert.match(indexHtml, /styles\.css\?v=36/);
@@ -140,6 +141,9 @@ function run() {
 =======
   assert.match(indexHtml, /styles\.css\?v=38/);
 >>>>>>> 1f16699 (Improve worship app responsiveness with debounced search, cancellation, and resource cleanup.)
+=======
+  assert.match(indexHtml, /styles\.css\?v=39/);
+>>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
 
   const styles = read("app/styles.css");
   assert.match(styles, /\.service-mode-trio/);
@@ -148,6 +152,7 @@ function run() {
   assert.match(styles, /body\.service-mode-active/);
 
   const sw = read("app/sw.js");
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -161,6 +166,9 @@ function run() {
 =======
   assert.match(sw, /christ-in-song-worship-v38/);
 >>>>>>> 1f16699 (Improve worship app responsiveness with debounced search, cancellation, and resource cleanup.)
+=======
+  assert.match(sw, /christ-in-song-worship-v39/);
+>>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
   assert.match(sw, /service-mode-service\.js/);
 
   const pkg = JSON.parse(read("package.json"));
