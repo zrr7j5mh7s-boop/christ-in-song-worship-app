@@ -134,9 +134,13 @@
             const requiresAuth = Boolean(helloMessage.d?.authentication);
             if (requiresAuth) {
               if (!lastPassword) {
-                throw new Error("OBS authentication failed: password required");
+                throw new Error("OBS requires a WebSocket password. Enter the password from OBS (Tools → WebSocket Server Settings) in Settings → OBS Studio.");
               }
-              identifyPayload.authentication = await buildAuthString(lastPassword, helloMessage.d.authentication);
+              const authString = await buildAuthString(lastPassword, helloMessage.d.authentication);
+              if (!authString) {
+                throw new Error("OBS WebSocket authentication could not be prepared. Re-enter the password in Settings → OBS Studio.");
+              }
+              identifyPayload.authentication = authString;
             }
             socket.send(JSON.stringify({ op: OPCODE.IDENTIFY, d: identifyPayload }));
             const identifiedMessage = await waitForMessage((message) => message.op === OPCODE.IDENTIFIED, timeoutMs);

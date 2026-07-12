@@ -96,6 +96,10 @@ function runLoaderTests() {
   if (!window.CISLazyLoader) fail("CISLazyLoader was not registered");
   if (!window.CISLazyLoader.isPackDeferred("sda")) fail("SDA pack should be deferred");
   if (window.CISLazyLoader.isPackDeferred("zu")) fail("Zulu pack should not be deferred");
+  if (!window.CISLazyLoader.DEFERRED_PACK_META.sda) fail("SDA deferred pack metadata should be defined");
+  if (window.CISLazyLoader.DEFERRED_PACK_META.sda.name !== "SDA Hymnal") {
+    fail(`Unexpected SDA pack name: ${window.CISLazyLoader.DEFERRED_PACK_META.sda.name}`);
+  }
   if (!window.CISLazyLoader.DEFERRED_BUNDLES.pdfmake.length) fail("pdfmake bundle should be defined");
 
   const resolved = window.CISLazyLoader.assetPath("./app.js?v=25");
