@@ -927,8 +927,336 @@
       window.CISLiveHymnQueueService._subscribed = true;
       window.CISLiveHymnQueueService.subscribe(() => {
         paintLiveHymnQueuePanels();
+        paintServiceModeWorkspace();
         if (window.CISPresenterEngine?.getState?.().active) renderPresenterAV();
       });
+    }
+  }
+
+  function isServiceModeActive() {
+    return Boolean(window.CISServiceModeService?.getState?.().active);
+  }
+
+  function isServiceModeViewAllowed(view) {
+    const allowed = window.CISServiceModeSettings?.SERVICE_MODE_VIEWS;
+    return allowed ? allowed.has(view) : ["service", "search", "index", "bible", "help", "song"].includes(view);
+  }
+
+  function describeServiceOutputDestinations() {
+    const parts = [];
+    const presenterActive = window.CISPresenterEngine?.getState?.().active;
+    if (presenterActive || embeddedProjectorActive) parts.push("Local projector");
+    const obsStatus = window.CISObsConnectionService?.getStatus?.();
+    if (obsStatus?.connected) parts.push("OBS");
+    const camLive = window.CISCameraSourceService?.getState?.().live?.active;
+    if (camLive) parts.push("Camera");
+    return parts.length ? parts.join(", ") : "—";
+  }
+
+  function buildServiceModeLiveContext() {
+    const bibleSvc = window.CISBibleProjectionService;
+    const bibleKey = bibleSvc?.BIBLE_LIVE_KEY;
+    if (bibleSvc && state.presenter.songKey === bibleKey) {
+      const live = bibleSvc.getState().live;
+      if (live.active && !live.cleared) {
+        const slide = live.slides[live.slideIndex];
+        return {
+          type: "bible",
+          typeLabel: "Bible",
+          title: live.referenceLabel || "Scripture",
+          position: slide
+            ? `${live.referenceLabel || "Verse"} · ${live.slideIndex + 1} of ${live.slides.length}`
+            : "",
+          destinations: (live.destinations || []).join(", ") || describeServiceOutputDestinations(),
+          status: "active",
+        };
+      }
+    }
+    const camState = window.CISCameraSourceService?.getState?.();
+    if (camState?.live?.active) {
+      return {
+        type: "camera",
+        typeLabel: "Camera",
+        title: camState.live.cameraName || camState.live.deviceLabel || "Camera feed",
+        position: camState.live.layout || "Live",
+        destinations: describeServiceOutputDestinations(),
+        status: "active",
+      };
+    }
+    const liveMeta = getLiveHymnMeta();
+    if (liveMeta) {
+      return {
+        type: "hymn",
+        typeLabel: "Hymn",
+        title: liveMeta.shortLabel || liveMeta.title,
+        position: liveMeta.stanzaLabel || "",
+        destinations: describeServiceOutputDestinations(),
+        status: "active",
+      };
+    }
+    if (state.emergencyMode) {
+      const titles = { black: "Blackout", white: "White screen", logo: "Logo screen" };
+      return {
+        type: "emergency",
+        typeLabel: "Emergency",
+        title: titles[state.emergencyMode] || "Emergency",
+        position: "",
+        destinations: describeServiceOutputDestinations(),
+        status: "active",
+      };
+    }
+    if (window.CISPresenterEngine?.getState?.().active && state.presenter.planIndex != null) {
+      const slot = worshipPlan[state.presenter.planIndex];
+      if (slot) {
+        return {
+          type: slot.type || "plan",
+          typeLabel: "Service plan",
+          title: slotTitle(slot),
+          position: "",
+          destinations: describeServiceOutputDestinations(),
+          status: "active",
+        };
+      }
+    }
+    return {
+      type: "none",
+      typeLabel: "None",
+      title: "Nothing Live",
+      position: "No active stanza or verse",
+      destinations: "—",
+      status: "inactive",
+    };
+  }
+
+  function buildServiceModePreviewContext() {
+    const queueState = window.CISLiveHymnQueueService?.getState() || {};
+    const preview = queueState.preview;
+    if (preview?.songKey) {
+      return {
+        title: preview.shortLabel || preview.title,
+        meta: `Hymn ${preview.hymnNumber || ""}`,
+        layout: "Hymn slides",
+        destinations: "Preview only",
+        status: preview.status === "ready" ? "Ready" : (preview.status || "Prepared"),
+        openCommand: "hymn-preview-open",
+        clearCommand: "hymn-preview-clear",
+      };
+    }
+    const biblePreview = window.CISBibleProjectionService?.getState()?.preview;
+    if (biblePreview?.parsed && biblePreview.slides?.length) {
+      return {
+        title: biblePreview.referenceLabel || biblePreview.referenceInput,
+        meta: biblePreview.translation || state.bibleTranslation || "KJV",
+        layout: "Scripture",
+        destinations: "Preview only",
+        status: biblePreview.loading ? "Loading" : biblePreview.error ? "Error" : "Ready",
+        openCommand: "open-bible-live",
+        clearCommand: null,
+      };
+    }
+    return null;
+  }
+
+  function buildServiceModeNextContext() {
+    const queueState = window.CISLiveHymnQueueService?.getState() || {};
+    const next = queueState.next;
+    if (next?.songKey) {
+      return {
+        title: next.shortLabel || next.title,
+        meta: `Hymn ${next.hymnNumber || ""}`,
+        status: next.status === "ready" ? "Ready" : (next.status || "Prepared"),
+        previewCommand: "hymn-preview",
+        previewData: next.songKey,
+        removeCommand: "hymn-remove-next",
+        takeCommand: "hymn-take-next",
+        takeDisabled: next.status !== "ready",
+      };
+    }
+    const assigned = assignedSlots();
+    const currentInfo = assigned.find((item) => item.index === state.activeSlot) || assigned[0] || null;
+    const nextInfo = currentInfo ? assigned.find((item) => item.index > currentInfo.index) : null;
+    if (nextInfo) {
+      return {
+        title: slotTitle(nextInfo.slot),
+        meta: nextInfo.slot.role || "Service item",
+        status: "Ready",
+        previewCommand: "present-plan-slot",
+        previewDataSlot: nextInfo.index,
+        takeCommand: "present-plan-slot",
+        takeDataSlot: nextInfo.index,
+        takeDisabled: false,
+      };
+    }
+    return null;
+  }
+
+  function buildServiceModeStatusContext() {
+    const obsStatus = window.CISObsConnectionService?.getStatus?.();
+    const obsEnabled = obsStatus?.enabled !== false;
+    const localStatus = window.CISCameraSourceService?.getLocalPresentationStatus?.();
+    const presenterActive = window.CISPresenterEngine?.getState?.().active;
+    return {
+      projectorStatus: presenterActive || localStatus?.active ? "active" : "off",
+      projectorDetail: localStatus?.mainProjector || (presenterActive ? "Active" : "Off"),
+      stageStatus: localStatus?.stageDisplay && localStatus.stageDisplay !== "—" ? "ready" : "off",
+      stageDetail: localStatus?.stageDisplay || "—",
+      obsEnabled,
+      obsStatus: obsStatus?.connected ? "connected" : obsEnabled ? "warning" : "off",
+      obsDetail: obsStatus?.connected ? "Connected" : obsEnabled ? "Disconnected" : "Off",
+    };
+  }
+
+  function buildServiceModeContext() {
+    const serviceState = window.CISServiceModeService?.getState() || {};
+    const queueState = window.CISLiveHymnQueueService?.getState() || {};
+    const queue = (queueState.queue || []).map((item) => ({
+      title: item.shortLabel || item.title || "Queue item",
+      meta: `Hymn ${item.hymnNumber || ""}`,
+    }));
+    let mediaControls = "";
+    if (window.CISSongAudioUI && selectedSong()) {
+      mediaControls = `
+        <section class="service-media-panel" aria-label="Hymn media controls">
+          <h4>Media</h4>
+          ${window.CISSongAudioUI.renderPlayer(selectedSong(), state.languageCode)}
+        </section>
+      `;
+    }
+    let localPresentation = "";
+    if (window.CISCameraSourceUI && window.CISCameraSourceService) {
+      localPresentation = window.CISCameraSourceUI.renderLocalPresentationPanel(
+        window.CISCameraSourceService.getLocalPresentationStatus(),
+      );
+    }
+    return {
+      appName: brandAppName(),
+      pendingRestoreConfirm: serviceState.pendingRestoreConfirm,
+      live: buildServiceModeLiveContext(),
+      preview: buildServiceModePreviewContext(),
+      next: buildServiceModeNextContext(),
+      queue,
+      status: buildServiceModeStatusContext(),
+      mediaControls,
+      localPresentation,
+    };
+  }
+
+  function renderServiceModeContextBar() {
+    if (!isServiceModeActive() || !window.CISServiceModeUI || state.view === "service") return "";
+    const ctx = buildServiceModeContext();
+    return `
+      <div class="service-mode-context-bar" role="region" aria-label="Service Mode live context">
+        <div class="service-mode-context-live">
+          <span class="service-mode-context-label">Live</span>
+          <strong>${escapeHtml(ctx.live?.title || "Nothing Live")}</strong>
+          <span class="muted">${escapeHtml(ctx.live?.position || "")}</span>
+        </div>
+        <div class="service-mode-context-next">
+          <span class="service-mode-context-label">Next</span>
+          <strong>${escapeHtml(ctx.next?.title || "None")}</strong>
+        </div>
+        ${window.CISServiceModeUI.renderEmergencyStrip()}
+        <button class="secondary-button service-touch-btn" type="button" data-view="service">Service Workspace</button>
+        <button class="secondary-button service-touch-btn" type="button" data-command="service-mode-exit">Exit Service Mode</button>
+      </div>
+    `;
+  }
+
+  function renderServiceMode() {
+    if (!window.CISServiceModeUI) return `<div class="empty-state">Service Mode is unavailable.</div>`;
+    return window.CISServiceModeUI.renderWorkspace(buildServiceModeContext());
+  }
+
+  function paintServiceModeWorkspace() {
+    if (!isServiceModeActive() || state.view !== "service") return;
+    paintLiveHymnQueuePanels();
+  }
+
+  function enterServiceMode() {
+    if (!window.CISServiceModeService) return;
+    const result = window.CISServiceModeService.enter({ previousView: state.view });
+    if (!result.ok) {
+      setNotice(result.message || "Could not enter Service Mode.");
+      return;
+    }
+    state.view = "service";
+    saveValue("view", state.view);
+    setNotice("Service Mode active. Live, Preview and Next stay separate.");
+    render();
+  }
+
+  function exitServiceMode(options) {
+    if (!window.CISServiceModeService) return;
+    const result = window.CISServiceModeService.exit(options || {});
+    if (result.needsConfirm) {
+      if (window.confirm(`${result.message}\n\nOutputs will stay active.`)) {
+        exitServiceMode({ confirmed: true });
+      }
+      return;
+    }
+    if (!result.ok) {
+      setNotice(result.message || "Could not exit Service Mode.");
+      return;
+    }
+    state.view = result.previousView || "presenter";
+    saveValue("view", state.view);
+    setNotice("Service Mode exited. Outputs were not cleared.");
+    render();
+  }
+
+  function setupServiceMode() {
+    if (!window.CISServiceModeService || !window.CISServiceModeUI) return;
+    window.CISServiceModeUI.configure({ escapeHtml });
+    window.CISServiceModeService.configure({
+      getRole: () => (window.CISHelpStore ? window.CISHelpStore.getRole() : "operator"),
+      isPresentationActive: () => Boolean(
+        window.CISPresenterEngine?.getState?.().active
+        || state.presenter.open
+        || state.emergencyMode
+        || window.CISCameraSourceService?.getState?.().live?.active,
+      ),
+      saveSession: (payload) => {
+        try {
+          sessionStorage.setItem("cis-service-mode-session", JSON.stringify(payload));
+        } catch (_error) {
+          /* ignore */
+        }
+      },
+      loadSession: () => {
+        try {
+          return JSON.parse(sessionStorage.getItem("cis-service-mode-session") || "null");
+        } catch (_error) {
+          return null;
+        }
+      },
+      loadSettings: () => (
+        window.CISServiceModeSettings
+          ? window.CISServiceModeSettings.load((key, fallback) => loadJson(key, fallback))
+          : {}
+      ),
+      saveSettings: (settings) => {
+        if (window.CISServiceModeSettings) {
+          window.CISServiceModeSettings.save(settings, saveJson);
+        }
+      },
+    });
+    if (!window.CISServiceModeService._subscribed) {
+      window.CISServiceModeService._subscribed = true;
+      window.CISServiceModeService.subscribe(() => {
+        document.body.classList.toggle("service-mode-active", isServiceModeActive());
+        if (isServiceModeActive()) paintServiceModeWorkspace();
+      });
+    }
+    window.addEventListener("beforeunload", (event) => {
+      if (!isServiceModeActive()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    });
+    document.body.classList.toggle("service-mode-active", isServiceModeActive());
+    const smState = window.CISServiceModeService.getState();
+    if (smState.active && state.view !== "service" && !isServiceModeViewAllowed(state.view)) {
+      state.view = "service";
+      saveValue("view", state.view);
     }
   }
 
@@ -2099,6 +2427,7 @@
   }
 
   function viewTitle() {
+    if (state.view === "service") return "Service Mode";
     if (state.view === "help") return navLabel("help");
     if (state.view === "song") {
       const song = selectedSong();
@@ -2750,7 +3079,8 @@
     setupBranding();
     els.title.textContent = viewTitle();
     if (state.view !== "song" && hymnAudioPlayer) hymnAudioPlayer.pause();
-    els.content.innerHTML = `${renderNotice()}${renderView()}`;
+    const serviceBar = renderServiceModeContextBar();
+    els.content.innerHTML = `${renderNotice()}${serviceBar}${renderView()}`;
     renderPresenterAV();
     renderObsTopbar();
     renderEmergencyOverlay();
@@ -2762,8 +3092,10 @@
     bindHelpCentre();
     renderHelpContextOverlay();
     paintLiveHymnQueuePanels();
+    paintServiceModeWorkspace();
     if (state.view === "presenter" || state.view === "settings") bindObsProgramMonitor();
     if (state.view === "cameras" || state.view === "presenter" || state.view === "settings") bindCameraSources();
+    document.body.classList.toggle("service-mode-active", isServiceModeActive());
     document.body.classList.add("app-ready");
   }
 
@@ -2787,10 +3119,18 @@
   }
 
   function renderNav() {
-    els.nav.innerHTML = navItems.map((item) => `
+    const serviceNavItems = [
+      { id: "service", label: "Service Mode", icon: "⬤" },
+      { id: "search", label: "Search", icon: "⌕" },
+      { id: "index", label: "Hymn Index", icon: "☰" },
+      { id: "bible", label: "Bible", icon: "✞" },
+      { id: "help", label: "Help", icon: "?" },
+    ];
+    const items = isServiceModeActive() ? serviceNavItems : navItems;
+    els.nav.innerHTML = items.map((item) => `
       <button class="rail-btn ${state.view === item.id ? "active" : ""}" type="button" data-view="${item.id}">
         <span class="ico" aria-hidden="true">${item.icon}</span>
-        <span>${escapeHtml(navLabel(item.id))}</span>
+        <span>${escapeHtml(isServiceModeActive() && item.id === "service" ? "Service Mode" : navLabel(item.id))}</span>
       </button>
     `).join("");
   }
@@ -2811,6 +3151,12 @@
     if (els.topbarEmergencyBtn) {
       els.topbarEmergencyBtn.textContent = t("presenter.emergencyHelp");
       els.topbarEmergencyBtn.title = t("presenter.emergencyHelp");
+    }
+    const serviceBtn = document.getElementById("topbarServiceModeBtn");
+    if (serviceBtn) {
+      serviceBtn.textContent = isServiceModeActive() ? "Exit Service Mode" : "Enter Service Mode";
+      serviceBtn.dataset.command = isServiceModeActive() ? "service-mode-exit" : "service-mode-enter";
+      serviceBtn.setAttribute("aria-pressed", isServiceModeActive() ? "true" : "false");
     }
   }
 
@@ -2883,6 +3229,7 @@
   }
 
   function renderView() {
+    if (state.view === "service") return renderServiceMode();
     if (state.view === "index") return renderIndex();
     if (state.view === "search") return renderSearch();
     if (state.view === "song") return renderSong();
@@ -2961,6 +3308,7 @@
           <div class="button-row">
             <button class="action-button" type="button" data-command="present-current">${escapeHtml(t("common.present"))}</button>
             <button class="secondary-button" type="button" data-view="builder">${escapeHtml(t("home.worshipBuilderBtn"))}</button>
+            <button class="secondary-button service-touch-btn" type="button" data-command="service-mode-enter">Enter Service Mode</button>
           </div>
         </aside>
       </div>
@@ -4408,6 +4756,7 @@
           <p class="muted">${nextInfo ? escapeHtml(t("presenter.next", { title: slotTitle(nextInfo.slot) })) : escapeHtml(t("presenter.nextNone"))}</p>
           <div class="button-row">
             <button class="action-button" type="button" data-command="present-current">${escapeHtml(t("presenter.presentCurrent"))}${helpTrigger("send-live", "Present Current")}</button>
+            <button class="secondary-button service-touch-btn" type="button" data-command="service-mode-enter">Enter Service Mode</button>
             <button class="secondary-button" type="button" data-command="presenter-open-output">${escapeHtml(t("presenter.openProjector"))}</button>
             <button class="secondary-button" type="button" data-command="help-open-emergency">${escapeHtml(t("presenter.emergencyHelp"))}</button>
             <button class="secondary-button" type="button" data-command="emergency-clear">${escapeHtml(t("common.clear"))}${helpTrigger("clear", "Clear")}</button>
@@ -5514,7 +5863,11 @@
     }
     if (command.startsWith("view:")) {
       const view = command.slice(5);
-      if (navItems.some((item) => item.id === view)) {
+      if (navItems.some((item) => item.id === view) || view === "service") {
+        if (isServiceModeActive() && !isServiceModeViewAllowed(view)) {
+          setNotice("That screen is hidden during Service Mode.");
+          return;
+        }
         state.view = view;
         saveValue("view", view);
         render();
@@ -5596,6 +5949,10 @@
 
     const view = target.dataset.view;
     if (view) {
+      if (isServiceModeActive() && !isServiceModeViewAllowed(view)) {
+        setNotice("That screen is hidden during Service Mode. Exit Service Mode for administrative tasks.");
+        return;
+      }
       state.view = view;
       if (view === "help") resetHelpNav();
       saveValue("view", view);
@@ -5812,6 +6169,10 @@
   });
 
   function handleCommand(command, target) {
+    if (command && window.CISServiceModeService && !window.CISServiceModeService.isCommandAllowed(command)) {
+      setNotice("That action is hidden during Service Mode. Exit Service Mode for administrative tasks.");
+      return;
+    }
     const slotIndex = Number(target.dataset.slot);
     const serviceSlotIndex = Number(target.dataset.serviceSlot);
     if (command && command.startsWith("hymn-")) {
@@ -6186,6 +6547,22 @@
         window.CISPresenterEngine.openOutputSurface();
         renderPresenterAV();
       }
+      return;
+    }
+    if (command === "service-mode-enter") return enterServiceMode();
+    if (command === "service-mode-exit") return exitServiceMode();
+    if (command === "service-mode-confirm-restore") {
+      if (window.CISServiceModeService) window.CISServiceModeService.confirmSessionRestore();
+      state.view = "service";
+      saveValue("view", state.view);
+      setNotice("Service Mode resumed. Outputs were not restored automatically.");
+      render();
+      return;
+    }
+    if (command === "service-mode-dismiss-restore") {
+      if (window.CISServiceModeService) window.CISServiceModeService.dismissSessionRestore();
+      setNotice("Service Mode session cleared.");
+      render();
       return;
     }
     if (command === "present-song") return openPresenter(selectedSong(), null);
@@ -6700,6 +7077,7 @@
   setupBible();
   setupHymnalLibrary();
   setupLiveHymnQueue();
+  setupServiceMode();
 
   Promise.all([loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(async () => {
     migrateLegacySongKeys();
