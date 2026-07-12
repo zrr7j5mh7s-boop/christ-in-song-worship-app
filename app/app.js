@@ -1684,6 +1684,13 @@
 
   function setupServiceMode() {
     if (!window.CISServiceModeService || !window.CISServiceModeUI) return;
+    if (typeof window.CISServiceModeService.isActive !== "function") {
+      console.error(
+        "[Startup] Invalid CISServiceModeService API",
+        window.CISServiceModeService,
+      );
+      return;
+    }
     window.CISServiceModeUI.configure({ escapeHtml });
     window.CISServiceModeService.configure({
       getRole: () => (window.CISHelpStore ? window.CISHelpStore.getRole() : "operator"),
@@ -4107,7 +4114,7 @@
     const presenter = window.CISPresenterEngine ? window.CISPresenterEngine.getState() : null;
     const obs = window.CISObsConnectionService ? window.CISObsConnectionService.getStatus() : null;
     const liveLock = window.CISLiveLockService ? window.CISLiveLockService.getState() : null;
-    const serviceMode = window.CISServiceModeService ? window.CISServiceModeService.isActive() : false;
+    const serviceMode = isServiceModeActive();
 
     items.push({
       label: "Local Outputs",
@@ -8916,16 +8923,20 @@
 
     if (electronBridge && electronBridge.onUpdateStatus) {
       electronBridge.onUpdateStatus((payload) => {
-        if (!payload) return;
-        if (window.CISQuietServiceModeService?.shouldDeferUpdateStatus?.(payload.status)) return;
-        if (payload.status === "downloading") {
-          setNotice(`Downloading update… ${payload.percent || 0}%`);
-        } else if (payload.status === "downloaded") {
-          setNotice(`Update ${payload.version || ""} ready — restart to install.`);
-        } else if (payload.status === "available") {
-          setNotice(`Update ${payload.version || ""} available.`);
-        } else if (payload.status === "error") {
-          setNotice(payload.message || "Update check failed.");
+        try {
+          if (!payload) return;
+          if (window.CISQuietServiceModeService?.shouldDeferUpdateStatus?.(payload.status)) return;
+          if (payload.status === "downloading") {
+            setNotice(`Downloading update… ${payload.percent || 0}%`);
+          } else if (payload.status === "downloaded") {
+            setNotice(`Update ${payload.version || ""} ready — restart to install.`);
+          } else if (payload.status === "available") {
+            setNotice(`Update ${payload.version || ""} available.`);
+          } else if (payload.status === "error") {
+            setNotice(payload.message || "Update check failed.");
+          }
+        } catch (error) {
+          console.warn("[Startup] Update status listener failed:", error);
         }
       });
     }
@@ -8959,32 +8970,108 @@
   setupPerformance();
   setupUx();
 
-  Promise.all([loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(async () => {
-    migrateLegacySongKeys();
-    await loadHymnalLibrary();
-    if (window.CISLazyLoader && window.CISLazyLoader.isPackDeferred(state.languageCode)) {
-      await ensureLanguagePackLoaded(state.languageCode);
-      indexReadyPacks([state.languageCode]);
+  const STARTUP_TIMEOUT_MS = 45000;
+  let startupTimeoutId = null;
+  let startupFailed = false;
+
+  function clearStartupTimeout() {
+    if (startupTimeoutId !== null) {
+      window.clearTimeout(startupTimeoutId);
+      startupTimeoutId = null;
     }
-    scheduleBackgroundWarmup();
-    if (window.CISPerformanceMonitor) window.CISPerformanceMonitor.mark("data-ready");
-    await maybeOfferSessionRecovery();
-    render();
-    if (window.CISPerformanceMonitor) {
-      window.CISPerformanceMonitor.measure("startupToFirstRenderMs", "app-start");
-      window.CISPerformanceMonitor.measure("startupToDataReadyMs", "data-ready");
+  }
+
+  function bindStartupRecoveryControls() {
+    const retryBtn = document.getElementById("launchSplashRetry");
+    const logsBtn = document.getElementById("launchSplashOpenLogs");
+    if (retryBtn && !retryBtn._bound) {
+      retryBtn._bound = true;
+      retryBtn.addEventListener("click", () => window.location.reload());
     }
-    if (!data.languagePacks.length) {
-      setNotice(t("notice.libraryFailed"));
-    }
-    if (window.CISBackupRestore) {
-      window.CISBackupRestore.maybeRunDailyBackup().then((result) => {
-        if (result) {
-          loadAutoBackupList().finally(() => {
-            setNotice(t("notice.dailyBackup", { id: result.id }));
+    if (logsBtn && !logsBtn._bound) {
+      logsBtn._bound = true;
+      logsBtn.addEventListener("click", () => {
+        if (window.electronAPI?.openLogsFolder) {
+          window.electronAPI.openLogsFolder().catch((error) => {
+            console.warn("[Startup] Could not open logs folder:", error);
           });
+          return;
         }
-      }).catch(() => {});
+        console.warn("[Startup] Log folder is only available in the desktop app.");
+      });
+    }
+  }
+
+  function showStartupFailure(message, error, options) {
+    startupFailed = true;
+    const required = options?.required !== false;
+    const level = required ? "error" : "warning";
+    const detail = error?.message ? `: ${error.message}` : "";
+    const text = `${message}${detail}`;
+    console[level === "error" ? "error" : "warn"](`[Startup] ${text}`, error || "");
+    const splash = document.getElementById("launchSplash");
+    const card = splash?.querySelector(".launch-card");
+    const errorRoot = document.getElementById("launchSplashError");
+    const errorText = document.getElementById("launchSplashErrorText");
+    if (card) card.hidden = required;
+    if (errorRoot) errorRoot.hidden = false;
+    if (errorText) errorText.textContent = text;
+    bindStartupRecoveryControls();
+  }
+
+  function completeStartupRender() {
+    try {
+      render();
+      clearStartupTimeout();
+    } catch (error) {
+      showStartupFailure("The worship dashboard could not open.", error);
+    }
+  }
+
+  function scheduleStartupTimeout() {
+    clearStartupTimeout();
+    startupTimeoutId = window.setTimeout(() => {
+      if (!document.body.classList.contains("app-ready") && !startupFailed) {
+        showStartupFailure("Startup is taking longer than expected. Check your hymn and Bible data, then retry.");
+      }
+    }, STARTUP_TIMEOUT_MS);
+  }
+
+  scheduleStartupTimeout();
+  bindStartupRecoveryControls();
+
+  Promise.all([loadCustomTemplates(), loadSongTags(), loadAutoBackupList()]).finally(async () => {
+    try {
+      migrateLegacySongKeys();
+      await loadHymnalLibrary();
+      if (window.CISLazyLoader && window.CISLazyLoader.isPackDeferred(state.languageCode)) {
+        await ensureLanguagePackLoaded(state.languageCode);
+        indexReadyPacks([state.languageCode]);
+      }
+      scheduleBackgroundWarmup();
+      if (window.CISPerformanceMonitor) window.CISPerformanceMonitor.mark("data-ready");
+      await maybeOfferSessionRecovery();
+      completeStartupRender();
+      if (window.CISPerformanceMonitor) {
+        window.CISPerformanceMonitor.measure("startupToFirstRenderMs", "app-start");
+        window.CISPerformanceMonitor.measure("startupToDataReadyMs", "data-ready");
+      }
+      if (!data.languagePacks.length) {
+        setNotice(t("notice.libraryFailed"));
+      }
+      if (window.CISBackupRestore) {
+        window.CISBackupRestore.maybeRunDailyBackup().then((result) => {
+          if (result) {
+            loadAutoBackupList().finally(() => {
+              setNotice(t("notice.dailyBackup", { id: result.id }));
+            });
+          }
+        }).catch((error) => {
+          console.warn("[Startup] Daily backup check failed:", error);
+        });
+      }
+    } catch (error) {
+      showStartupFailure("Application data failed to load.", error);
     }
   });
   const presenterClockInterval = window.setInterval(() => {

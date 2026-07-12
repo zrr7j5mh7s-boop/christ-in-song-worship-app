@@ -46,6 +46,8 @@ function run() {
   });
 
   assert.equal(service.getState().active, false);
+  assert.equal(typeof service.isActive, "function");
+  assert.equal(service.isActive(), false);
   assert.equal(service.canAccessAdmin(), false);
 
   role = "admin";
@@ -127,7 +129,7 @@ function run() {
   assert.match(indexHtml, /service-mode-service\.js/);
   assert.match(indexHtml, /service-mode-ui\.js/);
   assert.match(indexHtml, /topbarServiceModeBtn/);
-  assert.match(indexHtml, /styles\.css\?v=46/);
+  assert.match(indexHtml, /styles\.css\?v=47/);
 
   const styles = read("app/styles.css");
   assert.match(styles, /\.service-mode-trio/);
@@ -136,7 +138,7 @@ function run() {
   assert.match(styles, /body\.service-mode-active/);
 
   const sw = read("app/sw.js");
-  assert.match(sw, /christ-in-song-worship-v46/);
+  assert.match(sw, /christ-in-song-worship-v47/);
   assert.match(sw, /service-mode-service\.js/);
 
   const pkg = JSON.parse(read("package.json"));

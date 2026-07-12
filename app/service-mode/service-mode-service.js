@@ -70,6 +70,10 @@
     return false;
   }
 
+  function isActive() {
+    return Boolean(state.active);
+  }
+
   function enter(options) {
     if (state.active) return { ok: true, message: "Service Mode is already active." };
     state.active = true;
@@ -148,6 +152,7 @@
     configure,
     subscribe,
     getState,
+    isActive,
     enter,
     exit,
     canAccessAdmin,

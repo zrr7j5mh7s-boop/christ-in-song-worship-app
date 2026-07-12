@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getAppInfo: () => ipcRenderer.invoke('app:info'),
 
+  openLogsFolder: () => ipcRenderer.invoke('app:open-logs'),
+
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
 
   onMenuCommand: (callback) => {
