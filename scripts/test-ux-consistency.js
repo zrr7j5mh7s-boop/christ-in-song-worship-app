@@ -101,8 +101,8 @@ function testHymnCardLongTitles() {
 
 function testCacheVersion() {
   const sw = read("sw.js");
-  if (!sw.includes("christ-in-song-worship-v39")) fail("Service worker cache should be v39");
-  ok("cache version v39 for UX release");
+  if (!sw.includes("christ-in-song-worship-v40")) fail("Service worker cache should be v40");
+  ok("cache version v40 for projection release");
 }
 
 testDesignTokens();

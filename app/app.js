@@ -1581,8 +1581,43 @@
             </select>
           </label>
           <label>Verses per slide
-            <input type="number" min="1" max="6" data-command="bible-settings" data-setting="versesPerSlide" value="${Number(settings.versesPerSlide) || 1}">
+            <select data-command="bible-settings" data-setting="versesPerSlide">
+              <option value="1" ${Number(settings.versesPerSlide) === 1 ? "selected" : ""}>One verse</option>
+              <option value="2" ${Number(settings.versesPerSlide) === 2 ? "selected" : ""}>Two verses</option>
+              <option value="auto" ${settings.versesPerSlide === "auto" || settings.verseGrouping === "auto" ? "selected" : ""}>Automatic safe split</option>
+            </select>
           </label>
+          <label>Scripture layout
+            <select data-command="bible-settings" data-setting="defaultLayout">
+              ${Object.values(window.CISProjectionThemes?.LAYOUTS || { fullscreen: { id: "fullscreen", label: "Full-screen" } }).map((layout) => `
+                <option value="${escapeHtml(layout.id)}" ${settings.defaultLayout === layout.id ? "selected" : ""}>${escapeHtml(layout.label)}</option>
+              `).join("")}
+            </select>
+          </label>
+          <label>OBS scripture layout
+            <select data-command="bible-settings" data-setting="obsLayout">
+              <option value="lower_third" ${settings.obsLayout === "lower_third" ? "selected" : ""}>Lower third</option>
+              <option value="fullscreen" ${settings.obsLayout === "fullscreen" ? "selected" : ""}>Full-screen</option>
+              <option value="scripture_overlay" ${settings.obsLayout === "scripture_overlay" ? "selected" : ""}>Scripture over camera</option>
+              <option value="reference_only" ${settings.obsLayout === "reference_only" ? "selected" : ""}>Reference only</option>
+            </select>
+          </label>
+          <label>Projection theme
+            <select data-command="bible-settings" data-setting="projectionTheme">
+              ${(window.CISProjectionThemes?.ALLOWED_THEME_IDS || ["classic_dark"]).map((id) => {
+                const theme = window.CISProjectionThemes.getTheme(id);
+                return `<option value="${escapeHtml(id)}" ${settings.projectionTheme === id ? "selected" : ""}>${escapeHtml(theme.label)}</option>`;
+              }).join("")}
+            </select>
+          </label>
+          <label>Transition
+            <select data-command="bible-settings" data-setting="defaultTransition">
+              ${Object.values(window.CISProjectionThemes?.TRANSITIONS || { fade: { id: "fade", label: "Fade" } }).map((item) => `
+                <option value="${escapeHtml(item.id)}" ${settings.defaultTransition === item.id ? "selected" : ""}>${escapeHtml(item.label)}</option>
+              `).join("")}
+            </select>
+          </label>
+          <label><input type="checkbox" data-command="bible-settings" data-setting="autoSplit" ${settings.autoSplit !== false ? "checked" : ""}> Automatic safe split for long verses</label>
           <label><input type="checkbox" data-command="bible-settings" data-setting="enterSendsPreview" ${settings.enterSendsPreview !== false ? "checked" : ""}> Enter sends to Preview</label>
           <label><input type="checkbox" data-command="bible-settings" data-setting="dualVersion" ${settings.dualVersion ? "checked" : ""}> Dual-version display</label>
           <label><input type="checkbox" data-command="bible-settings" data-setting="enableSpeechDetection" ${settings.enableSpeechDetection ? "checked" : ""}> Enable speech-assisted detection (opt-in)</label>
@@ -4384,6 +4419,44 @@
     state.presenter.queueIndex = engineState.queueIndex;
   }
 
+  function getProjectionContextForOutput(item, slide) {
+    const projection = window.CISProjectionSettings
+      ? window.CISProjectionSettings.load(loadJson)
+      : (window.CISProjectionSettings?.DEFAULTS || {});
+    const bibleSettings = window.CISBibleProjectionService?.getSettings?.() || {};
+    let outputProfile = projection.outputProfile || "projector";
+    if (item?.destinations?.includes?.("stage")) outputProfile = "stage";
+    return {
+      themeId: bibleSettings.projectionTheme || projection.themeId || "classic_dark",
+      projectionTheme: bibleSettings.projectionTheme || projection.themeId || "classic_dark",
+      outputProfile,
+      transition: bibleSettings.defaultTransition || projection.transition || "fade",
+      hideTitleAfterFirst: projection.hideTitleAfterFirst !== false,
+      showTranslationOnOutput: projection.showTranslationOnOutput !== false && bibleSettings.showTranslationAbbr !== false,
+      reducedMotion: projection.reducedMotion || false,
+      layout: slide?.layout || item?.layout || bibleSettings.defaultLayout || "fullscreen",
+      obsLayout: slide?.obsLayout || item?.obsLayout || bibleSettings.obsLayout || "lower_third",
+      stageShowNextVerse: projection.stageShowNextVerse !== false,
+    };
+  }
+
+  function prepareSongSlides(song) {
+    if (!song) return [];
+    const projection = window.CISProjectionSettings
+      ? window.CISProjectionSettings.load(loadJson)
+      : (window.CISProjectionSettings?.DEFAULTS || {});
+    const bibleSettings = window.CISBibleProjectionService?.getSettings?.() || {};
+    if (window.CISlideLayoutEngine) {
+      return window.CISlideLayoutEngine.prepareHymnSlides(song, {
+        projectionTheme: bibleSettings.projectionTheme || projection.themeId || "classic_dark",
+        fontScale: state.fontScale,
+        hymnMaxLines: projection.hymnMaxLines || 5,
+        hideTitleAfterFirst: projection.hideTitleAfterFirst !== false,
+      });
+    }
+    return song.slides || [];
+  }
+
   function buildPresenterNextContext(item) {
     if (!item) return { nextSlide: null, nextHymn: null };
     const index = Math.max(0, Math.min(item.slides.length - 1, state.presenter.slideIndex));
@@ -4394,7 +4467,7 @@
     const queuedNextSong = queuedNextKey ? getSongByKey(queuedNextKey) : null;
     const nextSlot = queuedNextSong ? null : nextAssignedSlot(state.presenter.planIndex);
     const nextItem = queuedNextSong
-      ? { title: `Hymn ${queuedNextSong.number} · ${queuedNextSong.title}`, slides: queuedNextSong.slides }
+      ? { title: `Hymn ${queuedNextSong.number} · ${queuedNextSong.title}`, slides: prepareSongSlides(queuedNextSong) }
       : nextSlot
         ? presenterItemFromSlot(nextSlot.slot, nextSlot.index)
         : null;
@@ -4543,6 +4616,7 @@
         return currentPresenterItem();
       },
       nextContext: (_engineState, item) => buildPresenterNextContext(item),
+      getProjectionContext: (_engineState, item, slide) => getProjectionContextForOutput(item, slide),
       canGoPrev: (_engineState, item) => presenterCanGoPrev(item),
       canGoNext: (_engineState, item) => presenterCanGoNext(item),
       movePresenter: (engineState, delta) => {
@@ -5749,12 +5823,13 @@
       const song = getSongByKey(state.presenter.songKey);
       if (!song) return null;
       const parsed = parseSongKey(state.presenter.songKey);
+      const slides = prepareSongSlides(song);
       return {
         type: "song",
         title: `Hymn ${song.number} · ${song.title}`,
         shortTitle: `Hymn ${song.number}`,
         subtitle: getPack(parsed.code).name,
-        slides: song.slides,
+        slides,
         song,
         songKey: state.presenter.songKey,
         planIndex: state.presenter.planIndex,

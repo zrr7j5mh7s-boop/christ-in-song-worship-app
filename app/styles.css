@@ -7132,3 +7132,251 @@ a:focus:not(:focus-visible) {
     gap: 6px;
   }
 }
+
+/* Congregation projection output */
+.presenter-screen-body,
+.presenter-output-root,
+.presenter-output-root * {
+  cursor: none !important;
+}
+
+.projector-output {
+  background: var(--projector-bg, #0a1020);
+  color: var(--projector-text, #fffdf6);
+  font-family: var(--projector-font-family, var(--lyric));
+}
+
+.projector-safe-area {
+  width: 100%;
+  max-width: min(1200px, 92vw);
+  margin: 0 auto;
+  padding: var(--projector-safe-margin, 5.5vmin);
+  box-sizing: border-box;
+}
+
+.projector-stage-wrap {
+  width: 100%;
+  max-width: none;
+}
+
+.projector-reference-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 1.2rem;
+  color: var(--projector-reference, #f5d58b);
+  font-size: clamp(18px, 2.2vw, 28px);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.projector-translation-badge {
+  padding: 0.2em 0.55em;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 0.72em;
+  letter-spacing: 0.08em;
+}
+
+.projector-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.projector-hymn-number {
+  color: var(--projector-accent, #f5d58b);
+  font-size: clamp(18px, 2vw, 24px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.projector-hymn-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--projector-text, #fffdf6);
+}
+
+.projector-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: clamp(16px, 1.8vw, 22px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.projector-stanza-number {
+  flex: 0 0 auto;
+  min-width: 1.6em;
+  color: var(--projector-accent, #f5d58b);
+  font-weight: 800;
+}
+
+.projector-label-text {
+  flex: 0 1 auto;
+}
+
+.projector-lyrics {
+  font-family: var(--projector-font-family, var(--lyric));
+  font-size: max(var(--projector-min-font, 30px), min(var(--projector-font, 76px), 9.5vmin));
+  line-height: var(--projector-line-height, 1.42);
+  font-weight: 700;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
+}
+
+.projector-chorus,
+.projector-label.is-chorus,
+.projector-label.is-refrain,
+.projector-label.is-pinda,
+.projector-label.is-impinda {
+  color: var(--projector-chorus, #e4c568);
+}
+
+.projector-chorus.is-chorus,
+.projector-chorus.is-refrain {
+  font-style: italic;
+}
+
+.projector-chorus.is-pinda,
+.projector-chorus.is-impinda {
+  letter-spacing: 0.02em;
+}
+
+.projector-progress {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 1.5rem;
+}
+
+.projector-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.projector-dot.active {
+  background: var(--projector-accent, #f5d58b);
+}
+
+.projector-layout-lower-third .projector-safe-area {
+  position: fixed;
+  left: var(--projector-safe-margin, 5.5vmin);
+  right: var(--projector-safe-margin, 5.5vmin);
+  bottom: var(--projector-safe-margin, 5.5vmin);
+  top: auto;
+  max-width: none;
+  text-align: left;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.72));
+  border-radius: 12px;
+  padding: 2.5vmin 3vmin;
+}
+
+.projector-layout-lower-third .projector-lyrics {
+  font-size: max(var(--projector-min-font, 30px), min(var(--projector-font, 76px), 5.5vmin));
+}
+
+.projector-layout-scripture-overlay .projector-safe-area {
+  position: fixed;
+  left: var(--projector-safe-margin, 5.5vmin);
+  right: var(--projector-safe-margin, 5.5vmin);
+  bottom: calc(var(--projector-safe-margin, 5.5vmin) + 2vmin);
+  top: auto;
+  max-width: none;
+  text-align: left;
+}
+
+.projector-layout-reference-only .projector-reference-bar {
+  justify-content: center;
+  margin-bottom: 0;
+  font-size: clamp(28px, 5vw, 56px);
+}
+
+.projector-layout-stage-display .projector-safe-area {
+  text-align: left;
+  max-width: min(1400px, 94vw);
+}
+
+.projector-stage-next {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: clamp(16px, 2.2vw, 24px);
+  text-align: left;
+}
+
+.projector-stage-next-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--projector-accent, #93c5fd);
+  font-size: 0.75em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.projector-stage-next p {
+  margin: 0.35rem 0 0;
+  line-height: 1.35;
+}
+
+.projector-transition-fade.is-entering {
+  animation: projectorFadeIn 220ms ease;
+}
+
+.projector-transition-crossfade.is-entering {
+  animation: projectorCrossfade 280ms ease;
+}
+
+.projector-transition-dip-black.is-entering {
+  animation: projectorDipBlack 320ms ease;
+}
+
+.projector-transition-dip-logo.is-entering {
+  animation: projectorDipLogo 360ms ease;
+}
+
+@keyframes projectorFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes projectorCrossfade {
+  0% { opacity: 0; filter: blur(2px); }
+  100% { opacity: 1; filter: blur(0); }
+}
+
+@keyframes projectorDipBlack {
+  0% { opacity: 0; background: #000; }
+  45% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes projectorDipLogo {
+  0% { opacity: 0; }
+  40% { opacity: 0.15; }
+  100% { opacity: 1; }
+}
+
+@media (aspect-ratio: 4/3) {
+  .projector-safe-area {
+    max-width: min(980px, 90vw);
+  }
+
+  .projector-lyrics {
+    font-size: max(var(--projector-min-font, 30px), min(var(--projector-font, 76px), 8.5vmin));
+  }
+}
+
