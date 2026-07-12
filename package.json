@@ -33,6 +33,7 @@
     "test:hymnal-library": "node scripts/test-hymnal-library.js",
     "test:hymnal-integration": "node scripts/test-hymnal-integration.js",
     "test:bible-projection": "node scripts/test-bible-projection.js",
+    "test:live-hymn-queue": "node scripts/test-live-hymn-queue.js",
     "test:help": "node scripts/test-help-centre.js",
     "test:performance": "node scripts/test-performance.js",
     "build:web-assets": "node scripts/build-production-assets.js",
