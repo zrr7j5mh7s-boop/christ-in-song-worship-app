@@ -145,6 +145,16 @@
     bibleBookOrder: Number(loadValue("bibleBookOrder", 43)) || 43,
     bibleChapter: Number(loadValue("bibleChapter", 1)) || 1,
     bibleVerse: Number(loadValue("bibleVerse", 0)) || 0,
+    indexDisplay: window.CISHymnIndexSettings
+      ? window.CISHymnIndexSettings.load(null, (key, fallback) => loadJson(key, fallback))
+      : {
+        layout: "grid",
+        showCategories: true,
+        showTitles: true,
+        showFavorites: true,
+        density: "comfortable",
+        sort: "number-asc",
+      },
   };
 
   let favorites = new Set(loadJson("favorites", []));
@@ -613,7 +623,32 @@
             ? window.CISSongTagsUI.renderFilterRow(window.CISTagCatalog.getAllTags(), state.tagFilters)
             : categoryDefinitions.map((category) => `<button class="filter-chip ${state.category === category.id ? "active" : ""}" type="button" data-command="set-category" data-category="${category.id}">${escapeHtml(category.label)}</button>`).join("")
         ),
-        renderSongTags: (song, code) => renderSongTags(song, code),
+        renderSongTags: (song, code) => (
+          state.indexDisplay.showCategories === false ? "" : renderSongTags(song, code)
+        ),
+        getIndexDisplaySettings: () => state.indexDisplay,
+        renderIndexCollection: (songs, extra = {}) => {
+          if (!window.CISHymnIndexUI) return "";
+          window.CISHymnIndexUI.configure({ escapeHtml });
+          return window.CISHymnIndexUI.renderCollection(
+            window.CISHymnIndexUI.sortSongs(songs, state.indexDisplay.sort, {
+              favorites,
+              recents,
+              songKey: (song) => songKey(song, extra.code || state.languageCode),
+            }),
+            state.indexDisplay,
+            {
+              ...indexDisplayContext(),
+              ...extra,
+              songKey: (song) => songKey(song, extra.code || state.languageCode),
+              renderSongTags: (song) => (
+                state.indexDisplay.showCategories === false
+                  ? ""
+                  : renderSongTags(song, extra.code || state.languageCode)
+              ),
+            },
+          );
+        },
       });
     }
     window.CISSearchEngine.rebuildIndex(data.languagePacks);
@@ -1098,6 +1133,7 @@
           searchScope: state.searchScope,
           category: state.category,
           indexRange: state.indexRange,
+          indexDisplay: state.indexDisplay,
         },
       };
       },
@@ -1211,6 +1247,9 @@
           if (ui.indexRange) {
             state.indexRange = ui.indexRange;
             saveValue("range", state.indexRange);
+          }
+          if (ui.indexDisplay && window.CISHymnIndexSettings) {
+            state.indexDisplay = window.CISHymnIndexSettings.save(ui.indexDisplay, saveJson);
           }
           lines.push("Settings restored.");
         }
@@ -1373,11 +1412,20 @@
     render();
   }
 
+  function songSearchHaystack(song, code = state.languageCode) {
+    const base = song.searchText || `${song.number} ${song.title}`.toLowerCase();
+    const tagLabels = getSongTags(song, code).map((tagId) => {
+      const meta = getTagMeta(tagId);
+      return meta ? meta.label : tagId;
+    }).join(" ");
+    return `${base} ${tagLabels}`.trim().toLowerCase();
+  }
+
   function searchSongs(query, limit, code = state.languageCode, useCategory = false) {
     const songs = getSongs(code);
     const q = plain(query).toLowerCase();
     const results = q
-      ? songs.filter((song) => (song.searchText || `${song.number} ${song.title}`.toLowerCase()).includes(q))
+      ? songs.filter((song) => songSearchHaystack(song, code).includes(q))
       : songs;
     const filtered = useCategory ? filterByCategory(results, (song) => song, () => code) : results;
     return typeof limit === "number" ? filtered.slice(0, limit) : filtered;
@@ -1435,10 +1483,18 @@
   function rangeSongs(rangeKey, query) {
     const options = rangeOptions();
     const range = options.find((item) => item[0] === rangeKey) || options[0];
-    return searchSongs(query).filter((song) => {
+    const songs = searchSongs(query, undefined, state.languageCode, true).filter((song) => {
       const number = Number(song.number);
       return number >= range[1] && number <= range[2];
     });
+    if (window.CISHymnIndexUI) {
+      return window.CISHymnIndexUI.sortSongs(songs, state.indexDisplay.sort, {
+        favorites,
+        recents,
+        songKey: (song) => songKey(song),
+      });
+    }
+    return songs.sort((a, b) => Number(a.number) - Number(b.number));
   }
 
   function compactSource(source) {
@@ -1817,28 +1873,64 @@
     `;
   }
 
+  function persistIndexDisplay(patch) {
+    if (!window.CISHymnIndexSettings) return;
+    state.indexDisplay = window.CISHymnIndexSettings.patch(state.indexDisplay, patch, saveJson);
+  }
+
+  function indexDisplayContext() {
+    return {
+      settings: state.indexDisplay,
+      query: state.query,
+      favorites,
+      recents,
+      activeCategory: state.category,
+      activeTagFilters: state.tagFilters,
+      songKey: (song) => songKey(song),
+      renderSongTags: (song, code = state.languageCode) => renderSongTags(song, code),
+      categories: categoryDefinitions,
+      renderFilterRow: () => (
+        window.CISTagCatalog && window.CISSongTagsUI
+          ? window.CISSongTagsUI.renderFilterRow(window.CISTagCatalog.getAllTags(), state.tagFilters)
+          : ""
+      ),
+    };
+  }
+
   function renderIndex() {
     const pack = getPack();
     if (pack.status !== "ready") return renderAwaitingPack(pack);
+    if (!window.CISHymnIndexUI) {
+      const ranges = rangeOptions(pack);
+      const activeRange = activeRangeKey(pack);
+      const songs = rangeSongs(activeRange, state.query);
+      return `
+        <section class="section">
+          <div class="toolbar">
+            <label class="search-box">
+              <span aria-hidden="true">⌕</span>
+              <input id="indexSearchInput" type="search" value="${escapeHtml(state.query)}" placeholder="Search hymns">
+            </label>
+            <div class="tab-row">
+              ${ranges.map((range) => `<button class="range-button ${activeRange === range[0] ? "active" : ""}" type="button" data-command="set-range" data-range="${range[0]}">${range[0]}</button>`).join("")}
+            </div>
+          </div>
+          <div class="tile-grid">
+            ${songs.map(renderSongCard).join("") || `<div class="empty-state">No hymns match this search.</div>`}
+          </div>
+        </section>
+      `;
+    }
+    window.CISHymnIndexUI.configure({ escapeHtml });
     const ranges = rangeOptions(pack);
     const activeRange = activeRangeKey(pack);
     const songs = rangeSongs(activeRange, state.query);
-    return `
-      <section class="section">
-        <div class="toolbar">
-          <label class="search-box">
-            <span aria-hidden="true">⌕</span>
-            <input id="indexSearchInput" type="search" value="${escapeHtml(state.query)}" placeholder="Search hymns">
-          </label>
-          <div class="tab-row">
-            ${ranges.map((range) => `<button class="range-button ${activeRange === range[0] ? "active" : ""}" type="button" data-command="set-range" data-range="${range[0]}">${range[0]}</button>`).join("")}
-          </div>
-        </div>
-        <div class="tile-grid">
-          ${songs.map(renderSongCard).join("") || `<div class="empty-state">No hymns match this search.</div>`}
-        </div>
-      </section>
-    `;
+    return window.CISHymnIndexUI.renderPage({
+      ...indexDisplayContext(),
+      ranges,
+      activeRange,
+      songs,
+    });
   }
 
   function renderSongCard(song) {
@@ -4495,6 +4587,56 @@
     if (command === "set-range") {
       state.indexRange = target.dataset.range || state.indexRange;
       saveValue("range", state.indexRange);
+      render();
+      return;
+    }
+    if (command === "set-index-layout") {
+      const layout = target.dataset.layout || target.value;
+      if (layout) persistIndexDisplay({ layout });
+      render();
+      return;
+    }
+    if (command === "toggle-index-categories" || command === "toggle-index-show-categories") {
+      const next = target.type === "checkbox" ? target.checked : !state.indexDisplay.showCategories;
+      persistIndexDisplay({ showCategories: next });
+      render();
+      return;
+    }
+    if (command === "toggle-index-show-titles") {
+      persistIndexDisplay({ showTitles: target.checked });
+      render();
+      return;
+    }
+    if (command === "toggle-index-show-favorites") {
+      persistIndexDisplay({ showFavorites: target.checked });
+      render();
+      return;
+    }
+    if (command === "set-index-density") {
+      persistIndexDisplay({ density: target.dataset.density || target.value || "comfortable" });
+      render();
+      return;
+    }
+    if (command === "set-index-sort") {
+      const sort = target.dataset.sort || target.value || "number-asc";
+      persistIndexDisplay({ sort });
+      render();
+      return;
+    }
+    if (command === "index-all-hymns") {
+      state.category = "all";
+      state.tagFilters = [];
+      saveValue("category", "all");
+      saveJson("tagFilters", []);
+      render();
+      return;
+    }
+    if (command === "index-clear-filters") {
+      state.query = "";
+      state.category = "all";
+      state.tagFilters = [];
+      saveValue("category", "all");
+      saveJson("tagFilters", []);
       render();
       return;
     }
