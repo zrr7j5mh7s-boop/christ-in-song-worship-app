@@ -223,11 +223,17 @@
     const contentKind = item?.contentKind || item?.type || "song";
 
     if (contentKind === "scripture" || (item?.type === "custom" && contentKind === "scripture")) {
-      return publishLive("scripture", buildScripturePayload({
-        reference: item?.subtitle || snapshot.shortTitle || "",
-        text: body,
-        translation: "",
-      }));
+      const reference = slide.reference || item?.title || item?.subtitle || snapshot.shortTitle || "";
+      const translation = slide.translation || item?.translation || "";
+      const obsLayout = item?.obsLayout || settings.overlayLayouts?.scripture?.obsLayout || "lower_third";
+      return publishLive("scripture", {
+        ...buildScripturePayload({
+          reference,
+          text: body,
+          translation,
+        }),
+        layout: obsLayout,
+      });
     }
 
     if (contentKind === "announcement") {

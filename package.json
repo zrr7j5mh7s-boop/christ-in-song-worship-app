@@ -28,6 +28,7 @@
     "test:obs-integration": "node scripts/test-obs-integration.js",
     "test:obs": "npm run test:obs-settings && npm run test:obs-integration",
     "test:help": "node scripts/test-help-centre.js",
+    "test:bible-projection": "node scripts/test-bible-projection.js",
     "test:performance": "node scripts/test-performance.js",
     "build:web-assets": "node scripts/build-production-assets.js",
     "pack": "electron-builder --dir",
