@@ -7714,6 +7714,127 @@ body.quiet-service-mode-active .launch-splash {
   display: none !important;
 }
 
+<<<<<<< HEAD
 >>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
 =======
 >>>>>>> e584b20 (Unify projection rendering so hymn, Bible, and OBS congregation outputs share themes, layout, and text fitting for readable slides on any screen.)
+=======
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.live-touch-btn,
+.service-touch-btn {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0.65rem 1rem;
+  touch-action: manipulation;
+}
+
+.live-touch-row,
+.service-queue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.live-touch-btn:active,
+.service-touch-btn:active,
+.service-emergency-btn:active,
+.live-touch-btn.is-pressed {
+  transform: scale(0.98);
+  outline: 2px solid color-mix(in srgb, var(--accent, #1f4b99) 55%, white);
+  outline-offset: 2px;
+}
+
+.warn-touch-btn {
+  min-height: 48px;
+  border-color: color-mix(in srgb, var(--danger, #b42318) 45%, var(--line, #d8dde8));
+}
+
+.mini-actions button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.service-queue-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--line, #d8dde8);
+}
+
+.service-queue-actions {
+  grid-column: 1 / -1;
+}
+
+.shortcut-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.shortcut-table th,
+.shortcut-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.55rem 0.35rem;
+  border-bottom: 1px solid var(--line, #d8dde8);
+}
+
+.shortcut-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--line, #d8dde8);
+  background: var(--surface, #fff);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.shortcut-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(10rem, 0.8fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--line, #d8dde8);
+}
+
+.shortcut-conflicts {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--warning, #d97706) 45%, var(--line, #d8dde8));
+  background: color-mix(in srgb, var(--warning, #d97706) 8%, white);
+}
+
+.shortcut-category + .shortcut-category {
+  margin-top: 1.25rem;
+}
+
+.av-floating-toolbar button {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+.service-emergency-btn {
+  min-height: 52px;
+  min-width: 52px;
+}
+
+>>>>>>> feddf9c (Add configurable keyboard shortcuts, touch-friendly live controls, and accessibility improvements for faster worship operation.)

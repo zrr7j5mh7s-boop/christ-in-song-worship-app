@@ -103,6 +103,7 @@ function testCacheVersion() {
   const sw = read("sw.js");
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   if (!sw.includes("christ-in-song-worship-v41")) fail("Service worker cache should be v41");
   ok("cache version v41 for quiet service mode release");
 =======
@@ -113,6 +114,10 @@ function testCacheVersion() {
   if (!sw.includes("christ-in-song-worship-v40")) fail("Service worker cache should be v40");
   ok("cache version v40 for projection release");
 >>>>>>> e584b20 (Unify projection rendering so hymn, Bible, and OBS congregation outputs share themes, layout, and text fitting for readable slides on any screen.)
+=======
+  if (!sw.includes("christ-in-song-worship-v42")) fail("Service worker cache should be v42");
+  ok("cache version v42 for keyboard shortcuts release");
+>>>>>>> feddf9c (Add configurable keyboard shortcuts, touch-friendly live controls, and accessibility improvements for faster worship operation.)
 }
 
 testDesignTokens();

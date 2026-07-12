@@ -181,6 +181,7 @@
     fontScale: Number(loadValue("fontScale", 1)) || 1,
     notice: "",
     noticeLevel: "",
+    shortcutReferenceQuery: "",
     desktopInfo: null,
     presenter: {
       open: false,
@@ -1141,8 +1142,10 @@
     const serviceState = window.CISServiceModeService?.getState() || {};
     const queueState = window.CISLiveHymnQueueService?.getState() || {};
     const queue = (queueState.queue || []).map((item) => ({
+      id: item.id,
       title: item.shortLabel || item.title || "Queue item",
       meta: `Hymn ${item.hymnNumber || ""}`,
+      songKey: item.songKey || "",
     }));
     let mediaControls = "";
     if (window.CISSongAudioUI && selectedSong()) {
@@ -1317,6 +1320,330 @@
       qState.active,
       qState.deferredCount || 0,
     );
+  }
+
+  function getShortcutContext() {
+    const presenterEngine = window.CISPresenterEngine?.getState?.() || {};
+    const activeSearch = window.CISSearchUI?.getActiveResult?.() || null;
+    const hasSelection = Boolean(
+      activeSearch
+      || (state.view === "song" && selectedSong())
+      || document.querySelector(".set-row.active, .song-card.active, [data-search-result].active"),
+    );
+    return {
+      presenterActive: Boolean(state.presenter.open || presenterEngine.active),
+      emergencyMode: Boolean(state.emergencyMode),
+      bibleLive: state.view === "bible" && state.bibleMode === "live",
+      searchView: state.view === "search",
+      indexView: state.view === "index",
+      hasSelection,
+      mediaLoaded: Boolean(hymnAudioPlayer?.getState?.()?.loaded),
+      modalOpen: Boolean(els.modalRoot?.innerHTML),
+      disabled: false,
+    };
+  }
+
+  function focusCurrentSearchField() {
+    const candidates = [
+      "#globalSearchInput",
+      "#indexSearchInput",
+      "#builderSearchInput",
+      "#homeSearchInput",
+      "#bibleLiveReferenceInput",
+    ];
+    for (const selector of candidates) {
+      const input = document.querySelector(selector);
+      if (input && input.offsetParent !== null) {
+        input.focus();
+        if (window.CISFocusManager) window.CISFocusManager.announce("Search field focused.");
+        return true;
+      }
+    }
+    state.view = "search";
+    saveValue("view", state.view);
+    render();
+    window.setTimeout(() => document.getElementById("globalSearchInput")?.focus(), 0);
+    return true;
+  }
+
+  function loadSelectedIntoPreview() {
+    if (state.view === "bible" && state.bibleMode === "live") {
+      const input = document.getElementById("bibleLiveReferenceInput");
+      if (input) handleBibleCommand("preview-load", input);
+      return true;
+    }
+    if (state.view === "search" && window.CISSearchUI?.previewActiveResult) {
+      return Boolean(window.CISSearchUI.previewActiveResult());
+    }
+    const activeSearch = window.CISSearchUI?.getActiveResult?.();
+    if (activeSearch?.songKey) {
+      void handleHymnQueueCommand("hymn-preview", { dataset: { songKey: activeSearch.songKey } });
+      return true;
+    }
+    if (state.view === "song" && selectedSong()) {
+      void handleHymnQueueCommand("hymn-preview", { dataset: { songKey: songKey(selectedSong()) } });
+      return true;
+    }
+    return false;
+  }
+
+  async function sendPreviewLiveShortcut() {
+    if (state.view === "bible" && state.bibleMode === "live") {
+      await handleBibleCommand("send-live", null);
+      return true;
+    }
+    if (window.CISLiveSwitchService) {
+      const result = await window.CISLiveSwitchService.commit({ type: "hymn" });
+      setNotice(result.message || (result.ok ? "Preview sent Live." : "Send Live cancelled."));
+      if (window.CISFocusManager) window.CISFocusManager.announce(result.message || "Preview sent Live.");
+      return true;
+    }
+    const preview = window.CISLiveHymnQueueService?.getState?.().preview;
+    if (preview?.songKey) {
+      await handleHymnQueueCommand("hymn-send-live", { dataset: { songKey: preview.songKey } });
+      return true;
+    }
+    return false;
+  }
+
+  function showChorusSlide() {
+    const engine = window.CISPresenterEngine;
+    if (!engine?.getState?.().active) return false;
+    const song = getSongByKey(engine.getState().songKey || state.presenter.songKey);
+    if (!song) return false;
+    const chorusIndex = findChorusSlide(song);
+    if (chorusIndex < 0) {
+      setNotice("No chorus slide found for this hymn.");
+      return false;
+    }
+    state.presenter.slideIndex = chorusIndex;
+    engine.patchState({ slideIndex: chorusIndex });
+    engine.publishState();
+    renderPresenterAV();
+    if (window.CISFocusManager) window.CISFocusManager.announce("Chorus slide shown.");
+    return true;
+  }
+
+  function setSelectedHymnAsNext() {
+    const activeSearch = window.CISSearchUI?.getActiveResult?.();
+    if (activeSearch?.songKey) {
+      void handleHymnQueueCommand("hymn-set-next", { dataset: { songKey: activeSearch.songKey } });
+      return true;
+    }
+    if (state.view === "song" && selectedSong()) {
+      void handleHymnQueueCommand("hymn-set-next", { dataset: { songKey: songKey(selectedSong()) } });
+      return true;
+    }
+    return false;
+  }
+
+  function openHymnQueueWorkspace() {
+    state.view = "presenter";
+    state.presenter.open = true;
+    saveValue("view", state.view);
+    render();
+    if (window.CISFocusManager) window.CISFocusManager.announce("Hymn queue opened.");
+    return true;
+  }
+
+  function executeShortcutAction(actionId) {
+    if (els.modalRoot?.innerHTML && actionId !== "close-presenter") {
+      if (actionId === "close-presenter" || (actionId === "emergency-clear" && state.emergencyMode)) {
+        /* continue */
+      } else if (actionId === "close-presenter") {
+        closeModal();
+        return { handled: true };
+      }
+    }
+
+    if (state.emergencyMode) {
+      if (actionId === "close-presenter" || actionId === "emergency-clear") {
+        clearEmergency();
+        return { handled: true };
+      }
+      if (["emergency-black", "emergency-logo", "emergency-clear", "emergency-restore"].includes(actionId)) {
+        if (actionId === "emergency-restore") {
+          void handleHymnQueueCommand("hymn-restore-previous", {});
+          clearEmergency();
+          return { handled: true };
+        }
+        if (actionId === "emergency-clear") clearEmergency();
+        else if (actionId === "emergency-black") setEmergency("black");
+        else if (actionId === "emergency-logo") setEmergency("logo");
+        return { handled: true };
+      }
+    }
+
+    switch (actionId) {
+      case "global-search":
+        state.view = "search";
+        saveValue("view", state.view);
+        render();
+        window.setTimeout(() => document.getElementById("globalSearchInput")?.focus(), 0);
+        return { handled: true };
+      case "open-bible-live":
+        openBibleLive();
+        return { handled: true };
+      case "open-hymn-search":
+        state.view = "search";
+        saveValue("view", state.view);
+        render();
+        return { handled: true };
+      case "focus-search-field":
+        return { handled: focusCurrentSearchField() };
+      case "open-help":
+        state.view = "help";
+        resetHelpNav();
+        saveValue("view", state.view);
+        render();
+        return { handled: true };
+      case "open-emergency-help":
+        state.view = "help";
+        state.help.category = "emergency";
+        saveValue("view", state.view);
+        render();
+        return { handled: true };
+      case "open-queue":
+        return { handled: openHymnQueueWorkspace() };
+      case "load-preview":
+        return { handled: loadSelectedIntoPreview() };
+      case "hymn-send-preview-live":
+        void sendPreviewLiveShortcut();
+        return { handled: true };
+      case "hymn-take-next":
+        void handleHymnQueueCommand("hymn-take-next", {});
+        return { handled: true };
+      case "hymn-restore-previous":
+        void handleHymnQueueCommand("hymn-restore-previous", {});
+        return { handled: true };
+      case "presenter-next":
+        presenterMove(1);
+        if (window.CISFocusManager) window.CISFocusManager.announce("Next slide.");
+        return { handled: true };
+      case "presenter-prev":
+        presenterMove(-1);
+        if (window.CISFocusManager) window.CISFocusManager.announce("Previous slide.");
+        return { handled: true };
+      case "show-chorus":
+        return { handled: showChorusSlide() };
+      case "hymn-set-next":
+        return { handled: setSelectedHymnAsNext() };
+      case "emergency-clear":
+        clearEmergency();
+        return { handled: true };
+      case "emergency-logo":
+        setEmergency("logo");
+        return { handled: true };
+      case "emergency-black":
+        setEmergency("black");
+        return { handled: true };
+      case "emergency-white":
+        setEmergency("white");
+        return { handled: true };
+      case "emergency-restore":
+        if (state.view === "bible" && state.bibleMode === "live") {
+          handleBibleCommand("restore-scripture", null);
+        } else {
+          void handleHymnQueueCommand("hymn-restore-previous", {});
+        }
+        return { handled: true };
+      case "presenter-pause":
+        if (window.CISPresenterEngine) window.CISPresenterEngine.togglePause();
+        renderPresenterAV();
+        return { handled: true };
+      case "media-toggle":
+        if (hymnAudioPlayer) hymnAudioPlayer.togglePlay();
+        return { handled: true };
+      case "bible-next-verse":
+        handleBibleCommand("next-verse", null);
+        return { handled: true };
+      case "bible-prev-verse":
+        handleBibleCommand("prev-verse", null);
+        return { handled: true };
+      case "bible-send-live":
+        void handleBibleCommand("send-live", null);
+        return { handled: true };
+      case "camera-send-live":
+        handleCameraSendLive();
+        return { handled: true };
+      case "camera-next": {
+        const cameras = window.CISCameraSourceService?.getState?.().savedCameras || [];
+        const currentId = window.CISCameraSourceService?.getState?.().live?.cameraId;
+        const index = cameras.findIndex((cam) => cam.id === currentId);
+        const next = cameras[(index + 1) % cameras.length];
+        if (next) handleCameraSendLive(next.id);
+        return { handled: true };
+      }
+      case "presenter-fullscreen":
+        togglePresenterFullscreen();
+        return { handled: true };
+      case "close-presenter":
+        if (els.modalRoot?.innerHTML) {
+          closeModal();
+          return { handled: true };
+        }
+        closePresenter();
+        return { handled: true };
+      default:
+        return { handled: false };
+    }
+  }
+
+  function setupKeyboardShortcuts() {
+    if (!window.CISKeyboardShortcutsService || !window.CISKeyboardShortcutsSettings) return;
+    const saved = window.CISKeyboardShortcutsSettings.load((key, fallback) => loadJson(key, fallback));
+    if (window.CISKeyboardShortcutsUI) {
+      window.CISKeyboardShortcutsUI.configure({ escapeHtml });
+    }
+    window.CISKeyboardShortcutsService.configure({
+      bindings: saved,
+      platform: state.desktopInfo?.platform || (navigator.platform || "web").toLowerCase(),
+      getContext: getShortcutContext,
+      onAction: (actionId) => executeShortcutAction(actionId),
+    });
+    if (!window.CISKeyboardShortcutsService._subscribed) {
+      window.CISKeyboardShortcutsService._subscribed = true;
+      window.CISKeyboardShortcutsService.subscribe(() => {
+        if (state.view === "settings") render();
+      });
+    }
+  }
+
+  function bindKeyboardShortcutPanels() {
+    if (!window.CISKeyboardShortcutsUI) return;
+    const settingsRoot = document.querySelector(".keyboard-shortcuts-settings");
+    if (settingsRoot) {
+      window.CISKeyboardShortcutsUI.bindSettingsInteractions(settingsRoot, {
+        onBindingChange: (actionId, binding) => {
+          const result = window.CISKeyboardShortcutsService.setBinding(actionId, binding);
+          window.CISKeyboardShortcutsSettings.save(
+            window.CISKeyboardShortcutsService.getBindings(),
+            saveJson,
+          );
+          if (result.conflicts?.length) {
+            setNotice(`${result.conflicts.length} shortcut conflict(s) detected.`, { important: true });
+          }
+          render();
+        },
+      });
+    }
+    const referenceRoot = document.querySelector(".keyboard-shortcuts-reference");
+    if (referenceRoot) {
+      window.CISKeyboardShortcutsUI.bindReferenceInteractions(referenceRoot, {
+        onSearch: (query) => {
+          state.shortcutReferenceQuery = query;
+          const results = document.getElementById("shortcutReferenceResults");
+          if (results && window.CISKeyboardShortcutsUI && window.CISKeyboardShortcutsService) {
+            const panel = window.CISKeyboardShortcutsUI.renderReferencePanel(
+              window.CISKeyboardShortcutsService.getState(),
+              query,
+            );
+            const match = panel.match(/<div id="shortcutReferenceResults"[\s\S]*?>([\s\S]*?)<\/div>\s*<\/section>/);
+            if (match) results.innerHTML = match[1];
+          }
+        },
+      });
+    }
   }
 
   function enterServiceMode() {
@@ -1662,6 +1989,16 @@
     }
     if (command === "hymn-queue-down") {
       service.moveQueueItem(queueId, 1);
+      paintLiveHymnQueuePanels();
+      return;
+    }
+    if (command === "hymn-queue-top") {
+      service.moveQueueItemToEdge(queueId, "top");
+      paintLiveHymnQueuePanels();
+      return;
+    }
+    if (command === "hymn-queue-bottom") {
+      service.moveQueueItemToEdge(queueId, "bottom");
       paintLiveHymnQueuePanels();
       return;
     }
@@ -2282,6 +2619,10 @@
         getSearchScopeOptions,
         renderScopeRow: renderSearchScopeRow,
         onOpenSong: (number, code, editionId) => openSong(number, code, editionId),
+        onPreviewSong: (songKeyValue) => {
+          if (!songKeyValue) return;
+          void handleHymnQueueCommand("hymn-preview", { dataset: { songKey: songKeyValue } });
+        },
         renderFilterRow: () => (
           window.CISTagCatalog && window.CISSongTagsUI
             ? window.CISSongTagsUI.renderFilterRow(window.CISTagCatalog.getAllTags(), state.tagFilters)
@@ -3552,6 +3893,11 @@
     renderEmergencyOverlay();
     if (state.view === "builder") bindBuilderInteractions();
     bindGlobalSearch();
+    bindKeyboardShortcutPanels();
+    if (els.modalRoot?.innerHTML) {
+      const modal = els.modalRoot.querySelector(".modal, [role='dialog']");
+      if (modal && window.CISFocusManager) window.CISFocusManager.trapFocus(modal);
+    }
     bindHymnAudio();
     bindBible();
     bindBackupSettings();
@@ -4572,9 +4918,11 @@
           ${song ? `<button type="button" data-command="hymn-set-next" data-song-key="${escapeHtml(slot.songKey)}" title="Set as Next">Next</button>` : ""}
           ${song ? `<button type="button" data-command="hymn-add-queue" data-song-key="${escapeHtml(slot.songKey)}" title="Add to Queue">+Q</button>` : ""}
           ${custom ? `<button type="button" data-command="edit-slide-item" data-slot="${index}" title="Edit">✎</button>` : ""}
-          <button type="button" data-command="move-slot-up" data-slot="${index}" title="Move up">↑</button>
-          <button type="button" data-command="move-slot-down" data-slot="${index}" title="Move down">↓</button>
-          <button type="button" data-command="remove-slot-song" data-slot="${index}" title="Remove">×</button>
+          <button type="button" data-command="move-slot-up" data-slot="${index}" title="Move up" aria-label="Move up">Up</button>
+          <button type="button" data-command="move-slot-down" data-slot="${index}" title="Move down" aria-label="Move down">Down</button>
+          <button type="button" data-command="move-slot-top" data-slot="${index}" title="Move to top" aria-label="Move to top">Top</button>
+          <button type="button" data-command="move-slot-bottom" data-slot="${index}" title="Move to bottom" aria-label="Move to bottom">Bottom</button>
+          <button type="button" data-command="remove-slot-song" data-slot="${index}" title="Remove" aria-label="Remove item">Remove</button>
         </div>
       </div>
     `;
@@ -4592,9 +4940,11 @@
         <div class="mini-actions">
           ${song ? `<button type="button" data-command="present-service-slot" data-service-slot="${index}" title="Present">▶</button>` : ""}
           ${song ? `<button type="button" data-command="open-service-song" data-service-slot="${index}" title="Open">↗</button>` : ""}
-          <button type="button" data-command="move-service-up" data-service-slot="${index}" title="Move up">↑</button>
-          <button type="button" data-command="move-service-down" data-service-slot="${index}" title="Move down">↓</button>
-          <button type="button" data-command="remove-service-song" data-service-slot="${index}" title="Remove">×</button>
+          <button type="button" data-command="move-service-up" data-service-slot="${index}" title="Move up" aria-label="Move up">Up</button>
+          <button type="button" data-command="move-service-down" data-service-slot="${index}" title="Move down" aria-label="Move down">Down</button>
+          <button type="button" data-command="move-service-top" data-service-slot="${index}" title="Move to top" aria-label="Move to top">Top</button>
+          <button type="button" data-command="move-service-bottom" data-service-slot="${index}" title="Move to bottom" aria-label="Move to bottom">Bottom</button>
+          <button type="button" data-command="remove-service-song" data-service-slot="${index}" title="Remove" aria-label="Remove item">Remove</button>
         </div>
       </div>
     `;
@@ -5555,6 +5905,15 @@
             : {}),
       )
       : "";
+    const shortcutSettingsPanel = window.CISKeyboardShortcutsUI && window.CISKeyboardShortcutsService
+      ? window.CISKeyboardShortcutsUI.renderSettingsPanel(window.CISKeyboardShortcutsService.getState())
+      : "";
+    const shortcutReferencePanel = window.CISKeyboardShortcutsUI && window.CISKeyboardShortcutsService
+      ? window.CISKeyboardShortcutsUI.renderReferencePanel(
+        window.CISKeyboardShortcutsService.getState(),
+        state.shortcutReferenceQuery,
+      )
+      : "";
     const backupPanel = window.CISBackupRestore ? window.CISBackupRestore.renderSettingsPanel({
       favorites: favorites.size,
       builderItems: assignedSlots().length,
@@ -5634,6 +5993,8 @@
         </div>
         ${backupPanel}
         ${quietPanel}
+        ${shortcutSettingsPanel}
+        ${shortcutReferencePanel}
         ${renderBibleSettingsPanel()}
         ${renderObsSettingsPanel()}
         ${renderCameraSettingsMount()}
@@ -5755,6 +6116,10 @@
       return;
     }
     els.modalRoot.innerHTML = "";
+    if (window.CISFocusManager) {
+      window.CISFocusManager.releaseTrap();
+      window.CISFocusManager.restoreFocus();
+    }
   }
 
   function assignSongToSlot(index, song) {
@@ -5970,6 +6335,17 @@
     render();
   }
 
+  function moveSlotToEdge(index, edge) {
+    if (index < 0 || index >= worshipPlan.length) return;
+    const [item] = worshipPlan.splice(index, 1);
+    if (edge === "top") worshipPlan.unshift(item);
+    else worshipPlan.push(item);
+    state.activeSlot = edge === "top" ? 0 : worshipPlan.length - 1;
+    saveValue("activeSlot", state.activeSlot);
+    saveWorshipPlan();
+    render();
+  }
+
   function moveServiceSlot(index, delta) {
     const next = index + delta;
     if (next < 0 || next >= songService.length) return;
@@ -5977,6 +6353,17 @@
     songService[index] = songService[next];
     songService[next] = temp;
     state.activeSongServiceSlot = next;
+    saveValue("activeSongServiceSlot", state.activeSongServiceSlot);
+    saveSongService();
+    render();
+  }
+
+  function moveServiceSlotToEdge(index, edge) {
+    if (index < 0 || index >= songService.length) return;
+    const [item] = songService.splice(index, 1);
+    if (edge === "top") songService.unshift(item);
+    else songService.push(item);
+    state.activeSongServiceSlot = edge === "top" ? 0 : songService.length - 1;
     saveValue("activeSongServiceSlot", state.activeSongServiceSlot);
     saveSongService();
     render();
@@ -6741,100 +7128,16 @@
   });
 
   document.addEventListener("keydown", (event) => {
-    const tag = event.target?.tagName || "";
-    const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || event.target?.isContentEditable;
-    if (state.emergencyMode) {
-      if (event.key === "Escape") clearEmergency();
-      return;
-    }
-    if (state.presenter.open || (window.CISPresenterEngine && window.CISPresenterEngine.getState().active)) {
-      if (!typing) {
-        if (event.shiftKey && event.key === "]" && window.CISLiveHymnQueueService) {
-          event.preventDefault();
-          void handleHymnQueueCommand("hymn-take-next", {});
-          return;
-        }
-        if (event.shiftKey && event.key === "[" && window.CISLiveHymnQueueService) {
-          event.preventDefault();
-          void handleHymnQueueCommand("hymn-restore-previous", {});
-          return;
-        }
-        if (event.key.toLowerCase() === "v") {
-          event.preventDefault();
-          handleCameraSendLive();
-          return;
-        }
-        if (event.key.toLowerCase() === "n" && window.CISCameraSourceService) {
-          event.preventDefault();
-          const cameras = window.CISCameraSourceService.getState().savedCameras;
-          const currentId = window.CISCameraSourceService.getState().live.cameraId;
-          const index = cameras.findIndex((cam) => cam.id === currentId);
-          const next = cameras[(index + 1) % cameras.length];
-          if (next) handleCameraSendLive(next.id);
-          return;
-        }
-      }
-      if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
+    if (window.CISKeyboardShortcutsService?.handleEvent(event)) return;
+    if (state.view === "song" && !window.CISKeyboardShortcutsService?.isTypingTarget?.(event.target)) {
+      if (event.key === "ArrowRight") {
+        moveSlide(1);
         event.preventDefault();
-        presenterMove(1);
       }
-      if (event.key === "ArrowLeft" || event.key === "PageUp") {
+      if (event.key === "ArrowLeft") {
+        moveSlide(-1);
         event.preventDefault();
-        presenterMove(-1);
       }
-      if (event.key === "Escape") closePresenter();
-      if (event.key.toLowerCase() === "f") togglePresenterFullscreen();
-      if (event.key.toLowerCase() === "h") closePresenter();
-      if (event.key.toLowerCase() === "b") setEmergency("black");
-      if (event.key.toLowerCase() === "w") setEmergency("white");
-      if (event.key.toLowerCase() === "l") setEmergency("logo");
-      if (event.key.toLowerCase() === "c") clearEmergency();
-      if (event.key.toLowerCase() === "p") {
-        if (window.CISPresenterEngine) window.CISPresenterEngine.togglePause();
-        renderPresenterAV();
-      }
-      return;
-    }
-    if (state.view === "song") {
-      if (event.key === "ArrowRight") moveSlide(1);
-      if (event.key === "ArrowLeft") moveSlide(-1);
-    }
-    if (state.view === "bible" && state.bibleMode === "live" && window.CISBibleProjectionService) {
-      const inReference = event.target?.id === "bibleLiveReferenceInput";
-      if (inReference && event.key === "Enter") {
-        event.preventDefault();
-        handleBibleCommand("search-reference", event.target);
-        return;
-      }
-      if (!typing) {
-        if (event.key.toLowerCase() === "l" && event.shiftKey) {
-          event.preventDefault();
-          handleBibleCommand("send-live", null);
-          return;
-        }
-        if (event.altKey && event.key === "ArrowRight") {
-          event.preventDefault();
-          handleBibleCommand("next-verse", null);
-          return;
-        }
-        if (event.altKey && event.key === "ArrowLeft") {
-          event.preventDefault();
-          handleBibleCommand("prev-verse", null);
-          return;
-        }
-      }
-    }
-    if (!typing && event.altKey && event.key.toLowerCase() === "b") {
-      event.preventDefault();
-      openBibleLive();
-      return;
-    }
-    if (event.key === "F1") {
-      event.preventDefault();
-      state.view = "help";
-      resetHelpNav();
-      saveValue("view", state.view);
-      render();
     }
   });
 
@@ -6842,8 +7145,14 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 =======
+=======
+    if (command && command !== "close-modal" && window.CISFocusManager) {
+      window.CISFocusManager.rememberFocus(target);
+    }
+>>>>>>> feddf9c (Add configurable keyboard shortcuts, touch-friendly live controls, and accessibility improvements for faster worship operation.)
     if (command && window.CISQuietServiceModeService?.shouldBlockAdminPopup?.(command)) {
       setNotice("That administrative action is deferred while Quiet Service Mode is active.", { important: true });
       return;
@@ -7147,8 +7456,30 @@
     }
     if (command === "move-slot-up") return moveSlot(slotIndex, -1);
     if (command === "move-slot-down") return moveSlot(slotIndex, 1);
+    if (command === "move-slot-top") return moveSlotToEdge(slotIndex, "top");
+    if (command === "move-slot-bottom") return moveSlotToEdge(slotIndex, "bottom");
     if (command === "move-service-up") return moveServiceSlot(serviceSlotIndex, -1);
     if (command === "move-service-down") return moveServiceSlot(serviceSlotIndex, 1);
+    if (command === "move-service-top") return moveServiceSlotToEdge(serviceSlotIndex, "top");
+    if (command === "move-service-bottom") return moveServiceSlotToEdge(serviceSlotIndex, "bottom");
+    if (command === "show-chorus") return showChorusSlide();
+    if (command === "shortcut-reset-defaults") {
+      if (window.CISKeyboardShortcutsService && window.CISKeyboardShortcutsSettings) {
+        window.CISKeyboardShortcutsService.resetBindings();
+        window.CISKeyboardShortcutsSettings.reset(saveJson);
+        setNotice("Keyboard shortcuts reset to defaults.");
+        render();
+      }
+      return;
+    }
+    if (command === "shortcut-open-reference") {
+      state.view = "settings";
+      state.shortcutReferenceQuery = "";
+      saveValue("view", state.view);
+      render();
+      window.setTimeout(() => document.getElementById("shortcutReferenceSearch")?.focus(), 0);
+      return;
+    }
     if (command === "open-plan-song") {
       const slot = worshipPlan[slotIndex];
       if (slot) {
@@ -7845,6 +8176,7 @@
 =======
   setupServiceMode();
   setupQuietServiceMode();
+  setupKeyboardShortcuts();
   setupLiveSwitch();
   setupLiveLock();
 <<<<<<< HEAD
