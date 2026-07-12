@@ -227,9 +227,34 @@ ipcMain.handle('quiet-mode:set-power-blocker', (_event, payload) => {
   };
 });
 
+const DEFAULT_DISPLAY_BOUNDS = { x: 0, y: 0, width: 1440, height: 900 };
+
+function getSafeAllDisplays() {
+  try {
+    return screen.getAllDisplays();
+  } catch (err) {
+    log.warn('[main] Could not enumerate displays:', err.message);
+    return [];
+  }
+}
+
+function getSafePrimaryDisplay() {
+  try {
+    return screen.getPrimaryDisplay();
+  } catch (err) {
+    log.warn('[main] Could not get primary display:', err.message);
+    return null;
+  }
+}
+
+function hasExternalDisplay() {
+  return getSafeAllDisplays().length > 1;
+}
+
 function getProjectorDisplay() {
-  const displays = screen.getAllDisplays();
-  const primary = screen.getPrimaryDisplay();
+  const displays = getSafeAllDisplays();
+  const primary = getSafePrimaryDisplay();
+  if (!primary) return null;
   return displays.find((display) => display.id !== primary.id) || primary;
 }
 
@@ -240,16 +265,16 @@ function createProjectorWindow() {
   }
 
   const targetDisplay = getProjectorDisplay();
-  const { x, y, width, height } = targetDisplay.bounds;
-  const hasExternalDisplay = screen.getAllDisplays().length > 1;
+  const { x, y, width, height } = targetDisplay?.bounds || DEFAULT_DISPLAY_BOUNDS;
+  const externalDisplay = hasExternalDisplay();
 
   const win = new BrowserWindow({
     x,
     y,
     width,
     height,
-    fullscreen: hasExternalDisplay,
-    frame: !hasExternalDisplay,
+    fullscreen: externalDisplay,
+    frame: !externalDisplay,
     backgroundColor: '#0A1020',
     title: brand.windowTitle('Projector'),
     autoHideMenuBar: true,
@@ -266,7 +291,7 @@ function createProjectorWindow() {
   win.loadFile(path.join(__dirname, '..', 'app', 'presenter-screen.html'));
   win.once('ready-to-show', () => {
     win.show();
-    if (hasExternalDisplay) {
+    if (externalDisplay) {
       win.setFullScreen(true);
     }
   });
@@ -282,7 +307,7 @@ function createProjectorWindow() {
 
 ipcMain.handle('presenter:open', () => {
   createProjectorWindow();
-  return { opened: true, dualDisplay: screen.getAllDisplays().length > 1 };
+  return { opened: true, dualDisplay: hasExternalDisplay() };
 });
 
 ipcMain.handle('presenter:close', () => {
@@ -426,8 +451,9 @@ ipcMain.handle('camera-preview:close', () => {
 });
 
 function listDisplays() {
-  const displays = screen.getAllDisplays();
-  const primary = screen.getPrimaryDisplay();
+  const displays = getSafeAllDisplays();
+  const primary = getSafePrimaryDisplay();
+  if (!primary) return [];
   return displays.map((display, index) => ({
     id: display.id,
     label: display.id === primary.id
@@ -440,8 +466,9 @@ function listDisplays() {
 }
 
 function resolveStageDisplayTarget() {
-  const displays = screen.getAllDisplays();
-  const primary = screen.getPrimaryDisplay();
+  const displays = getSafeAllDisplays();
+  const primary = getSafePrimaryDisplay();
+  if (!primary) return null;
   if (stageDisplayPrefs.displayId && stageDisplayPrefs.displayId !== 'auto' && stageDisplayPrefs.displayId !== 'primary') {
     const found = displays.find((display) => String(display.id) === String(stageDisplayPrefs.displayId));
     if (found) return found;
@@ -457,17 +484,17 @@ function createStageDisplayWindow(options) {
   }
 
   const targetDisplay = resolveStageDisplayTarget();
-  const { x, y, width, height } = targetDisplay.bounds;
+  const { x, y, width, height } = targetDisplay?.bounds || DEFAULT_DISPLAY_BOUNDS;
   const windowed = Boolean(options?.windowed ?? stageDisplayPrefs.windowed);
-  const hasExternalDisplay = screen.getAllDisplays().length > 1;
+  const externalDisplay = hasExternalDisplay();
 
   const win = new BrowserWindow({
     x,
     y,
     width: windowed ? Math.min(960, width) : width,
     height: windowed ? Math.min(540, height) : height,
-    fullscreen: !windowed && hasExternalDisplay,
-    frame: windowed || !hasExternalDisplay,
+    fullscreen: !windowed && externalDisplay,
+    frame: windowed || !externalDisplay,
     backgroundColor: '#111827',
     title: brand.windowTitle('Stage Display'),
     autoHideMenuBar: true,
@@ -484,7 +511,7 @@ function createStageDisplayWindow(options) {
   win.loadFile(path.join(__dirname, '..', 'app', 'stage-display', 'stage-display-screen.html'));
   win.once('ready-to-show', () => {
     win.show();
-    if (!windowed && hasExternalDisplay) win.setFullScreen(true);
+    if (!windowed && externalDisplay) win.setFullScreen(true);
   });
   win.on('closed', () => {
     stageDisplayWindow = null;
@@ -512,7 +539,8 @@ ipcMain.handle('stage-display:open', (_event, payload) => {
     stageDisplayPrefs = { ...stageDisplayPrefs, ...payload };
   }
   createStageDisplayWindow(payload || {});
-  return { opened: true, display: resolveStageDisplayTarget().id, windowed: Boolean(stageDisplayPrefs.windowed) };
+  const target = resolveStageDisplayTarget();
+  return { opened: true, display: target?.id ?? null, windowed: Boolean(stageDisplayPrefs.windowed) };
 });
 
 ipcMain.handle('stage-display:close', () => {
@@ -549,22 +577,36 @@ ipcMain.handle('stage-display:closed', () => {
   return { ok: true };
 });
 
-screen.on('display-added', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('stage-display-displays-changed', { displays: listDisplays() });
-  }
-});
+function registerDisplayChangeListeners() {
+  try {
+    screen.on('display-added', () => {
+      try {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('stage-display-displays-changed', { displays: listDisplays() });
+        }
+      } catch (err) {
+        log.warn('[main] display-added handler failed:', err.message);
+      }
+    });
 
-screen.on('display-removed', () => {
-  if (stageDisplayWindow && !stageDisplayWindow.isDestroyed()) {
-    stageDisplayWindow.close();
-    stageDisplayWindow = null;
+    screen.on('display-removed', () => {
+      try {
+        if (stageDisplayWindow && !stageDisplayWindow.isDestroyed()) {
+          stageDisplayWindow.close();
+          stageDisplayWindow = null;
+        }
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('stage-display-displays-changed', { displays: listDisplays() });
+          mainWindow.webContents.send('stage-display-closed');
+        }
+      } catch (err) {
+        log.warn('[main] display-removed handler failed:', err.message);
+      }
+    });
+  } catch (err) {
+    log.warn('[main] Could not register display change listeners:', err.message);
   }
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('stage-display-displays-changed', { displays: listDisplays() });
-    mainWindow.webContents.send('stage-display-closed');
-  }
-});
+}
 
 obsManager.registerIpc(ipcMain);
 
@@ -575,6 +617,8 @@ obsHttpServer.registerIpc(ipcMain);
 // App lifecycle
 // ---------------------------------------------------------------------
 app.whenReady().then(() => {
+  registerDisplayChangeListeners();
+
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     if (permission === 'media' || permission === 'camera' || permission === 'videoCapture') {
       callback(true);
