@@ -168,8 +168,20 @@
     return [...byCode.values()];
   }
 
+  function getDeferredPackPlaceholders() {
+    if (!window.CISLazyLoader || !window.CISLazyLoader.DEFERRED_PACK_META) return [];
+    return Object.entries(window.CISLazyLoader.DEFERRED_PACK_META)
+      .filter(([code]) => !window.CISLazyLoader.isPackLoaded(code))
+      .map(([, meta]) => ({ ...meta, songs: [] }));
+  }
+
   function refreshLanguageLibrary(options = {}) {
-    data.languagePacks = mergeLanguagePacks([...(baseData.languagePacks || []), ...extraPacks, ...importedPacks]);
+    data.languagePacks = mergeLanguagePacks([
+      ...(baseData.languagePacks || []),
+      ...getDeferredPackPlaceholders(),
+      ...extraPacks,
+      ...importedPacks,
+    ]);
     if (!window.CISSearchEngine) return;
     if (options.fullIndex) {
       window.CISSearchEngine.rebuildIndex(data.languagePacks, { clear: true });
@@ -201,6 +213,7 @@
       window.CISLazyLoader.preloadDeferredPacks(["sda"]).then(() => {
         refreshLanguageLibrary();
         indexReadyPacks(["sda"]);
+        render();
       }).catch(() => {});
     });
     window.CISLazyLoader.scheduleIdlePreload(() => {
@@ -3822,7 +3835,11 @@
       state.view = view;
       if (view === "help") resetHelpNav();
       saveValue("view", view);
-      render();
+      if (view === "search") {
+        void ensureSearchIndexReady().then(() => render());
+      } else {
+        render();
+      }
       return;
     }
 
@@ -4501,6 +4518,7 @@
       await ensureLanguagePackLoaded(state.languageCode);
       indexReadyPacks([state.languageCode]);
     }
+    scheduleBackgroundWarmup();
     render();
     if (!data.languagePacks.length) {
       setNotice(t("notice.libraryFailed"));
