@@ -19,9 +19,15 @@
     return undefined;
   }
 
-  function renderFilterRow() {
-    if (typeof callbacks.renderFilterRow === "function") return callbacks.renderFilterRow();
+  function renderScopeRow() {
+    if (typeof callbacks.renderScopeRow === "function") return callbacks.renderScopeRow();
     return "";
+  }
+
+  function renderFilterRow() {
+    const scope = renderScopeRow();
+    const filters = typeof callbacks.renderFilterRow === "function" ? callbacks.renderFilterRow() : "";
+    return `${scope}${filters}`;
   }
 
   function renderPage(query) {
@@ -65,22 +71,23 @@
 
   function renderGroup(group) {
     const indexCollection = call("renderIndexCollection");
+    const sourceLabel = group.sourceLabel || group.packName;
     if (typeof indexCollection === "function") {
       const songs = (group.results || []).map((item) => item.song).filter(Boolean);
       return `
         <section class="search-language-group">
           <div class="search-language-head">
-            <span class="language-badge">${escapeHtml(group.packName)}</span>
+            <span class="language-badge">${escapeHtml(sourceLabel)}</span>
             <span class="muted">${group.results.length} match${group.results.length === 1 ? "" : "es"}</span>
           </div>
-          ${indexCollection(songs, { code: group.code, query: call("getQuery") || "" })}
+          ${indexCollection(songs, { code: group.code, editionId: group.editionId, query: call("getQuery") || "" })}
         </section>
       `;
     }
     return `
       <section class="search-language-group">
         <div class="search-language-head">
-          <span class="language-badge">${escapeHtml(group.packName)}</span>
+          <span class="language-badge">${escapeHtml(sourceLabel)}</span>
           <span class="muted">${group.results.length} match${group.results.length === 1 ? "" : "es"}</span>
         </div>
         <div class="search-result-grid">
@@ -102,12 +109,14 @@
         data-flat-index="${flatIndex}"
         data-song="${escapeHtml(item.number)}"
         data-lang-jump="${escapeHtml(item.code)}"
+        data-edition-jump="${escapeHtml(item.editionId || "")}"
         role="option"
         aria-selected="${flatIndex === activeIndex ? "true" : "false"}"
       >
         <div class="search-result-main">
           <span class="search-result-number">${escapeHtml(item.number)}</span>
           <div class="search-result-copy">
+            <div class="search-result-source muted">${escapeHtml(item.sourceLabel || item.packName || "")}</div>
             <div class="search-result-title">${item.titleHtml || escapeHtml(item.title)}</div>
             ${item.snippetHtml ? `
               <div class="search-result-snippet">
@@ -171,7 +180,10 @@
       paintResults({ groups: [], total: 0, flat: [] });
       return;
     }
-    const payload = window.CISSearchEngine.search(query, { limit: 120 });
+    const scopeOptions = typeof callbacks.getSearchScopeOptions === "function"
+      ? callbacks.getSearchScopeOptions()
+      : {};
+    const payload = window.CISSearchEngine.search(query, { limit: 120, ...scopeOptions });
     paintResults(payload);
   }
 
@@ -205,7 +217,7 @@
   function openActiveResult() {
     if (activeIndex < 0 || !lastPayload.flat[activeIndex]) return;
     const item = lastPayload.flat[activeIndex];
-    call("onOpenSong", item.number, item.code);
+    call("onOpenSong", item.number, item.code, item.editionId);
   }
 
   function bind() {
@@ -258,7 +270,7 @@
       const card = event.target.closest("[data-search-result]");
       if (!card) return;
       event.stopPropagation();
-      call("onOpenSong", card.dataset.song, card.dataset.langJump);
+      call("onOpenSong", card.dataset.song, card.dataset.langJump, card.dataset.editionJump);
     });
 
     runSearchNow();

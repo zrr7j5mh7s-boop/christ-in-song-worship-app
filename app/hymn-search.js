@@ -56,10 +56,14 @@
     const lyrics = [...verses, ...choruses].join(" ");
     const editionId = pack.editionId || pack.code;
     const hymnId = song.hymnId || `${editionId}:${song.number}`;
+    const store = window.CISHymnalLibraryStore;
+    const book = store && pack.hymnBookId ? store.getBookById(pack.hymnBookId) : null;
     return {
       id: hymnId,
       hymnId,
       editionId,
+      hymnBookId: pack.hymnBookId || "",
+      hymnBookTitle: book ? book.title : (pack.hymnBookTitle || ""),
       code: pack.code,
       packName: pack.name || pack.code,
       number: String(song.number || ""),
@@ -208,8 +212,16 @@
   function formatResult(result) {
     const item = result.item;
     const bestMatch = pickBestMatch(result.matches);
+    const sourceLabel = item.hymnBookTitle
+      ? `${item.hymnBookTitle} · ${item.packName}`
+      : item.packName;
     return {
       id: item.id,
+      hymnId: item.hymnId,
+      editionId: item.editionId,
+      hymnBookId: item.hymnBookId,
+      hymnBookTitle: item.hymnBookTitle,
+      sourceLabel,
       code: item.code,
       packName: item.packName,
       number: item.number,
@@ -259,14 +271,26 @@
     const q = String(query || "").trim();
     const limit = options.limit || 120;
     const packCodes = options.packCodes;
+    const editionIds = options.editionIds;
+    const hymnBookId = options.hymnBookId;
     if (!q) return { groups: [], total: 0, flat: [] };
 
-    const cacheKey = `${q}::${limit}::${(packCodes || []).join(",")}`;
+    const cacheKey = `${q}::${limit}::${(packCodes || []).join(",")}::${(editionIds || []).join(",")}::${hymnBookId || ""}`;
     if (searchCache.key === cacheKey) return searchCache.result;
 
-    const entries = packCodes
+    let entries = packCodes
       ? packCodes.map((code) => packIndexes.get(code)).filter(Boolean)
       : [...packIndexes.values()];
+
+    if (editionIds && editionIds.length) {
+      entries = entries.filter((entry) => editionIds.includes(entry.editionId));
+    }
+    if (hymnBookId) {
+      entries = entries.filter((entry) => {
+        const pack = entry.records[0] ? entry.records[0].pack : null;
+        return pack && pack.hymnBookId === hymnBookId;
+      });
+    }
 
     if (!entries.length) {
       const empty = { groups: [], total: 0, flat: [] };
@@ -293,14 +317,19 @@
 
     const groupMap = new Map();
     filtered.forEach((entry) => {
-      if (!groupMap.has(entry.code)) {
-        groupMap.set(entry.code, {
+      const groupKey = entry.editionId || entry.code;
+      if (!groupMap.has(groupKey)) {
+        groupMap.set(groupKey, {
           code: entry.code,
+          editionId: entry.editionId,
+          hymnBookId: entry.hymnBookId,
+          hymnBookTitle: entry.hymnBookTitle,
           packName: entry.packName,
+          sourceLabel: entry.sourceLabel,
           results: [],
         });
       }
-      groupMap.get(entry.code).results.push(entry);
+      groupMap.get(groupKey).results.push(entry);
     });
 
     const result = {

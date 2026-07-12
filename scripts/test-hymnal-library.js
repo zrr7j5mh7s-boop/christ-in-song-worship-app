@@ -118,8 +118,14 @@ function run() {
   assert.ok(cssSource.includes("hymnal-selector-group"));
   assert.ok(cssSource.includes("hymnal-library-settings"));
 
-  const pkg = JSON.parse(read("package.json"));
-  assert.ok(pkg.scripts["test:hymnal-library"]);
+  const deletionSource = read("app/hymnal-library/hymnal-deletion-service.js");
+  assert.ok(deletionSource.includes("analyzeEditionReferences"));
+  assert.ok(deletionSource.includes("restoreRollbackSnapshot") || deletionSource.includes("rollback"));
+
+  const storeSource = read("app/hymnal-library/hymnal-library-store.js");
+  assert.ok(storeSource.includes("deleteEditionTransactional"));
+  assert.ok(storeSource.includes("assertDeletableBook"));
+  assert.ok(storeSource.includes("origin"));
 
   console.log("test:hymnal-library — all checks passed");
 }

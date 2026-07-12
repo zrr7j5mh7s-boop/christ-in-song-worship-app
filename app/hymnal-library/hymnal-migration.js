@@ -18,6 +18,35 @@
   const ZULU_SOURCE_FIX = "Christ_in_Song_Zulu.pptx";
   const ZULU_SOURCE_OLD = "Christ_in_Song_VaChinoda. v2_QA_Clean.pptx";
 
+  const ORIGIN_BUILTIN = "builtIn";
+  const ORIGIN_IMPORTED = "imported";
+  const ORIGIN_USER_CREATED = "userCreated";
+
+  function resolveBookOrigin(book) {
+    if (!book) return ORIGIN_IMPORTED;
+    if (book.origin) return book.origin;
+    if (book.isBuiltIn) return ORIGIN_BUILTIN;
+    if (book.hymnBookId === UNCLASSIFIED) return ORIGIN_IMPORTED;
+    return ORIGIN_IMPORTED;
+  }
+
+  function resolveEditionOrigin(edition) {
+    if (!edition) return ORIGIN_IMPORTED;
+    if (edition.origin) return edition.origin;
+    if (edition.sourceType === "builtin") return ORIGIN_BUILTIN;
+    return ORIGIN_IMPORTED;
+  }
+
+  function isDeletableOrigin(origin) {
+    return origin === ORIGIN_IMPORTED || origin === ORIGIN_USER_CREATED;
+  }
+
+  function originLabel(origin) {
+    if (origin === ORIGIN_BUILTIN) return "Built-in";
+    if (origin === ORIGIN_USER_CREATED) return "User-created";
+    return "Imported";
+  }
+
   function slug(value) {
     return String(value || "")
       .trim()
@@ -49,6 +78,7 @@
         updatedAt: now(),
         isBuiltIn: true,
         isEditable: false,
+        origin: ORIGIN_BUILTIN,
       },
       {
         hymnBookId: SDA_HYMNAL,
@@ -67,6 +97,7 @@
         updatedAt: now(),
         isBuiltIn: true,
         isEditable: false,
+        origin: ORIGIN_BUILTIN,
       },
       {
         hymnBookId: UNCLASSIFIED,
@@ -85,6 +116,7 @@
         updatedAt: now(),
         isBuiltIn: false,
         isEditable: true,
+        origin: ORIGIN_IMPORTED,
       },
     ];
   }
@@ -103,6 +135,7 @@
       editionName: meta.languageName,
       sourceFileName: fixedSource,
       sourceType: "builtin",
+      origin: ORIGIN_BUILTIN,
       packCode: meta.packCode,
       version: 1,
       hymnCount: pack ? (pack.songCount || (pack.songs || []).length) : 0,
@@ -257,6 +290,13 @@
     CHURCH_HYMNAL,
     BUILTIN_LEGACY_MAP,
     ZULU_SOURCE_FIX,
+    ORIGIN_BUILTIN,
+    ORIGIN_IMPORTED,
+    ORIGIN_USER_CREATED,
+    resolveBookOrigin,
+    resolveEditionOrigin,
+    isDeletableOrigin,
+    originLabel,
     builtInHymnBooks,
     builtInEditionsFromBaseData,
     builtInEditionFromLegacy,
