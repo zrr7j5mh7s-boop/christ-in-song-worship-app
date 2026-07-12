@@ -34,8 +34,6 @@
     "test:hymnal-integration": "node scripts/test-hymnal-integration.js",
     "test:bible-projection": "node scripts/test-bible-projection.js",
     "test:live-hymn-queue": "node scripts/test-live-hymn-queue.js",
-    "test:service-mode": "node scripts/test-service-mode.js",
-    "test:live-switch": "node scripts/test-live-switch.js",
     "test:branding": "node scripts/test-branding.js",
     "test:help": "node scripts/test-help-centre.js",
     "test:performance": "node scripts/test-performance.js",

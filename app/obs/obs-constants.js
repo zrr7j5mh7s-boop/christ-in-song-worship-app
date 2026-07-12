@@ -44,11 +44,11 @@
   ];
 
   const SOURCE_FUNCTIONS = [
-    { key: "scripture_browser", label: "Scripture Browser Source", overlayRoute: "scripture" },
-    { key: "hymn_browser", label: "Hymn Browser Source", overlayRoute: "hymn" },
-    { key: "lower_third_browser", label: "Lower-Third Browser Source", overlayRoute: "lower-third" },
-    { key: "sermon_title_browser", label: "Sermon-Title Browser Source", overlayRoute: "sermon-title" },
-    { key: "announcement_browser", label: "Announcement Browser Source", overlayRoute: "announcement" },
+    { key: "scripture_browser", label: "VaChinoda Scripture Overlay", overlayRoute: "scripture" },
+    { key: "hymn_browser", label: "VaChinoda Hymn Overlay", overlayRoute: "hymn" },
+    { key: "lower_third_browser", label: "VaChinoda Lower Third", overlayRoute: "lower-third" },
+    { key: "sermon_title_browser", label: "VaChinoda Sermon Title", overlayRoute: "sermon-title" },
+    { key: "announcement_browser", label: "VaChinoda Announcement Overlay", overlayRoute: "announcement" },
     { key: "media_source", label: "Media Source", overlayRoute: null },
     { key: "church_logo", label: "Church Logo", overlayRoute: null },
     { key: "background_image", label: "Background Image", overlayRoute: null },
