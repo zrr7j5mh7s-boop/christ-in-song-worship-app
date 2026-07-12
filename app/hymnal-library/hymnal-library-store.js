@@ -51,10 +51,11 @@
     return dbPromise;
   }
 
-  function withStore(storeName, mode, fn) {
+  function withStores(storeNames, mode, fn) {
     return openDatabase().then((db) => new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, mode);
-      const store = tx.objectStore(storeName);
+      const tx = db.transaction(storeNames, mode);
+      const stores = {};
+      storeNames.forEach((name) => { stores[name] = tx.objectStore(name); });
       let settled = false;
       const finish = (value) => {
         if (!settled) {
@@ -72,7 +73,7 @@
       tx.onerror = () => fail(tx.error || new Error("IndexedDB transaction failed."));
       tx.onabort = () => fail(tx.error || new Error("IndexedDB transaction aborted."));
       try {
-        const result = fn(store, tx);
+        const result = fn(stores, tx);
         Promise.resolve(result).then((value) => {
           if (value !== undefined) finish(value);
         }).catch(fail);
@@ -80,6 +81,39 @@
         fail(error);
       }
     }));
+  }
+
+  function normalizeBookOrigin(book) {
+    const migration = window.CISHymnalMigration;
+    const origin = migration ? migration.resolveBookOrigin(book) : (book.isBuiltIn ? "builtIn" : "imported");
+    return { ...book, origin, isBuiltIn: origin === "builtIn", isEditable: origin !== "builtIn" };
+  }
+
+  function normalizeEditionOrigin(edition) {
+    const migration = window.CISHymnalMigration;
+    const origin = migration ? migration.resolveEditionOrigin(edition) : (edition.sourceType === "builtin" ? "builtIn" : "imported");
+    return { ...edition, origin, sourceType: origin === "builtIn" ? "builtin" : (edition.sourceType || "imported") };
+  }
+
+  function assertDeletableBook(book) {
+    const migration = window.CISHymnalMigration;
+    const origin = migration ? migration.resolveBookOrigin(book) : (book.isBuiltIn ? "builtIn" : "imported");
+    if (!migration || !migration.isDeletableOrigin(origin)) {
+      throw new Error(`Cannot delete built-in hymn book "${book.title || book.hymnBookId}". Built-in hymnals are protected.`);
+    }
+    return book;
+  }
+
+  function assertDeletableEdition(edition) {
+    const migration = window.CISHymnalMigration;
+    const origin = migration ? migration.resolveEditionOrigin(edition) : (edition.sourceType === "builtin" ? "builtIn" : "imported");
+    if (!migration || !migration.isDeletableOrigin(origin)) {
+      throw new Error(`Cannot delete built-in edition "${edition.languageName || edition.editionId}". Built-in editions are protected.`);
+    }
+    return edition;
+  }
+  function withStore(storeName, mode, fn) {
+    return withStores([storeName], mode, (stores) => fn(stores[storeName]));
   }
 
   function normalizeSong(song, editionId) {
@@ -145,10 +179,13 @@
 
   async function saveBook(book) {
     if (!book || !book.hymnBookId) throw new Error("Invalid hymn book.");
-    const normalized = { ...book, updatedAt: Date.now() };
+    const normalized = normalizeBookOrigin({ ...book, updatedAt: Date.now() });
     if (supportsIndexedDb()) {
       await withStore(BOOK_STORE, "readwrite", (store) => store.put(normalized));
     }
+    const idx = runtimeCache.books.findIndex((item) => item.hymnBookId === normalized.hymnBookId);
+    if (idx >= 0) runtimeCache.books[idx] = normalized;
+    else runtimeCache.books.push(normalized);
     return normalized;
   }
 
@@ -164,20 +201,136 @@
 
   async function saveEdition(edition) {
     if (!edition || !edition.editionId) throw new Error("Invalid edition.");
-    const normalized = { ...edition, updatedAt: Date.now() };
+    const normalized = normalizeEditionOrigin({ ...edition, updatedAt: Date.now() });
     if (supportsIndexedDb()) {
       await withStore(EDITION_STORE, "readwrite", (store) => store.put(normalized));
     }
+    const idx = runtimeCache.editions.findIndex((item) => item.editionId === normalized.editionId);
+    if (idx >= 0) runtimeCache.editions[idx] = normalized;
+    else runtimeCache.editions.push(normalized);
     return normalized;
   }
 
-  async function deleteEdition(editionId) {
+  async function deleteEditionRecord(editionId) {
     if (supportsIndexedDb()) {
-      await withStore(EDITION_STORE, "readwrite", (store) => store.delete(editionId));
-      await withStore(IMPORT_STORE, "readwrite", (store) => store.delete(editionId));
+      await withStores([EDITION_STORE, IMPORT_STORE], "readwrite", (stores) => {
+        stores[EDITION_STORE].delete(editionId);
+        stores[IMPORT_STORE].delete(editionId);
+      });
     }
     runtimeCache.importedPacks = runtimeCache.importedPacks.filter((pack) => pack.editionId !== editionId);
     runtimeCache.editions = runtimeCache.editions.filter((edition) => edition.editionId !== editionId);
+  }
+
+  async function deleteEdition(editionId) {
+    const edition = runtimeCache.editions.find((item) => item.editionId === editionId)
+      || (await getAllEditions()).find((item) => item.editionId === editionId);
+    if (edition) assertDeletableEdition(edition);
+    await deleteEditionRecord(editionId);
+  }
+
+  async function deleteBookRecord(hymnBookId) {
+    const editions = (await getAllEditions()).filter((edition) => edition.hymnBookId === hymnBookId);
+    if (supportsIndexedDb()) {
+      await withStores([BOOK_STORE, EDITION_STORE, IMPORT_STORE], "readwrite", (stores) => {
+        stores[BOOK_STORE].delete(hymnBookId);
+        editions.forEach((edition) => {
+          stores[EDITION_STORE].delete(edition.editionId);
+          stores[IMPORT_STORE].delete(edition.editionId);
+        });
+      });
+    }
+    runtimeCache.books = runtimeCache.books.filter((book) => book.hymnBookId !== hymnBookId);
+    const editionIds = new Set(editions.map((edition) => edition.editionId));
+    runtimeCache.editions = runtimeCache.editions.filter((edition) => edition.hymnBookId !== hymnBookId);
+    runtimeCache.importedPacks = runtimeCache.importedPacks.filter((pack) => !editionIds.has(pack.editionId));
+  }
+
+  async function deleteBook(hymnBookId) {
+    const book = runtimeCache.books.find((item) => item.hymnBookId === hymnBookId)
+      || (await getAllBooks()).find((item) => item.hymnBookId === hymnBookId);
+    if (!book) throw new Error("Hymn book not found.");
+    assertDeletableBook(book);
+    const editions = (await getAllEditions()).filter((edition) => edition.hymnBookId === hymnBookId);
+    editions.forEach((edition) => assertDeletableEdition(edition));
+    await deleteBookRecord(hymnBookId);
+    return { hymnBookId, deletedEditions: editions.map((edition) => edition.editionId) };
+  }
+
+  async function deleteEditionTransactional(editionId, options = {}) {
+    const editions = await getAllEditions();
+    const edition = editions.find((item) => item.editionId === editionId);
+    if (!edition) throw new Error("Edition not found.");
+    assertDeletableEdition(edition);
+
+    const importedData = edition.sourceType === "imported" || edition.origin === "imported"
+      ? await getImportedEditionData(editionId)
+      : null;
+    const book = (await getAllBooks()).find((item) => item.hymnBookId === edition.hymnBookId) || null;
+    const rollback = {
+      edition,
+      importedData,
+      book,
+      deletedAt: Date.now(),
+    };
+
+    try {
+      await deleteEditionRecord(editionId);
+      if (options.deleteEmptyBook) {
+        const remaining = (await getAllEditions()).filter((item) => item.hymnBookId === edition.hymnBookId);
+        if (!remaining.length && book) {
+          assertDeletableBook(book);
+          await deleteBookRecord(edition.hymnBookId);
+          rollback.deletedBook = true;
+        }
+      }
+      runtimeCache.initialized = false;
+      return { editionId, hymnBookId: edition.hymnBookId, rollback };
+    } catch (error) {
+      if (rollback.edition) await saveEdition(rollback.edition);
+      if (rollback.importedData) await saveImportedEditionData(rollback.importedData);
+      throw error;
+    }
+  }
+
+  async function deleteBookTransactional(hymnBookId) {
+    const book = (await getAllBooks()).find((item) => item.hymnBookId === hymnBookId);
+    if (!book) throw new Error("Hymn book not found.");
+    assertDeletableBook(book);
+    const editions = (await getAllEditions()).filter((edition) => edition.hymnBookId === hymnBookId);
+    editions.forEach((edition) => assertDeletableEdition(edition));
+
+    const importedData = [];
+    for (const edition of editions) {
+      const data = await getImportedEditionData(edition.editionId);
+      if (data) importedData.push(data);
+    }
+    const rollback = { book, editions, importedData, deletedAt: Date.now() };
+
+    try {
+      await deleteBookRecord(hymnBookId);
+      runtimeCache.initialized = false;
+      return { hymnBookId, deletedEditions: editions.map((edition) => edition.editionId), rollback };
+    } catch (error) {
+      if (rollback.book) await saveBook(rollback.book);
+      for (const edition of rollback.editions) await saveEdition(edition);
+      for (const data of rollback.importedData) await saveImportedEditionData(data);
+      throw error;
+    }
+  }
+
+  async function restoreRollbackSnapshot(snapshot) {
+    if (!snapshot) return;
+    if (snapshot.book) await saveBook(snapshot.book);
+    const editionList = snapshot.editions || (snapshot.edition ? [snapshot.edition] : []);
+    for (const edition of editionList) await saveEdition(edition);
+    const importedList = Array.isArray(snapshot.importedData)
+      ? snapshot.importedData
+      : (snapshot.importedData ? [snapshot.importedData] : []);
+    for (const data of importedList) {
+      if (data) await saveImportedEditionData(data);
+    }
+    runtimeCache.initialized = false;
   }
 
   async function getImportedEditionData(editionId) {
@@ -328,6 +481,7 @@
         editionName: classified.languageName,
         sourceFileName: pack.source || "",
         sourceType: "imported",
+        origin: "imported",
         packCode: pack.code,
         version: 1,
         hymnCount: (pack.songs || []).length,
@@ -428,6 +582,7 @@
         updatedAt: Date.now(),
         isBuiltIn: false,
         isEditable: true,
+        origin: options.createNewBook ? "userCreated" : "imported",
       };
       await saveBook(book);
     }
@@ -444,8 +599,9 @@
       nativeLanguageName: classified.nativeLanguageName,
       editionName: classified.languageName,
       sourceFileName,
-      sourceType: "imported",
-      packCode: pack.code || classified.languageCode,
+        sourceType: "imported",
+        origin: "imported",
+        packCode: pack.code || classified.languageCode,
       version: (existingEdition && existingEdition.version ? existingEdition.version : 0) + 1,
       hymnCount: (pack.songs || []).length,
       checksum: options.checksum || "",
@@ -553,6 +709,15 @@
     saveBook,
     saveEdition,
     deleteEdition,
+    deleteEditionRecord,
+    deleteBook,
+    deleteEditionTransactional,
+    deleteBookTransactional,
+    restoreRollbackSnapshot,
+    assertDeletableBook,
+    assertDeletableEdition,
+    normalizeBookOrigin,
+    normalizeEditionOrigin,
     importEdition,
     exportLibrarySnapshot,
     restoreLibrarySnapshot,

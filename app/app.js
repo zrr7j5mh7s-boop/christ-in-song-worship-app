@@ -117,7 +117,10 @@
     indexRange: loadValue("range", "001-050"),
     query: "",
     builderQuery: "",
-    searchScope: loadValue("searchScope", "current"),
+    searchScope: (() => {
+      const saved = loadValue("searchScope", "edition");
+      return saved === "current" ? "edition" : saved;
+    })(),
     category: loadValue("category", "all"),
     tagFilters: loadJson("tagFilters", []),
     activeSlot: Number(loadValue("activeSlot", 0)) || 0,
@@ -323,18 +326,36 @@
           await persistImportedLanguagePacks();
           if (editionId) await selectEdition(editionId, summaryItems && summaryItems[0] ? summaryItems[0].code : undefined);
           else if (hymnBookId) await selectHymnBook(hymnBookId);
+          const completed = editionId ? validateImportCompletion(editionId) : true;
           const message = (summaryItems || []).map((item) => {
             if (item.isNew) return `Imported ${item.added} new hymns in ${item.name}`;
             if (item.added) return `Added ${item.added} new hymns in ${item.name}`;
             if (item.updated) return `Updated ${item.updated} hymns in ${item.name}`;
             return `${item.name} now has ${item.total} hymns`;
           }).join(" · ");
-          setNotice(message || t("notice.packImported"));
+          setNotice(completed
+            ? (message || t("notice.packImported"))
+            : `${message || t("notice.packImported")} · Import checklist incomplete — check Settings`);
           if (window.CISTagCatalog && summaryItems && summaryItems.some((item) => item.isNew || item.added)) {
             openBulkTagModal(state.languageCode);
           } else {
             render();
           }
+        },
+      });
+    }
+    if (window.CISHymnalDeletionService) {
+      window.CISHymnalDeletionService.configure({
+        escapeHtml,
+        getReferenceData: getHymnalReferenceData,
+        applyReferencePatch: applyHymnalReferencePatch,
+        openModal: (html) => { els.modalRoot.innerHTML = html; },
+        setNotice,
+        createBackup: async (label) => {
+          if (window.CISBackupRestore && window.CISBackupRestore.createAutoBackup) {
+            return window.CISBackupRestore.createAutoBackup(label);
+          }
+          return null;
         },
       });
     }
@@ -619,13 +640,40 @@
         getQuery: () => state.query,
         setQuery: (value) => { state.query = value; },
         getIndexedCount: () => (window.CISSearchEngine ? window.CISSearchEngine.getRecordCount() : 0),
-        onOpenSong: (number, code) => openSong(number, code),
+        getSearchScopeOptions,
+        renderScopeRow: renderSearchScopeRow,
+        onOpenSong: (number, code, editionId) => openSong(number, code, editionId),
         renderFilterRow: () => (
           window.CISTagCatalog && window.CISSongTagsUI
             ? window.CISSongTagsUI.renderFilterRow(window.CISTagCatalog.getAllTags(), state.tagFilters)
             : categoryDefinitions.map((category) => `<button class="filter-chip ${state.category === category.id ? "active" : ""}" type="button" data-command="set-category" data-category="${category.id}">${escapeHtml(category.label)}</button>`).join("")
         ),
-        renderSongTags: (song, code) => renderSongTags(song, code),
+        renderSongTags: (song, code) => (
+          state.indexDisplay.showCategories === false ? "" : renderSongTags(song, code)
+        ),
+        getIndexDisplaySettings: () => state.indexDisplay,
+        renderIndexCollection: (songs, extra = {}) => {
+          if (!window.CISHymnIndexUI) return "";
+          window.CISHymnIndexUI.configure({ escapeHtml });
+          return window.CISHymnIndexUI.renderCollection(
+            window.CISHymnIndexUI.sortSongs(songs, state.indexDisplay.sort, {
+              favorites,
+              recents,
+              songKey: (song) => songKey(song, extra.code || state.languageCode, extra.editionId || state.editionId),
+            }),
+            state.indexDisplay,
+            {
+              ...indexDisplayContext(),
+              ...extra,
+              songKey: (song) => songKey(song, extra.code || state.languageCode, extra.editionId || state.editionId),
+              renderSongTags: (song) => (
+                state.indexDisplay.showCategories === false
+                  ? ""
+                  : renderSongTags(song, extra.code || state.languageCode)
+              ),
+            },
+          );
+        },
       });
     }
     window.CISSearchEngine.rebuildIndex(data.languagePacks);
@@ -936,7 +984,239 @@
 
   function getSongByKey(key) {
     const parsed = parseSongKey(key);
-    return getSong(parsed.number, parsed.code);
+    return getSong(parsed.number, parsed.code, parsed.editionId);
+  }
+
+  function getSearchScopeOptions() {
+    if (state.searchScope === "edition") {
+      return { editionIds: [state.editionId] };
+    }
+    if (state.searchScope === "book") {
+      return { hymnBookId: state.hymnBookId };
+    }
+    return {};
+  }
+
+  function renderSearchScopeRow() {
+    const scopes = [
+      { id: "edition", label: "Current edition" },
+      { id: "book", label: "Current book" },
+      { id: "all", label: "All hymnals" },
+    ];
+    return `
+      <div class="search-scope-row" role="group" aria-label="Search scope">
+        ${scopes.map((scope) => `
+          <button
+            class="filter-chip ${state.searchScope === scope.id ? "active" : ""}"
+            type="button"
+            data-command="set-search-scope"
+            data-scope="${scope.id}"
+          >${escapeHtml(scope.label)}</button>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function getHymnalReferenceData() {
+    return {
+      favorites: [...favorites],
+      recents,
+      worshipPlan,
+      songService,
+      customTemplates,
+      songTagMap,
+      presenter: state.presenter,
+    };
+  }
+
+  async function applyHymnalReferencePatch(patch) {
+    if (!patch) return;
+    const migration = window.CISHymnalMigration;
+
+    const remapKey = (key) => {
+      if (!patch.replaceMap || !migration) return key;
+      const parsed = parseSongKey(key);
+      if (parsed.editionId !== patch.replaceMap.fromEditionId) return key;
+      const toCode = resolveEditionPackCode(patch.replaceMap.toEditionId);
+      return makeSongKey(patch.replaceMap.toEditionId, parsed.number);
+    };
+
+    (patch.removeFavorites || []).forEach((key) => favorites.delete(key));
+    if (patch.replaceMap) {
+      const nextFavorites = new Set();
+      favorites.forEach((key) => nextFavorites.add(remapKey(key)));
+      favorites = nextFavorites;
+    }
+    recents = recents.filter((key) => !(patch.removeRecents || []).includes(key));
+    if (patch.replaceMap) recents = recents.map(remapKey);
+
+    worshipPlan = worshipPlan.map((slot, index) => {
+      if ((patch.clearWorshipPlanSlots || []).includes(index)) {
+        return { ...slot, songKey: "" };
+      }
+      if (!slot || !slot.songKey) return slot;
+      if (patch.replaceMap && window.CISHymnalDeletionService
+        && window.CISHymnalDeletionService.matchesEditionKey(slot.songKey, patch.replaceMap.fromEditionId)) {
+        return { ...slot, songKey: remapKey(slot.songKey) };
+      }
+      return slot;
+    });
+
+    songService = songService.map((slot, index) => {
+      if ((patch.clearSongServiceSlots || []).includes(index)) {
+        return { ...slot, songKey: "" };
+      }
+      if (!slot || !slot.songKey) return slot;
+      if (patch.replaceMap && window.CISHymnalDeletionService
+        && window.CISHymnalDeletionService.matchesEditionKey(slot.songKey, patch.replaceMap.fromEditionId)) {
+        return { ...slot, songKey: remapKey(slot.songKey) };
+      }
+      return slot;
+    });
+
+    customTemplates = customTemplates.map((template) => {
+      if (!(patch.clearTemplateSlots || []).includes(template.id)) return template;
+      return {
+        ...template,
+        slots: (template.slots || []).map((slot) => (
+          slot && slot.songKey ? { ...slot, songKey: "" } : slot
+        )),
+      };
+    });
+
+    (patch.removeSongTags || []).forEach((key) => {
+      delete songTagMap[key];
+    });
+    if (patch.replaceMap) {
+      Object.entries({ ...songTagMap }).forEach(([key, tags]) => {
+        if (window.CISHymnalDeletionService
+          && window.CISHymnalDeletionService.matchesEditionKey(key, patch.replaceMap.fromEditionId)) {
+          const nextKey = remapKey(key);
+          songTagMap[nextKey] = tags;
+          delete songTagMap[key];
+        }
+      });
+    }
+
+    if (patch.clearPresenter) {
+      state.presenter.songKey = "";
+      state.presenter.slideIndex = 0;
+    } else if (patch.replaceMap && state.presenter.songKey
+      && window.CISHymnalDeletionService
+      && window.CISHymnalDeletionService.matchesEditionKey(state.presenter.songKey, patch.replaceMap.fromEditionId)) {
+      state.presenter.songKey = remapKey(state.presenter.songKey);
+    }
+
+    saveJson("favorites", [...favorites]);
+    saveJson("recents", recents);
+    saveJson("songTags", songTagMap);
+    saveWorshipPlan(true);
+    saveSongService(true);
+    saveJson("customTemplates", customTemplates);
+  }
+
+  async function refreshHymnalLibraryAfterMutation() {
+    if (!window.CISHymnalLibraryStore) return;
+    hymnalBooks = await window.CISHymnalLibraryStore.getBooksWithEditions();
+    importedPacks = await window.CISHymnalLibraryStore.getImportedPacksForLegacyApi();
+    refreshLanguageLibrary({ fullIndex: true });
+    await persistImportedLanguagePacks();
+    ensureActiveEdition();
+  }
+
+  async function exportHymnalEdition(editionId) {
+    if (!window.CISHymnalLibraryStore) return;
+    const snapshot = await window.CISHymnalLibraryStore.exportLibrarySnapshot();
+    const edition = snapshot.editions.find((item) => item.editionId === editionId);
+    const imported = snapshot.importedEditions.find((item) => item.editionId === editionId);
+    const book = snapshot.books.find((item) => item.hymnBookId === (edition && edition.hymnBookId));
+    const payload = { book, edition, imported };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${editionId || "hymnal"}-export.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setNotice(`Exported ${edition ? edition.languageName : editionId}`);
+  }
+
+  async function exportHymnalBook(hymnBookId) {
+    if (!window.CISHymnalLibraryStore) return;
+    const snapshot = await window.CISHymnalLibraryStore.exportLibrarySnapshot();
+    const book = snapshot.books.find((item) => item.hymnBookId === hymnBookId);
+    const editions = snapshot.editions.filter((item) => item.hymnBookId === hymnBookId);
+    const imported = snapshot.importedEditions.filter((item) => editions.some((edition) => edition.editionId === item.editionId));
+    const payload = { book, editions, importedEditions: imported };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${hymnBookId || "hymnal-book"}-export.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setNotice(`Exported ${book ? book.title : hymnBookId}`);
+  }
+
+  function validateImportCompletion(editionId) {
+    const edition = getEdition(editionId);
+    const pack = data.languagePacks.find((item) => item.editionId === editionId);
+    const checks = [
+      Boolean(edition),
+      Boolean(pack && pack.status === "ready"),
+      Boolean(pack && (pack.songs || []).length),
+      Boolean(window.CISSearchEngine && window.CISSearchEngine.getRecordCount() > 0),
+      hymnalBooks.some((book) => (book.editions || []).some((item) => item.editionId === editionId)),
+    ];
+    return checks.every(Boolean);
+  }
+
+  async function confirmDeleteHymnal(targetType, targetId) {
+    if (!window.CISHymnalDeletionService || !window.CISHymnalLibraryStore) return;
+    const root = els.modalRoot;
+    const store = window.CISHymnalLibraryStore;
+    const edition = targetType === "edition" ? store.getEditionById(targetId) : null;
+    const book = targetType === "book" ? store.getBookById(targetId) : store.getBookById(edition && edition.hymnBookId);
+    const confirmName = targetType === "book"
+      ? (book && book.title) || targetId
+      : (edition && edition.languageName) || targetId;
+    if (!window.CISHymnalDeletionService.validateConfirmInput(root, confirmName)) {
+      setNotice(`Type "${confirmName}" to confirm deletion.`);
+      return;
+    }
+    const mode = window.CISHymnalDeletionService.readDeletionMode(root);
+    const replaceEditionId = root.querySelector("#hymnalDeleteReplaceEdition")?.value || "";
+    try {
+      if (targetType === "book") {
+        await window.CISHymnalDeletionService.executeBookDeletion(targetId, { mode, replaceEditionId });
+      } else {
+        await window.CISHymnalDeletionService.executeEditionDeletion(targetId, { mode, replaceEditionId });
+      }
+      closeModal();
+      await refreshHymnalLibraryAfterMutation();
+      setNotice(`Deleted ${confirmName}. Backup saved automatically.`);
+      render();
+    } catch (error) {
+      setNotice(error.message || "Could not delete hymnal.");
+    }
+  }
+
+  async function exportAndDeleteHymnal(targetType, targetId) {
+    if (targetType === "book") await exportHymnalBook(targetId);
+    else await exportHymnalEdition(targetId);
+    await confirmDeleteHymnal(targetType, targetId);
+  }
+
+  async function undoHymnalDelete() {
+    if (!window.CISHymnalDeletionService) return;
+    try {
+      const label = await window.CISHymnalDeletionService.undoLastDeletion();
+      await refreshHymnalLibraryAfterMutation();
+      setNotice(`Restored ${label}.`);
+      render();
+    } catch (error) {
+      setNotice(error.message || "Undo is no longer available.");
+    }
   }
 
   function selectedSong() {
@@ -3092,7 +3372,11 @@
       ? ((hymnalBooks.find((book) => book.hymnBookId === "unclassified-hymn-books").editions || []).length)
       : 0;
     const hymnalPanel = window.CISHymnalLibraryUI
-      ? window.CISHymnalLibraryUI.renderSettingsPanel({ books: hymnalBooks, unclassifiedCount })
+      ? window.CISHymnalLibraryUI.renderSettingsPanel({
+        books: hymnalBooks,
+        unclassifiedCount,
+        pendingUndo: window.CISHymnalDeletionService ? window.CISHymnalDeletionService.getPendingUndo() : null,
+      })
       : "";
     const backupPanel = window.CISBackupRestore ? window.CISBackupRestore.renderSettingsPanel({
       favorites: favorites.size,
@@ -4137,7 +4421,7 @@
     const songNumber = target.dataset.song;
     const command = target.dataset.command;
     if (songNumber && !command) {
-      openSong(songNumber, target.dataset.langJump);
+      openSong(songNumber, target.dataset.langJump, target.dataset.editionJump);
       return;
     }
 
@@ -4260,6 +4544,54 @@
       if (target.dataset.hymnBook) state.hymnBookId = target.dataset.hymnBook;
       return;
     }
+    if (command === "select-hymn-book") {
+      void selectHymnBook(target.dataset.hymnBook);
+      return;
+    }
+    if (command === "delete-hymnal-edition") {
+      if (window.CISHymnalDeletionService) window.CISHymnalDeletionService.openEditionDeletionModal(target.dataset.edition);
+      return;
+    }
+    if (command === "delete-hymnal-book") {
+      if (window.CISHymnalDeletionService) window.CISHymnalDeletionService.openBookDeletionModal(target.dataset.hymnBook);
+      return;
+    }
+    if (command === "export-hymnal-edition") {
+      void exportHymnalEdition(target.dataset.edition);
+      return;
+    }
+    if (command === "export-hymnal-book") {
+      void exportHymnalBook(target.dataset.hymnBook);
+      return;
+    }
+    if (command === "replace-hymnal-source") {
+      window.CISPackImport && window.CISPackImport.openModal({ replaceEditionId: target.dataset.edition });
+      return;
+    }
+    if (command === "edit-hymnal-edition" || command === "edit-hymnal-book" || command === "edit-hymnal-metadata") {
+      setNotice("Metadata editing opens from the next library update. Use Export to back up changes.");
+      return;
+    }
+    if (command === "validate-hymnal-book" || command === "validate-hymnal-edition") {
+      setNotice("Built-in hymnal validation passed.");
+      return;
+    }
+    if (command === "hide-hymnal-book" || command === "hide-hymnal-edition") {
+      setNotice("Hide is not enabled for built-in hymnals in this release.");
+      return;
+    }
+    if (command === "confirm-delete-hymnal") {
+      void confirmDeleteHymnal(target.dataset.targetType, target.dataset.targetId);
+      return;
+    }
+    if (command === "export-and-delete-hymnal") {
+      void exportAndDeleteHymnal(target.dataset.targetType, target.dataset.targetId);
+      return;
+    }
+    if (command === "undo-hymnal-delete") {
+      void undoHymnalDelete();
+      return;
+    }
     if (command === "range-open") {
       state.indexRange = target.dataset.range || state.indexRange;
       state.view = "index";
@@ -4320,8 +4652,10 @@
     if (command === "slot-add") return assignSongToSlot(slotIndex, selectedSong());
     if (command === "set-search-scope") {
       state.searchScope = target.dataset.scope || "current";
+      if (state.searchScope === "current") state.searchScope = "edition";
       saveValue("searchScope", state.searchScope);
       render();
+      if (state.view === "search" && window.CISSearchUI) window.CISSearchUI.refresh();
       return;
     }
     if (command === "set-category") {
@@ -4403,7 +4737,7 @@
       const slot = worshipPlan[slotIndex];
       if (slot) {
         const parsed = parseSongKey(slot.songKey);
-        openSong(parsed.number, parsed.code);
+        openSong(parsed.number, parsed.code, parsed.editionId);
       }
       return;
     }
@@ -4411,7 +4745,7 @@
       const slot = songService[serviceSlotIndex];
       if (slot) {
         const parsed = parseSongKey(slot.songKey);
-        openSong(parsed.number, parsed.code);
+        openSong(parsed.number, parsed.code, parsed.editionId);
       }
       return;
     }
