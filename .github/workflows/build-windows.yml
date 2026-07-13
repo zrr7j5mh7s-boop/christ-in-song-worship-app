@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - split-v2/15-windows-ci
       - integration/test-all-prs
       - cursor/merge-electron-pwa-worship-os
       - design/new-app-icon
