@@ -92,6 +92,7 @@
     const s = status || {};
     return `
       <section class="camera-local-status panel" aria-label="Local presentation status">
+        <p class="eyebrow">${escapeHtml(window.CISBrandConfig?.BRAND?.appName || "VaChinoda Worship App")}</p>
         <h3>LOCAL PRESENTATION ACTIVE</h3>
         <dl class="camera-local-status-grid">
           <div><dt>Main projector</dt><dd>${escapeHtml(s.mainProjector || "—")}</dd></div>
@@ -108,10 +109,10 @@
   function renderTerminologyNote() {
     return `
       <aside class="camera-terminology muted" aria-label="Camera terminology">
-        <p><strong>Camera Input</strong> — A physical or virtual camera selected inside Christ in Song.</p>
+        <p><strong>Camera Input</strong> — A physical or virtual camera selected inside VaChinoda Worship App.</p>
         <p><strong>OBS Virtual Camera</strong> — A webcam-style output from OBS (not OBS WebSocket or streaming).</p>
-        <p><strong>OBS Browser Source</strong> — Christ in Song output that OBS loads as an overlay.</p>
-        <p><strong>Local Presentation Output</strong> — Projector or display controlled directly by Christ in Song.</p>
+        <p><strong>OBS Browser Source</strong> — VaChinoda output that OBS loads as an overlay.</p>
+        <p><strong>Local Presentation Output</strong> — Projector or display controlled directly by VaChinoda Worship App.</p>
       </aside>
     `;
   }
@@ -136,7 +137,7 @@
     return `
       <section class="camera-obs-vcam panel">
         <h3>OBS Virtual Camera</h3>
-        <p class="muted">OBS Virtual Camera target is configured in OBS. Christ in Song can start or stop Virtual Camera when OBS WebSocket is connected.</p>
+        <p class="muted">OBS Virtual Camera target is configured in OBS. VaChinoda Worship App can start or stop Virtual Camera when OBS WebSocket is connected.</p>
         <p class="camera-vcam-state" role="status">Virtual Camera: <strong>${runtime.virtualCamera ? "Active" : "Inactive"}</strong>${obsConnected ? "" : " · OBS disconnected (device may still work as a system camera)"}</p>
         <div class="button-row">
           <button type="button" class="secondary-button" data-command="camera-obs-vcam-start" ${obsConnected ? "" : "disabled"}>Start Virtual Camera</button>

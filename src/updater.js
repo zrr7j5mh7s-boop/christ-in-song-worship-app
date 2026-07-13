@@ -7,6 +7,7 @@
 
 const { autoUpdater } = require('electron-updater');
 const { dialog, app } = require('electron');
+const brand = require('./brand-config');
 const log = require('electron-log/main');
 
 autoUpdater.logger = log;
@@ -51,7 +52,7 @@ function setupAutoUpdater(mainWindow) {
         defaultId: 0,
         cancelId: 1,
         title: 'Update Ready',
-        message: `Christ in Song Worship App ${info.version} has been downloaded.`,
+        message: `${brand.appName} ${info.version} has been downloaded.`,
         detail: 'Restart the app now to finish installing the update, or install it the next time you quit.',
       })
       .then(({ response }) => {
