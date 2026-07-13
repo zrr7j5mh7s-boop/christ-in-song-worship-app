@@ -4,6 +4,7 @@
 // app/app.js maps these to navigation, worship controls, and backup flows.
 
 const { Menu, shell, app, dialog } = require('electron');
+const brand = require('./brand-config');
 
 function send(mainWindow, command) {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -136,13 +137,13 @@ function buildMenu(mainWindow, { onCheckForUpdates } = {}) {
         },
         { type: 'separator' },
         {
-          label: 'About Christ in Song',
+          label: `About ${brand.shortName}`,
           click: () => {
             dialog.showMessageBox(mainWindow, {
               type: 'info',
-              title: 'Christ in Song Worship App',
-              message: 'Christ in Song Worship App',
-              detail: `Version ${app.getVersion()}\nOffline hymn library, worship builder, and presenter.`,
+              title: brand.appName,
+              message: brand.appName,
+              detail: `Version ${app.getVersion()}\n${brand.description}`,
               buttons: ['OK'],
             });
           },
@@ -151,7 +152,7 @@ function buildMenu(mainWindow, { onCheckForUpdates } = {}) {
           ? [
               { type: 'separator' },
               {
-                label: 'About Christ in Song Worship App',
+                label: `About ${brand.appName}`,
                 click: () => send(mainWindow, 'show-about'),
               },
             ]

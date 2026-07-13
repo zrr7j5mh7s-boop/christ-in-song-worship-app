@@ -11,6 +11,46 @@
     return t(`nav.${id}`);
   }
 
+  function brandAppName() {
+    return window.CISBrandConfig ? window.CISBrandConfig.BRAND.appName : "VaChinoda Worship App";
+  }
+
+  function brandShortName() {
+    return window.CISBrandConfig ? window.CISBrandConfig.BRAND.shortName : "VaChinoda";
+  }
+
+  function brandExportPrefix() {
+    return window.CISBrandConfig
+      ? window.CISBrandConfig.BRAND.exportFilenamePrefix
+      : "VaChinoda_Worship_App";
+  }
+
+  function setupBranding() {
+    if (!window.CISBrandConfig) return;
+    const { BRAND } = window.CISBrandConfig;
+    document.title = BRAND.appName;
+    if (window.CISBrandMigration) window.CISBrandMigration.run(loadJson, saveJson);
+    const splash = document.getElementById("launchSplash");
+    if (splash) {
+      const mark = splash.querySelector(".launch-mark");
+      const title = splash.querySelector("strong");
+      const subtitle = splash.querySelector("small");
+      if (mark) mark.textContent = BRAND.brandMark;
+      if (title) title.textContent = BRAND.appName;
+      if (subtitle) subtitle.textContent = BRAND.shortName;
+    }
+    const lockup = document.querySelector(".brand-lockup");
+    if (lockup) {
+      const mark = lockup.querySelector(".brand-mark");
+      const title = lockup.querySelector("strong");
+      const subtitle = lockup.querySelector("span");
+      if (mark) mark.textContent = BRAND.brandMark;
+      if (title) title.textContent = BRAND.appName;
+      if (subtitle) subtitle.textContent = BRAND.shortName;
+    }
+    if (els.topbarEyebrow) els.topbarEyebrow.textContent = t("topbar.eyebrow");
+  }
+
   const electronBridge = window.electronAPI || null;
   const legacyDesktopBridge = window.ChristInSongDesktop || null;
   const desktopBridge = electronBridge || legacyDesktopBridge;
@@ -3216,6 +3256,7 @@
     renderNav();
     renderLanguageSwitcher();
     renderTopbarLabels();
+    setupBranding();
     els.title.textContent = viewTitle();
     if (state.view !== "song" && hymnAudioPlayer) hymnAudioPlayer.pause();
     els.content.innerHTML = `${renderNotice()}${renderView()}`;
@@ -5070,6 +5111,13 @@
               </div>
             ` : ""}
             <hr>
+            <h3>Product Information</h3>
+            <dl class="settings-product-info">
+              <div><dt>Application</dt><dd>${escapeHtml(brandAppName())}</dd></div>
+              <div><dt>Short name</dt><dd>${escapeHtml(brandShortName())}</dd></div>
+              <div><dt>Version</dt><dd>${escapeHtml(state.desktopInfo?.version || "1.0.0")}</dd></div>
+            </dl>
+            <hr>
             <h3>${escapeHtml(t("nav.help"))}</h3>
             <p class="muted">${escapeHtml(t("home.helpCentreDetail"))}</p>
             <div class="button-row">
@@ -5695,7 +5743,7 @@
     els.emergencyOverlay.className = `emergency-overlay ${state.emergencyMode}`;
     els.emergencyOverlay.setAttribute("aria-hidden", "false");
     els.emergencyOverlay.innerHTML = state.emergencyMode === "logo"
-      ? `<div class="emergency-logo"><span class="emergency-logo-mark" aria-hidden="true">✦</span><strong>CHRIST IN SONG</strong><span>VaChinoda Worship</span></div><button class="emergency-return" type="button" data-command="emergency-clear">Return to lyrics</button>`
+      ? `<div class="emergency-logo"><span class="emergency-logo-mark" aria-hidden="true">✦</span><strong>${escapeHtml(brandAppName().toUpperCase())}</strong><span>${escapeHtml(brandShortName())}</span></div><button class="emergency-return" type="button" data-command="emergency-clear">Return to lyrics</button>`
       : `<button class="emergency-return" type="button" data-command="emergency-clear">Return to lyrics</button>`;
   }
 
@@ -5718,7 +5766,8 @@
 
   function exportPlan() {
     const payload = {
-      app: "Christ in Song Worship App",
+      app: brandAppName(),
+      applicationName: brandAppName(),
       exportedAt: new Date().toISOString(),
       languageCode: state.languageCode,
       worshipPlan,
@@ -5728,14 +5777,15 @@
       customTemplates,
     };
     const stamp = new Date().toISOString().slice(0, 10);
-    downloadText(`christ-in-song-worship-builder-${stamp}.json`, JSON.stringify(payload, null, 2), "application/json");
+    downloadText(`${brandExportPrefix()}_Worship_Builder_${stamp}.json`, JSON.stringify(payload, null, 2), "application/json");
   }
 
   function exportBackup() {
     if (window.CISBackupRestore) return window.CISBackupRestore.exportFullBackup();
     const stamp = new Date().toISOString().slice(0, 10);
     const payload = {
-      app: "Christ in Song Worship App",
+      app: brandAppName(),
+      applicationName: brandAppName(),
       type: "full-backup",
       exportedAt: new Date().toISOString(),
       languageCode: state.languageCode,
@@ -5795,7 +5845,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Christ in Song Service Bulletin</title>
+  <title>${escapeHtml(brandAppName())} Service Bulletin</title>
   <style>
     body{font-family:Arial,sans-serif;margin:40px;color:#131f38}
     h1{font-family:Georgia,serif;margin-bottom:4px}
@@ -5807,7 +5857,7 @@
   </style>
 </head>
 <body>
-  <h1>Christ in Song Worship Builder</h1>
+  <h1>${escapeHtml(brandAppName())} Worship Builder</h1>
   <p class="muted">Generated ${new Date().toLocaleString()}</p>
   ${openingSongs ? `<h2>Song Service</h2><ol>${openingSongs}</ol>` : ""}
   <h2>Order of Service</h2>
@@ -5973,7 +6023,7 @@
     if (!command) return;
     if (command === "show-about") {
       const version = state.desktopInfo?.version || "";
-      setNotice(version ? `Christ in Song Worship App · v${version}` : "Christ in Song Worship App");
+      setNotice(version ? `${brandAppName()} · v${version}` : brandAppName());
       return;
     }
     if (command.startsWith("view:")) {
@@ -7176,7 +7226,8 @@
       }
       if (electronBridge && electronBridge.getAppVersion) {
         return electronBridge.getAppVersion().then((version) => ({
-          name: "Christ in Song Worship App",
+          name: brandAppName(),
+          shortName: brandShortName(),
           version,
           platform: electronBridge.platform || "desktop",
           packaged: true,
@@ -7214,6 +7265,7 @@
   }
 
   setupI18n();
+  setupBranding();
   setupDesktopBridge();
   setupTemplateSystem();
   setupBuilderSlides();

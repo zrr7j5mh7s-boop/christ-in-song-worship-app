@@ -1,6 +1,6 @@
 // src/main.js
 //
-// Main process for Christ in Song Worship App.
+// Main process for VaChinoda Worship App.
 //
 // Security posture (see BUILD_GUIDE.md for the reasoning):
 //   - contextIsolation: true, nodeIntegration: false, sandbox: true
@@ -21,6 +21,7 @@ const log = require('electron-log/main');
 log.initialize();
 
 const { buildMenu } = require('./menu');
+const brand = require('./brand-config');
 const { setupAutoUpdater } = require('./updater');
 const obsManager = require('./obs/obs-manager');
 
@@ -106,7 +107,7 @@ function createMainWindow() {
     show: false, // wait for ready-to-show so there's no white flash
     backgroundColor: '#F5EFE0',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
-    title: 'Christ in Song Worship App',
+    title: brand.appName,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -175,7 +176,8 @@ app.on('web-contents-created', (_event, contents) => {
 ipcMain.handle('app:get-version', () => app.getVersion());
 
 ipcMain.handle('app:info', () => ({
-  name: app.getName(),
+  name: brand.appName,
+  shortName: brand.shortName,
   version: app.getVersion(),
   platform: process.platform,
   packaged: app.isPackaged,
@@ -210,7 +212,7 @@ function createProjectorWindow() {
     fullscreen: hasExternalDisplay,
     frame: !hasExternalDisplay,
     backgroundColor: '#0A1020',
-    title: 'Christ in Song · Projector',
+    title: brand.windowTitle('Projector'),
     autoHideMenuBar: true,
     show: false,
     webPreferences: {
@@ -270,7 +272,7 @@ function createObsMonitorWindow() {
     height: 620,
     minWidth: 640,
     minHeight: 420,
-    title: 'Christ in Song · OBS Program Monitor',
+    title: brand.windowTitle('OBS Program Monitor'),
     backgroundColor: '#0A1020',
     autoHideMenuBar: true,
     alwaysOnTop: true,
@@ -345,7 +347,7 @@ function createCameraPreviewWindow() {
     height: 480,
     minWidth: 480,
     minHeight: 320,
-    title: 'Christ in Song · Camera Preview',
+    title: brand.windowTitle('Camera Preview'),
     backgroundColor: '#131F38',
     autoHideMenuBar: true,
     alwaysOnTop: true,

@@ -1,6 +1,6 @@
 # Help Centre Integration
 
-Offline Help Centre for Christ in Song Worship App — integrated into existing navigation and design system.
+Offline Help Centre for VaChinoda Worship App — integrated into existing navigation and design system.
 
 ## Architecture
 
