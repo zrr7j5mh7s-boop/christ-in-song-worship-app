@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="cis-build" content="production">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' ws://127.0.0.1:* wss://127.0.0.1:* ws://localhost:* wss://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta name="theme-color" content="#131f38">
+    <meta name="description" content="Local worship presentation, hymn, Bible, media and OBS control system.">
+    <meta name="apple-mobile-web-app-title" content="VaChinoda">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>VaChinoda Worship App</title>
+    <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <script src="./dist/runtime/build-prefix.js"></script>
+    <link rel="stylesheet" href="./dist/styles.css">
+  </head>
+  <body>
+    <div id="launchSplash" class="launch-splash" aria-hidden="true">
+      <div class="launch-card">
+        <div class="launch-mark">VC</div>
+        <strong>VaChinoda Worship App</strong>
+        <small>VaChinoda</small>
+        <div class="launch-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+      </div>
+      <div id="launchSplashError" class="launch-splash-error" hidden>
+        <p id="launchSplashErrorText" role="alert"></p>
+        <div class="launch-splash-actions">
+          <button type="button" id="launchSplashRetry" class="btn btn-primary">Retry</button>
+          <button type="button" id="launchSplashOpenLogs" class="btn btn-secondary">Open Logs</button>
+        </div>
+      </div>
+    </div>
+    <div id="app" class="app-shell">
+      <aside class="sidebar rail" aria-label="Main navigation">
+        <div class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true">VC</span>
+          <div>
+            <strong>VaChinoda Worship App</strong>
+            <span>VaChinoda</span>
+          </div>
+        </div>
+        <nav class="nav-list" id="primaryNav"></nav>
+        <div class="sidebar-actions" aria-label="Emergency safety controls">
+          <button class="icon-button safety-icon-btn" type="button" data-command="emergency-black" title="Blackout" aria-label="Blackout">■</button>
+          <button class="icon-button safety-icon-btn" type="button" data-command="emergency-white" title="White screen" aria-label="White screen">□</button>
+          <button class="icon-button safety-icon-btn" type="button" data-command="emergency-logo" title="Show Logo" aria-label="Show Logo">VC</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="topbarEyebrow">VaChinoda Worship App</p>
+            <h1 id="pageTitle">Home Dashboard</h1>
+          </div>
+          <div class="topbar-tools">
+            <div id="obsStatusRoot" class="obs-status-root" aria-live="polite"></div>
+            <div id="languageToolbar" class="language-toolbar">
+              <div id="uiLocaleSwitcher" class="ui-locale-switcher"></div>
+              <div id="hymnBookSwitcher" class="hymn-book-switcher"></div>
+              <div id="hymnEditionSwitcher" class="hymn-edition-switcher"></div>
+            </div>
+            <button class="tool-button" type="button" data-command="open-presenter" id="topbarPresenterBtn">Presenter</button>
+            <button class="tool-button service-mode-enter-btn" type="button" data-command="service-mode-enter" id="topbarServiceModeBtn" aria-pressed="false">Enter Service Mode</button>
+            <button class="tool-button quiet-service-mode-btn" type="button" data-command="quiet-service-mode-enter" id="topbarQuietServiceModeBtn" aria-pressed="false">Enter Quiet Service Mode</button>
+            <div id="liveLockRoot" class="live-lock-root" aria-live="polite"></div>
+            <button class="tool-button help-emergency-chip" type="button" data-command="help-open-emergency" title="Emergency Help" id="topbarEmergencyBtn">Emergency</button>
+            <button class="tool-button" type="button" data-view="help" id="topbarHelpBtn" title="Help Centre (F1)">Help</button>
+          </div>
+        </header>
+        <div id="quietServiceModeRoot" class="quiet-service-mode-root" aria-live="polite"></div>
+        <div id="operatorStatusRoot" class="operator-status-root" aria-live="polite"></div>
+        <section id="content" class="content" aria-live="polite"></section>
+      </main>
+    </div>
+
+    <div id="modalRoot"></div>
+    <div id="a11yAnnounce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    <div id="helpContextRoot" class="help-context-root hidden" aria-hidden="true"></div>
+    <div id="presenterControlRoot" class="presenter-control-root hidden" aria-hidden="true"></div>
+    <div id="presenterOutputRoot" class="presenter-output-root hidden" aria-hidden="true"></div>
+    <div id="presenterOverlay" class="presenter-overlay hidden" aria-hidden="true"></div>
+    <div id="emergencyOverlay" class="emergency-overlay hidden" aria-hidden="true"></div>
+
+    <script src="./dist/brand/brand-config.js"></script>
+    <script src="./dist/release/release-metadata.js"></script>
+    <script src="./dist/brand/brand-migration.js"></script>
+    <script src="./data/songs.js?v=2"></script>
+    <script src="./data/extra-packs.js"></script>
+    <script src="./dist/performance/task-session.js"></script>
+    <script src="./dist/performance/performance-monitor.js"></script>
+    <script src="./dist/performance/passage-cache.js"></script>
+    <script src="./dist/ux/ui-icons.js"></script>
+    <script src="./dist/ux/operator-status-strip.js"></script>
+    <script src="./dist/lazy-pack-loader.js"></script>
+    <script src="./dist/slide-content.js"></script>
+    <script src="./dist/builder-slides.js"></script>
+    <script src="./dist/service-templates.js"></script>
+    <script src="./dist/template-store.js"></script>
+    <script src="./dist/template-ui.js"></script>
+    <script src="./dist/hymnal-library/hymnal-migration.js"></script>
+    <script src="./dist/hymnal-library/hymnal-library-settings.js"></script>
+    <script src="./dist/hymnal-library/hymnal-library-store.js"></script>
+    <script src="./dist/hymnal-library/hymnal-import-service.js"></script>
+    <script src="./dist/hymnal-library/hymnal-deletion-service.js"></script>
+    <script src="./dist/hymnal-library/hymnal-library-ui.js"></script>
+    <script src="./dist/pack-store.js"></script>
+    <script src="./dist/pack-import.js"></script>
+    <script src="./dist/tag-catalog.js"></script>
+    <script src="./dist/song-tags-store.js"></script>
+    <script src="./dist/song-tags-ui.js"></script>
+    <script src="./dist/backup-zip.js"></script>
+    <script src="./dist/backup-store.js"></script>
+    <script src="./dist/backup-restore.js"></script>
+    <script src="./vendor/fuse.min.js"></script>
+    <script src="./dist/hymn-search.js"></script>
+    <script src="./dist/hymn-search-ui.js"></script>
+    <script src="./data/bible-catalog.js?v=2"></script>
+    <script src="./dist/bible-store.js"></script>
+    <script src="./dist/bible-reader-ui.js"></script>
+    <script src="./dist/bible/bible-reference-parser.js"></script>
+    <script src="./dist/bible/bible-projection-settings.js"></script>
+    <script src="./dist/bible/bible-projection-service.js"></script>
+    <script src="./dist/bible/bible-search-service.js"></script>
+    <script src="./dist/bible/bible-speech-service.js"></script>
+    <script src="./dist/bible/bible-live-ui.js"></script>
+    <script src="./dist/hymn-queue/live-hymn-queue-settings.js"></script>
+    <script src="./dist/hymn-queue/live-hymn-queue-service.js"></script>
+    <script src="./dist/hymn-queue/live-hymn-queue-ui.js"></script>
+    <script src="./dist/service-mode/service-mode-settings.js"></script>
+    <script src="./dist/service-mode/service-mode-service.js"></script>
+    <script src="./dist/service-mode/service-mode-ui.js"></script>
+    <script src="./dist/quiet-service-mode/notification-classifier.js"></script>
+    <script src="./dist/quiet-service-mode/quiet-service-mode-settings.js"></script>
+    <script src="./dist/quiet-service-mode/quiet-service-mode-service.js"></script>
+    <script src="./dist/accessibility/focus-manager.js"></script>
+    <script src="./dist/keyboard/keyboard-shortcuts-registry.js"></script>
+    <script src="./dist/keyboard/keyboard-shortcuts-settings.js"></script>
+    <script src="./dist/keyboard/keyboard-shortcuts-service.js"></script>
+    <script src="./dist/worship-search/worship-search-query-detector.js"></script>
+    <script src="./dist/worship-search/worship-search-engine.js"></script>
+    <script src="./dist/worship-search/worship-search-ui.js"></script>
+    <script src="./dist/stage-display/stage-display-settings.js"></script>
+    <script src="./dist/stage-display/stage-display-engine.js"></script>
+    <script src="./dist/stage-display/stage-display-output.js"></script>
+    <script src="./dist/stage-display/stage-display-service.js"></script>
+    <script src="./dist/stage-display/stage-display-ui.js"></script>
+    <script src="./dist/session-recovery/session-recovery-settings.js"></script>
+    <script src="./dist/session-recovery/session-recovery-snapshot.js"></script>
+    <script src="./dist/session-recovery/session-recovery-store.js"></script>
+    <script src="./dist/session-recovery/session-recovery-service.js"></script>
+    <script src="./dist/session-recovery/session-recovery-ui.js"></script>
+    <script src="./dist/presentation/presentation-state-model.js"></script>
+    <script src="./dist/presentation/live-switch-settings.js"></script>
+    <script src="./dist/presentation/live-switch-service.js"></script>
+    <script src="./dist/presentation/live-lock-settings.js"></script>
+    <script src="./dist/presentation/live-lock-service.js"></script>
+    <script src="./dist/presentation/live-lock-ui.js"></script>
+    <script src="./dist/song-audio-store.js"></script>
+    <script src="./dist/song-audio-player.js"></script>
+    <script src="./dist/song-audio-ui.js"></script>
+    <script src="./dist/builder-save.js"></script>
+    <script src="./dist/builder-order-preview.js"></script>
+    <script src="./dist/presentation/projection-themes.js"></script>
+    <script src="./dist/presentation/text-fit-engine.js"></script>
+    <script src="./dist/presentation/slide-layout-engine.js"></script>
+    <script src="./dist/presentation/projection-settings.js"></script>
+    <script src="./dist/presenter-engine.js"></script>
+    <script src="./dist/presenter-output.js"></script>
+    <script src="./dist/presenter-control.js"></script>
+    <script src="./dist/obs/obs-constants.js"></script>
+    <script src="./dist/obs/obs-sanitize.js"></script>
+    <script src="./dist/obs/obs-settings-store.js"></script>
+    <script src="./dist/obs/obs-event-service.js"></script>
+    <script src="./dist/obs/obs-ws-client.js"></script>
+    <script src="./dist/obs/obs-connection-service.js"></script>
+    <script src="./dist/obs/obs-scene-service.js"></script>
+    <script src="./dist/obs/obs-source-service.js"></script>
+    <script src="./dist/obs/obs-output-service.js"></script>
+    <script src="./dist/obs/obs-control-service.js"></script>
+    <script src="./dist/obs/obs-program-monitor.js"></script>
+    <script src="./dist/obs/obs-program-monitor-ui.js"></script>
+    <script src="./dist/hymn-index-settings.js"></script>
+    <script src="./dist/hymn-index-ui.js"></script>
+    <script src="./dist/camera/camera-constants.js"></script>
+    <script src="./dist/camera/camera-settings-store.js"></script>
+    <script src="./dist/camera/camera-source-service.js"></script>
+    <script src="./dist/camera/camera-compositor.js"></script>
+    <script src="./dist/camera/camera-source-ui.js"></script>
+    <script src="./dist/obs/obs-mapping-ui.js"></script>
+    <script src="./dist/obs/obs-control-ui.js"></script>
+    <script src="./dist/obs/obs-settings-ui.js"></script>
+    <script src="./dist/help/help-icons.js"></script>
+    <script src="./dist/help/help-content.js"></script>
+    <script src="./dist/help/help-store.js"></script>
+    <script src="./dist/help/help-search.js"></script>
+    <script src="./dist/help/help-checklists.js"></script>
+    <script src="./dist/help/help-diagnostics.js"></script>
+    <script src="./dist/help/help-training.js"></script>
+    <script src="./dist/help/help-contextual.js"></script>
+    <script src="./dist/help/help-ui.js"></script>
+    <script src="./dist/i18n/i18n-catalog.js"></script>
+    <script src="./dist/i18n/i18n-store.js"></script>
+    <script src="./dist/i18n/i18n.js"></script>
+    <script src="./dist/app.js"></script>
+    <script src="./dist/runtime/register-service-worker.js"></script>
+  </body>
+</html>
