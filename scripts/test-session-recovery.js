@@ -241,10 +241,10 @@ async function run() {
 
   const indexHtml = read("app/index.html");
   assert.match(indexHtml, /session-recovery-service\.js/);
-  assert.match(indexHtml, /styles\.css\?v=46/);
+  assert.match(indexHtml, /styles\.css\?v=47/);
 
   const sw = read("app/sw.js");
-  assert.match(sw, /christ-in-song-worship-v46/);
+  assert.match(sw, /christ-in-song-worship-v47/);
 
   const pkg = JSON.parse(read("package.json"));
   assert.ok(pkg.scripts["test:session-recovery"]);

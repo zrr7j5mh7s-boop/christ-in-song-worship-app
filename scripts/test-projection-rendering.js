@@ -211,6 +211,7 @@ function run() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   assert.match(sw, /christ-in-song-worship-v41/);
 =======
   assert.match(sw, /christ-in-song-worship-v40/);
@@ -230,6 +231,9 @@ function run() {
 =======
   assert.match(sw, /christ-in-song-worship-v46/);
 >>>>>>> 52f084e (Prepare Release Candidate 1.0.0-rc.1 with versioned metadata, RC gate tests, and release documentation.)
+=======
+  assert.match(sw, /christ-in-song-worship-v47/);
+>>>>>>> c3c9b32 (Fix packaged splash hang with isActive API, CSP-safe runtime scripts, and startup recovery.)
   assert.ok(sw.includes("projection-themes.js"));
   assert.ok(sw.includes("text-fit-engine.js"));
   assert.ok(sw.includes("slide-layout-engine.js"));

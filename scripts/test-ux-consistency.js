@@ -108,6 +108,7 @@ function testCacheVersion() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   if (!sw.includes("christ-in-song-worship-v41")) fail("Service worker cache should be v41");
   ok("cache version v41 for quiet service mode release");
 =======
@@ -138,6 +139,10 @@ function testCacheVersion() {
   if (!sw.includes("christ-in-song-worship-v46")) fail("Service worker cache should be v46");
   ok("cache version v46 for RC1 release");
 >>>>>>> 52f084e (Prepare Release Candidate 1.0.0-rc.1 with versioned metadata, RC gate tests, and release documentation.)
+=======
+  if (!sw.includes("christ-in-song-worship-v47")) fail("Service worker cache should be v47");
+  ok("cache version v47 for RC1 release");
+>>>>>>> c3c9b32 (Fix packaged splash hang with isActive API, CSP-safe runtime scripts, and startup recovery.)
 }
 
 testDesignTokens();
