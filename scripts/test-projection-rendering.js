@@ -205,7 +205,7 @@ function run() {
   assert.ok(screenSource.includes('cursor = "none"'), "projector window hides mouse pointer");
 
   const sw = read("app/sw.js");
-  assert.match(sw, /christ-in-song-worship-v41/);
+  assert.match(sw, /christ-in-song-worship-v47/);
   assert.ok(sw.includes("projection-themes.js"));
   assert.ok(sw.includes("text-fit-engine.js"));
   assert.ok(sw.includes("slide-layout-engine.js"));

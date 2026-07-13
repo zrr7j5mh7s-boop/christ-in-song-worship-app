@@ -267,6 +267,7 @@
     configure,
     DESTINATIONS,
     renderLiveWorkspace,
+    renderSearchResults,
     bindWorkspace,
   };
 })();
