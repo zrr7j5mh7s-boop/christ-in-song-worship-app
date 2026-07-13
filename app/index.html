@@ -12,7 +12,7 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=44">
+    <link rel="stylesheet" href="./styles.css?v=46">
   </head>
   <body>
     <div id="launchSplash" class="launch-splash" aria-hidden="true">
@@ -76,6 +76,7 @@
     <div id="emergencyOverlay" class="emergency-overlay hidden" aria-hidden="true"></div>
 
     <script src="./brand/brand-config.js?v=1"></script>
+    <script src="./release/release-metadata.js?v=1"></script>
     <script src="./brand/brand-migration.js?v=1"></script>
     <script src="./data/songs.js?v=2"></script>
     <script src="./data/extra-packs.js"></script>
@@ -137,6 +138,11 @@
     <script src="./stage-display/stage-display-output.js?v=1"></script>
     <script src="./stage-display/stage-display-service.js?v=1"></script>
     <script src="./stage-display/stage-display-ui.js?v=1"></script>
+    <script src="./session-recovery/session-recovery-settings.js?v=1"></script>
+    <script src="./session-recovery/session-recovery-snapshot.js?v=1"></script>
+    <script src="./session-recovery/session-recovery-store.js?v=1"></script>
+    <script src="./session-recovery/session-recovery-service.js?v=1"></script>
+    <script src="./session-recovery/session-recovery-ui.js?v=1"></script>
     <script src="./presentation/presentation-state-model.js?v=1"></script>
     <script src="./presentation/live-switch-settings.js?v=1"></script>
     <script src="./presentation/live-switch-service.js?v=1"></script>
@@ -189,7 +195,7 @@
     <script src="./i18n/i18n-catalog.js?v=1"></script>
     <script src="./i18n/i18n-store.js?v=1"></script>
     <script src="./i18n/i18n.js?v=1"></script>
-    <script src="./app.js?v=44"></script>
+    <script src="./app.js?v=46"></script>
     <script>
       if ("serviceWorker" in navigator && !window.electronAPI) {
         window.addEventListener("load", () => {

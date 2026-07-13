@@ -8,6 +8,7 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const release = require(path.join(root, 'src/release-metadata.js'));
 
 const requiredIcons = [
   'build/icon.icns',
@@ -60,6 +61,16 @@ if (!pkg.repository || !String(pkg.repository.url || '').includes(publish.repo))
 
 ok(`appId ${pkg.build.appId}`);
 ok(`version ${pkg.version}`);
+if (pkg.version !== release.version) {
+  fail(`package.json version ${pkg.version} does not match src/release-metadata.js ${release.version}`);
+}
+if (pkg.build.buildVersion !== String(release.buildNumber)) {
+  fail(`buildVersion ${pkg.build.buildVersion} does not match release buildNumber ${release.buildNumber}`);
+}
+if (pkg.build.appId !== release.appId) {
+  fail(`appId changed — would create a new user-data profile: ${pkg.build.appId}`);
+}
+ok(`release ${release.releaseLabel}`);
 ok(`publish https://github.com/${publish.owner}/${publish.repo}/releases`);
 ok('icons and entitlements present');
 ok('notarize hook wired (set APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID for macOS release builds)');

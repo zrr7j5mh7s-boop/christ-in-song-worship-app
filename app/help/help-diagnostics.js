@@ -5,6 +5,8 @@
     const copy = JSON.parse(JSON.stringify(payload || {}));
     if (copy.obs) {
       delete copy.obs.password;
+      delete copy.obs.token;
+      delete copy.obs.secret;
       copy.obs.hasPassword = Boolean(copy.obs.hasPassword);
     }
     if (copy.paths) {
@@ -25,9 +27,11 @@
       generatedAt: new Date().toISOString(),
       app: {
         name: window.CISBrandConfig ? window.CISBrandConfig.BRAND.appName : "VaChinoda Worship App",
-        version: desktopInfo.version || "1.0.0",
+        version: desktopInfo.version || window.CISReleaseMetadata?.VERSION || "1.0.0-rc.1",
         platform: desktopInfo.platform || (window.electronAPI ? "electron" : "pwa"),
-        build: desktopInfo.build || "",
+        build: desktopInfo.build || window.CISReleaseMetadata?.BUILD_NUMBER || "",
+        releaseChannel: desktopInfo.releaseChannel || window.CISReleaseMetadata?.RELEASE_CHANNEL || "",
+        releaseLabel: desktopInfo.releaseLabel || window.CISReleaseMetadata?.RELEASE_LABEL || "",
       },
       database: {
         hymnPacks: packs.length,

@@ -1,6 +1,6 @@
 {
   "name": "christ-in-song-worship-app",
-  "version": "1.0.0",
+  "version": "1.0.0-rc.1",
   "description": "VaChinoda Worship App — offline hymn library, worship builder, and full-screen presenter for Sabbath services.",
   "author": {
     "name": "VaChinoda Worship",
@@ -45,11 +45,15 @@
     "test:keyboard-shortcuts": "node scripts/test-keyboard-shortcuts.js",
     "test:worship-search": "node scripts/test-worship-search.js",
     "test:stage-display": "node scripts/test-stage-display.js",
+    "test:session-recovery": "node scripts/test-session-recovery.js",
+    "test:production-rehearsal": "node scripts/test-production-rehearsal.js",
+    "test:rc1": "node scripts/test-rc1-release.js",
     "test:projection-rendering": "node scripts/test-projection-rendering.js",
     "benchmark:performance": "node scripts/benchmark-performance.js",
     "build:web-assets": "node scripts/build-production-assets.js",
     "pack": "electron-builder --dir",
     "dist": "npm run build:web-assets && npm run verify:release && electron-builder --publish=never",
+    "dist:rc1": "npm run build:web-assets && npm run test:rc1 && npm run verify:release && electron-builder --mac --publish=never",
     "dist:mac": "npm run build:web-assets && npm run verify:release && electron-builder --mac --publish=never",
     "dist:mac:unsigned": "npm run build:web-assets && npm run verify:release && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish=never",
     "dist:win": "npm run build:web-assets && npm run verify:release && electron-builder --win --publish=never",
@@ -74,6 +78,7 @@
   "build": {
     "appId": "com.vachinoda.christinsong",
     "productName": "VaChinoda Worship App",
+    "buildVersion": "1",
     "copyright": "Copyright © 2026 VaChinoda Worship",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "asar": true,
@@ -90,6 +95,8 @@
       "README.md",
       "BUILD_GUIDE.md",
       "CODE_SIGNING.md",
+      "docs/RC1/**",
+      "docs/MANUAL_QA_CHECKLIST.md",
       "ARCHITECTURE.txt",
       "!build/icon.iconset/**",
       "!**/*.map"
