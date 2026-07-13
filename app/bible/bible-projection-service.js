@@ -6,6 +6,7 @@
   let adapters = {};
   let settings = {};
   let escapeHtml = (v) => String(v || "");
+  let previewLoadGen = 0;
 
   const state = {
     preview: {
@@ -134,6 +135,14 @@
   }
 
   function buildSlides(verses, parsed, translationCode, secondaryVerses) {
+    if (window.CISlideLayoutEngine) {
+      return window.CISlideLayoutEngine.buildScriptureSlides(verses, parsed, {
+        translation: translationCode,
+        secondaryVerses,
+        settings,
+        layout: settings.defaultLayout || "fullscreen",
+      });
+    }
     const store = window.CISBibleStore;
     const meta = store ? store.getTranslationMeta(translationCode) : null;
     const secondaryMeta = settings.secondaryTranslation && store
@@ -173,6 +182,21 @@
     return slides;
   }
 
+  function passageCacheKey(parsed, translation, secondaryTranslation) {
+    const perSlide = Math.max(1, Number(settings.versesPerSlide) || 1);
+    return {
+      translation,
+      secondary: secondaryTranslation || "",
+      book: parsed.bookOrder,
+      chapter: parsed.chapter,
+      start: parsed.verseStart || 0,
+      end: parsed.verseEnd || 0,
+      perSlide,
+      dual: settings.dualVersion ? 1 : 0,
+      showNums: settings.showVerseNumbers !== false ? 1 : 0,
+    };
+  }
+
   async function loadPreviewFromInput(input, options) {
     const parser = window.CISBibleReferenceParser;
     if (!parser) {
@@ -182,6 +206,7 @@
     }
 
     const text = String(input || "").trim();
+    const loadGen = ++previewLoadGen;
     state.preview.referenceInput = text;
     state.preview.loading = true;
     state.preview.error = "";
@@ -190,6 +215,7 @@
 
     const result = parser.parseReference(text);
     if (!result.ok) {
+      if (loadGen !== previewLoadGen) return null;
       state.preview.parsed = null;
       state.preview.slides = [];
       state.preview.suggestions = result.suggestions || [];
@@ -202,12 +228,32 @@
     const translation = options?.translation || state.preview.translation || settings.defaultTranslation || "KJV";
     state.preview.translation = translation;
 
+    const cache = window.CISPassageCache;
+    const cacheKey = passageCacheKey(result.parsed, translation, settings.secondaryTranslation);
+    const cached = cache ? cache.get(cacheKey) : null;
+    if (cached) {
+      if (loadGen !== previewLoadGen) return null;
+      state.preview.parsed = result.parsed;
+      state.preview.slides = cached.slides;
+      state.preview.slideIndex = 0;
+      state.preview.referenceLabel = result.parsed.referenceLabel;
+      state.preview.prevVerseRef = cached.prevVerseRef;
+      state.preview.nextVerseRef = cached.nextVerseRef;
+      state.preview.error = "";
+      state.preview.loading = false;
+      pushRecentReference(result.parsed.referenceLabel);
+      notify();
+      return state.preview;
+    }
+
     try {
       const { verses } = await loadVerses(result.parsed, translation);
+      if (loadGen !== previewLoadGen) return null;
       let secondaryVerses = null;
       if (settings.dualVersion && settings.secondaryTranslation) {
         try {
           const sec = await loadVerses(result.parsed, settings.secondaryTranslation);
+          if (loadGen !== previewLoadGen) return null;
           secondaryVerses = sec.verses;
         } catch (_error) {
           secondaryVerses = null;
@@ -215,6 +261,7 @@
       }
       const slides = buildSlides(verses, result.parsed, translation, secondaryVerses);
       const nav = buildVerseNavigation(result.parsed, verses);
+      if (loadGen !== previewLoadGen) return null;
       state.preview.parsed = result.parsed;
       state.preview.slides = slides;
       state.preview.slideIndex = 0;
@@ -223,7 +270,15 @@
       state.preview.nextVerseRef = nav.nextVerseRef;
       state.preview.error = "";
       pushRecentReference(result.parsed.referenceLabel);
+      if (cache) {
+        cache.set(cacheKey, {
+          slides,
+          prevVerseRef: nav.prevVerseRef,
+          nextVerseRef: nav.nextVerseRef,
+        });
+      }
     } catch (error) {
+      if (loadGen !== previewLoadGen) return null;
       state.preview.parsed = result.parsed;
       state.preview.slides = [];
       state.preview.error = error?.message || "Could not load passage.";

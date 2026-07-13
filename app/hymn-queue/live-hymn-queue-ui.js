@@ -25,7 +25,7 @@
         <button class="secondary-button" type="button" data-command="hymn-preview" data-song-key="${escapeHtml(songKey)}">Preview</button>
         <button class="secondary-button" type="button" data-command="hymn-set-next" data-song-key="${escapeHtml(songKey)}">Set as Next</button>
         <button class="secondary-button" type="button" data-command="hymn-add-queue" data-song-key="${escapeHtml(songKey)}">Add to Queue</button>
-        <button class="secondary-button" type="button" data-command="hymn-send-live" data-song-key="${escapeHtml(songKey)}">Send Live</button>
+              <button class="secondary-button" type="button" data-command="hymn-send-live" data-song-key="${escapeHtml(songKey)}">Send Live</button>
       </div>
     `;
   }
@@ -72,10 +72,11 @@
     ? `
             <p><strong>${escapeHtml(live.shortLabel || live.title || "Hymn")}</strong></p>
             <p class="muted">${escapeHtml(live.stanzaLabel || "")}</p>
-            <div class="button-row">
-              <button class="secondary-button" type="button" data-command="presenter-prev">Previous Stanza</button>
-              <button class="secondary-button" type="button" data-command="presenter-next">Next Stanza</button>
-              <button class="secondary-button" type="button" data-command="emergency-clear">Clear Hymn</button>
+            <div class="button-row live-touch-row">
+              <button class="secondary-button live-touch-btn" type="button" data-command="presenter-prev" aria-label="Previous stanza">Previous Stanza</button>
+              <button class="secondary-button live-touch-btn" type="button" data-command="presenter-next" aria-label="Next stanza">Next Stanza</button>
+              <button class="secondary-button live-touch-btn" type="button" data-command="show-chorus" aria-label="Show chorus">Show Chorus</button>
+              <button class="secondary-button live-touch-btn" type="button" data-command="emergency-clear" aria-label="Clear">Clear</button>
             </div>
           `
     : `<p class="muted">No hymn is currently Live.</p>`}
@@ -113,12 +114,14 @@
                   <span class="hymn-queue-index">${index + 1}.</span>
                   ${renderItemRow(item, "queue")}
                   <div class="button-row">
-                    <button class="secondary-button" type="button" data-command="hymn-queue-up" data-queue-id="${escapeHtml(item.id)}" ${index === 0 ? "disabled" : ""}>Up</button>
-                    <button class="secondary-button" type="button" data-command="hymn-queue-down" data-queue-id="${escapeHtml(item.id)}" ${index >= queue.length - 1 ? "disabled" : ""}>Down</button>
-                    <button class="secondary-button" type="button" data-command="hymn-queue-set-next" data-queue-id="${escapeHtml(item.id)}">Set as Next</button>
-                    <button class="secondary-button" type="button" data-command="hymn-queue-duplicate" data-queue-id="${escapeHtml(item.id)}">Duplicate</button>
-                    <button class="secondary-button" type="button" data-command="hymn-queue-send-live" data-queue-id="${escapeHtml(item.id)}">Send Live</button>
-                    <button class="secondary-button" type="button" data-command="hymn-queue-remove" data-queue-id="${escapeHtml(item.id)}">Remove</button>
+                    <button class="secondary-button live-touch-btn" type="button" data-command="hymn-queue-top" data-queue-id="${escapeHtml(item.id)}" ${index === 0 ? "disabled" : ""} aria-label="Move to top">Top</button>
+                    <button class="secondary-button live-touch-btn" type="button" data-command="hymn-queue-up" data-queue-id="${escapeHtml(item.id)}" ${index === 0 ? "disabled" : ""} aria-label="Move up">Up</button>
+                    <button class="secondary-button live-touch-btn" type="button" data-command="hymn-queue-down" data-queue-id="${escapeHtml(item.id)}" ${index >= queue.length - 1 ? "disabled" : ""} aria-label="Move down">Down</button>
+                    <button class="secondary-button live-touch-btn" type="button" data-command="hymn-queue-bottom" data-queue-id="${escapeHtml(item.id)}" ${index >= queue.length - 1 ? "disabled" : ""} aria-label="Move to bottom">Bottom</button>
+                    <button class="secondary-button live-touch-btn" type="button" data-command="hymn-queue-set-next" data-queue-id="${escapeHtml(item.id)}" aria-label="Set as Next">Set as Next</button>
+                    <button class="secondary-button live-touch-btn" type="button" data-command="hymn-queue-duplicate" data-queue-id="${escapeHtml(item.id)}">Duplicate</button>
+                    <button class="secondary-button live-touch-btn" type="button" data-command="hymn-queue-send-live" data-queue-id="${escapeHtml(item.id)}">Send Live</button>
+                    <button class="secondary-button live-touch-btn warn-touch-btn" type="button" data-command="hymn-queue-remove" data-queue-id="${escapeHtml(item.id)}" aria-label="Remove from queue">Remove</button>
                   </div>
                 </div>
               `).join("")

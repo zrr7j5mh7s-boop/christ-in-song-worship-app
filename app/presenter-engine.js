@@ -111,6 +111,10 @@
       ? item.title.slice(item.title.indexOf(" · ") + 3)
       : item && item.type === "song" ? (item.song && item.song.title ? item.song.title : "") : "";
 
+    const projection = adapters.getProjectionContext
+      ? adapters.getProjectionContext(state, item, slide)
+      : {};
+
     return {
       active: state.active,
       paused: state.paused,
@@ -121,15 +125,33 @@
       title: item ? item.title : "",
       shortTitle: item ? item.shortTitle : "",
       hymnTitle,
+      hymnNumber: item && item.song ? String(item.song.number || "") : "",
+      language: item && item.subtitle ? item.subtitle : "",
       contentKind: item
         ? (item.contentKind || (item.type === "song" ? "hymn" : item.type) || "hymn")
         : "hymn",
       subtitle: item ? item.subtitle : "",
+      themeId: projection.themeId || "classic_dark",
+      projectionTheme: projection.projectionTheme || projection.themeId || "classic_dark",
+      outputProfile: projection.outputProfile || "projector",
+      transition: projection.transition || "fade",
+      hideTitleAfterFirst: projection.hideTitleAfterFirst !== false,
+      showTranslationOnOutput: projection.showTranslationOnOutput !== false,
+      reducedMotion: Boolean(projection.reducedMotion),
+      layout: slide?.layout || projection.layout || "fullscreen",
+      obsLayout: slide?.obsLayout || projection.obsLayout || "lower_third",
+      stageShowNextVerse: projection.stageShowNextVerse !== false,
+      fitWarnings: slide?.fitWarning || [],
       slide: slide
         ? {
             label: slide.label || "",
             body: slide.body || "",
             kind: slide.kind || "verse",
+            reference: slide.reference || slide.label || "",
+            translation: slide.translation || "",
+            layout: slide.layout || projection.layout || "fullscreen",
+            chorusClass: slide.chorusClass || "",
+            fitFontPx: slide.fitFontPx || null,
           }
         : null,
       nextSlide: context.nextSlide,

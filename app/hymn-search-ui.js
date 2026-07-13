@@ -5,9 +5,17 @@
 
   let escapeHtml = (value) => String(value || "");
   let callbacks = {};
-  let debounceTimer = null;
+  let searchSession = null;
   let lastPayload = { groups: [], total: 0, flat: [] };
   let activeIndex = -1;
+  let searchPending = false;
+
+  function ensureSearchSession() {
+    if (!searchSession && window.CISTaskSession) {
+      searchSession = window.CISTaskSession.createDebouncedSession({ debounceMs: DEBOUNCE_MS });
+    }
+    return searchSession;
+  }
 
   function configure(options) {
     callbacks = options || {};
@@ -45,7 +53,7 @@
         </div>
         <div class="global-search-toolbar">
           <label class="search-box global-search-input">
-            <span aria-hidden="true">⌕</span>
+            <span aria-hidden="true">${window.CISUiIcons ? window.CISUiIcons.get("search") : "⌕"}</span>
             <input
               id="globalSearchInput"
               type="search"
@@ -160,9 +168,21 @@
     }).join("");
   }
 
+  function setSearchPending(pending) {
+    searchPending = pending;
+    const countEl = document.getElementById("globalSearchCount");
+    if (!countEl) return;
+    countEl.classList.toggle("is-pending", pending);
+    if (pending) {
+      const query = call("getQuery") || "";
+      countEl.textContent = query ? "Searching…" : "Type to search all languages";
+    }
+  }
+
   function updateCount(total) {
     const countEl = document.getElementById("globalSearchCount");
     if (!countEl) return;
+    countEl.classList.remove("is-pending");
     const query = call("getQuery") || "";
     if (!query) {
       countEl.textContent = "Type to search all languages";
@@ -181,22 +201,36 @@
     scrollActiveIntoView();
   }
 
-  function runSearchNow() {
+  function runSearchNow(gen, isCurrent) {
     const query = call("getQuery") || "";
     if (!window.CISSearchEngine) {
+      if (isCurrent && !isCurrent(gen)) return;
       paintResults({ groups: [], total: 0, flat: [] });
+      setSearchPending(false);
       return;
     }
     const scopeOptions = typeof callbacks.getSearchScopeOptions === "function"
       ? callbacks.getSearchScopeOptions()
       : {};
+    const started = typeof performance !== "undefined" ? performance.now() : Date.now();
     const payload = window.CISSearchEngine.search(query, { limit: 120, ...scopeOptions });
+    if (isCurrent && !isCurrent(gen)) return;
     paintResults(payload);
+    setSearchPending(false);
+    if (window.CISPerformanceMonitor) {
+      const ended = typeof performance !== "undefined" ? performance.now() : Date.now();
+      window.CISPerformanceMonitor.record("hymnSearchMs", ended - started);
+    }
   }
 
   function scheduleSearch() {
-    window.clearTimeout(debounceTimer);
-    debounceTimer = window.setTimeout(runSearchNow, DEBOUNCE_MS);
+    const session = ensureSearchSession();
+    setSearchPending(true);
+    if (session) {
+      session.scheduleDebounced(runSearchNow);
+      return;
+    }
+    runSearchNow(0, () => true);
   }
 
   function scrollActiveIntoView() {
@@ -227,6 +261,26 @@
     call("onOpenSong", item.number, item.code, item.editionId);
   }
 
+  function previewActiveResult() {
+    if (activeIndex < 0 || !lastPayload.flat[activeIndex]) return false;
+    const item = lastPayload.flat[activeIndex];
+    if (typeof callbacks.onPreviewSong === "function") {
+      callbacks.onPreviewSong(item.songKey || `${item.code}:${item.editionId}:${item.number}`);
+      return true;
+    }
+    call("onOpenSong", item.number, item.code, item.editionId);
+    return true;
+  }
+
+  function getActiveResult() {
+    if (activeIndex < 0 || !lastPayload.flat[activeIndex]) return null;
+    const item = lastPayload.flat[activeIndex];
+    return {
+      ...item,
+      songKey: item.songKey || `${item.code}:${item.editionId || "default"}:${item.number}`,
+    };
+  }
+
   function bind() {
     const input = document.getElementById("globalSearchInput");
     const root = document.getElementById("globalSearchResults");
@@ -253,7 +307,8 @@
       if (event.key === "Enter") {
         if (activeIndex >= 0) {
           event.preventDefault();
-          openActiveResult();
+          if (typeof callbacks.onPreviewSong === "function") previewActiveResult();
+          else openActiveResult();
         }
         return;
       }
@@ -288,6 +343,17 @@
     configure,
     renderPage,
     bind,
-    refresh: runSearchNow,
+    getActiveResult,
+    previewActiveResult,
+    refresh: () => {
+      const session = ensureSearchSession();
+      if (session) return session.runImmediate(runSearchNow);
+      return runSearchNow(0, () => true);
+    },
+    cancelPending: () => {
+      if (searchSession) searchSession.cancelPending();
+      setSearchPending(false);
+    },
+    isSearchPending: () => searchPending,
   };
 })();
