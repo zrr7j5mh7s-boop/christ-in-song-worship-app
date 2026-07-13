@@ -351,6 +351,9 @@
   }
 
   function analyzeDuplicates(incomingPacks) {
+    if (window.CISHymnalImportService && window.CISHymnalImportService.analyzeDuplicates) {
+      return window.CISHymnalImportService.analyzeDuplicates(incomingPacks);
+    }
     const imported = getExistingImportedPacks();
     const all = getAllLibraryPacks();
     return incomingPacks.map((pack) => {
@@ -403,7 +406,13 @@
     };
   }
 
-  async function commitImport(packs, duplicateStrategy) {
+  async function commitImport(packs, duplicateStrategy, importOptions) {
+    if (window.CISHymnalImportService && window.CISHymnalImportService.commitImport) {
+      return window.CISHymnalImportService.commitImport(packs, {
+        duplicateStrategy,
+        ...(importOptions || {}),
+      });
+    }
     const store = window.CISPackStore;
     const imported = getExistingImportedPacks();
     const byCode = new Map(imported.map((pack) => [pack.code, pack]));
@@ -534,6 +543,12 @@
               </label>
             </div>
           ` : ""}
+          ${window.CISHymnalImportService ? window.CISHymnalImportService.renderBookTargetFields({
+            targetMode: uiState.targetMode || "existing",
+            selectedHymnBookId: uiState.selectedHymnBookId,
+            newHymnBookTitle: uiState.newHymnBookTitle,
+            detection: uiState.importDetection,
+          }, escapeHtml) : ""}
           ${duplicateInfo.some((item) => !item.isNew) ? `
             <div class="pack-import-duplicates">
               <strong>Duplicate language detected</strong>
@@ -601,7 +616,7 @@
           ? `<button class="secondary-button" type="button" data-import-action="back">Back</button>`
           : `
           <button class="secondary-button" type="button" data-import-action="back">Back</button>
-          <button class="action-button" type="button" data-import-action="import" ${uiState.errors.length ? "disabled" : ""}>Import Language Pack</button>
+          <button class="action-button" type="button" data-import-action="import" ${uiState.errors.length ? "disabled" : ""}>Import Hymnal Edition</button>
         `
         : step === "success"
           ? `<button class="action-button" type="button" data-import-action="close">Done</button>`
@@ -617,9 +632,9 @@
         <div class="modal pack-import-modal" role="dialog" aria-modal="true" aria-label="Import language pack">
           <div class="song-header">
             <div>
-              <p class="eyebrow">Language library</p>
-              <h2>Import Language Pack</h2>
-              <p class="muted">Add a new hymn language for offline worship — no coding required.</p>
+              <p class="eyebrow">Hymnal library</p>
+              <h2>Import Hymnal Edition</h2>
+              <p class="muted">Add hymns to an existing hymn book or create a new one — Christ in Song and SDA Hymnal stay separate.</p>
             </div>
             <button class="secondary-button" type="button" data-import-action="close">Close</button>
           </div>
@@ -692,6 +707,25 @@
         uiState.duplicateStrategy = input.value;
       });
     });
+
+    modalRoot.querySelectorAll('input[name="hymnalImportTarget"]').forEach((input) => {
+      input.addEventListener("change", () => {
+        uiState.targetMode = input.value === "new" ? "new" : "existing";
+        renderModal();
+      });
+    });
+    const bookSelect = modalRoot.querySelector("#hymnalImportBookSelect");
+    if (bookSelect) {
+      bookSelect.addEventListener("change", () => {
+        uiState.selectedHymnBookId = bookSelect.value;
+      });
+    }
+    const newBookTitle = modalRoot.querySelector("#hymnalImportNewBookTitle");
+    if (newBookTitle) {
+      newBookTitle.addEventListener("input", () => {
+        uiState.newHymnBookTitle = newBookTitle.value;
+      });
+    }
   }
 
   function ensureFileInput() {
@@ -771,7 +805,12 @@
 
       if (!uiState.errors.length && uiState.packs.length) {
         const totalSongs = uiState.packs.reduce((sum, pack) => sum + (pack.songs || []).length, 0);
-        uiState.readyMessage = `${uiState.packs.length} language pack(s), ${totalSongs} hymn(s) ready to import.`;
+        uiState.readyMessage = `${uiState.packs.length} edition(s), ${totalSongs} hymn(s) ready to import.`;
+        uiState.importDetection = window.CISHymnalImportService
+          ? window.CISHymnalImportService.detectImportContext(uiState.file, uiState.packs[0])
+          : null;
+        uiState.selectedHymnBookId = uiState.importDetection?.suggestedHymnBookId || "unclassified-hymn-books";
+        uiState.targetMode = "existing";
         uiState.duplicateAnalysis = analyzeDuplicates(uiState.packs);
         if (uiState.duplicateAnalysis.some((item) => item.isBuiltin)) {
           uiState.errors.push("One or more language codes match built-in packs. Choose a different code for imported languages.");
@@ -840,7 +879,19 @@
     renderModal();
 
     try {
-      const summaryItems = await commitImport(uiState.packs, uiState.duplicateStrategy || "skip");
+      const targetMode = modalRoot && modalRoot.querySelector('input[name="hymnalImportTarget"]:checked');
+      const bookSelect = modalRoot && modalRoot.querySelector("#hymnalImportBookSelect");
+      const newBookTitleInput = modalRoot && modalRoot.querySelector("#hymnalImportNewBookTitle");
+      const importOptions = {
+        duplicateStrategy: uiState.duplicateStrategy || "skip",
+        createNewBook: targetMode && targetMode.value === "new",
+        hymnBookId: bookSelect ? bookSelect.value : uiState.selectedHymnBookId,
+        hymnBookTitle: newBookTitleInput ? newBookTitleInput.value.trim() : uiState.newHymnBookTitle,
+        newHymnBookId: window.CISHymnalMigration
+          ? window.CISHymnalMigration.slug((newBookTitleInput ? newBookTitleInput.value : uiState.newHymnBookTitle) || "imported-hymnal")
+          : "imported-hymnal",
+      };
+      const summaryItems = await commitImport(uiState.packs, uiState.duplicateStrategy || "skip", importOptions);
       uiState.step = "success";
       uiState.summaryItems = summaryItems;
       uiState.progress = 100;

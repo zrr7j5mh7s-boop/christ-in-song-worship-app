@@ -105,6 +105,7 @@
     if (selected.has("language-packs")) {
       data["language-packs"] = {
         importedLanguagePacks: snapshot.importedLanguagePacks || [],
+        hymnalLibrary: snapshot.hymnalLibrary || null,
       };
     }
     if (selected.has("templates")) {
@@ -121,6 +122,8 @@
     if (selected.has("settings")) {
       data.settings = {
         languageCode: snapshot.languageCode || "zu",
+        hymnBookId: snapshot.hymnBookId || "christ-in-song",
+        editionId: snapshot.editionId || "christ-in-song-zulu",
         settings: snapshot.settings || {},
         ui: snapshot.ui || {},
       };
