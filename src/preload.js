@@ -129,4 +129,43 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('camera-preview-closed', listener);
     },
   },
+
+  stageDisplay: {
+    listDisplays: () => ipcRenderer.invoke('stage-display:list-displays'),
+
+    savePrefs: (payload) => ipcRenderer.invoke('stage-display:save-prefs', payload),
+
+    getStartPrefs: () => ipcRenderer.invoke('stage-display:get-start-prefs'),
+
+    open: (payload) => ipcRenderer.invoke('stage-display:open', payload),
+
+    close: () => ipcRenderer.invoke('stage-display:close'),
+
+    restart: (payload) => ipcRenderer.invoke('stage-display:restart', payload),
+
+    publish: (payload) => ipcRenderer.invoke('stage-display:publish', payload),
+
+    notifyClosed: () => ipcRenderer.invoke('stage-display:closed'),
+
+    onState: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('stage-display-state', listener);
+      return () => ipcRenderer.removeListener('stage-display-state', listener);
+    },
+
+    onClosed: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = () => callback();
+      ipcRenderer.on('stage-display-closed', listener);
+      return () => ipcRenderer.removeListener('stage-display-closed', listener);
+    },
+
+    onDisplaysChanged: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('stage-display-displays-changed', listener);
+      return () => ipcRenderer.removeListener('stage-display-displays-changed', listener);
+    },
+  },
 });

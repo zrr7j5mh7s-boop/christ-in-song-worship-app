@@ -27,8 +27,43 @@
     { id: "favorites", label: "Favourites first" },
   ];
 
+  const cardHtmlCache = new Map();
+  const CARD_CACHE_MAX = 512;
+
+  function cardCacheKey(song, ctx, layout) {
+    const key = typeof ctx.songKey === "function" ? ctx.songKey(song) : String(song.number || "");
+    const starred = ctx.favorites && ctx.favorites.has(key) ? 1 : 0;
+    return [
+      key,
+      layout,
+      ctx.showTitles !== false ? 1 : 0,
+      ctx.showCategories !== false ? 1 : 0,
+      ctx.showFavorites !== false ? 1 : 0,
+      starred,
+      ctx.langCode || "",
+      ctx.editionId || "",
+    ].join("|");
+  }
+
+  function getCachedCardHtml(song, ctx, layout, renderFn) {
+    const cacheKey = cardCacheKey(song, ctx, layout);
+    if (cardHtmlCache.has(cacheKey)) return cardHtmlCache.get(cacheKey);
+    const html = renderFn();
+    if (cardHtmlCache.size >= CARD_CACHE_MAX) {
+      const oldest = cardHtmlCache.keys().next().value;
+      cardHtmlCache.delete(oldest);
+    }
+    cardHtmlCache.set(cacheKey, html);
+    return html;
+  }
+
+  function clearCardCache() {
+    cardHtmlCache.clear();
+  }
+
   function configure(options) {
-    if (options.escapeHtml) escapeHtml = options.escapeHtml;
+    if (options?.escapeHtml) escapeHtml = options.escapeHtml;
+    if (options?.clearCardCache) clearCardCache();
   }
 
   function renderViewButton(layout, activeLayout, label) {
@@ -168,15 +203,17 @@
     const compact = ctx.layout === "compact";
     const showTitles = ctx.showTitles !== false;
     const showFav = ctx.showFavorites !== false && starred;
+    const hymnKey = typeof ctx.songKey === "function" ? ctx.songKey(song) : String(song.number || "");
     const langAttr = ctx.langCode ? ` data-lang-jump="${escapeHtml(ctx.langCode)}" data-edition="${escapeHtml(ctx.editionId || "")}"` : "";
     return `
       <button
         class="hymn-index-card ${compact ? "is-compact" : "is-standard"}"
         type="button"
+        data-hymn-key="${escapeHtml(hymnKey)}"
         data-song="${escapeHtml(song.number)}"${langAttr}
         aria-label="${escapeHtml(hymnAriaLabel(song, showTitles))}"
       >
-        ${showFav ? '<span class="hymn-card-fav" aria-label="Favourite">★</span>' : ""}
+        ${showFav ? `<span class="hymn-card-fav" aria-label="Favourite">${window.CISUiIcons ? window.CISUiIcons.get("star") : "★"}</span>` : ""}
         <span class="hymn-card-number">${escapeHtml(song.number)}</span>
         ${showTitles ? `<span class="hymn-card-title">${escapeHtml(song.title)}</span>` : ""}
         ${renderTags(tags, ctx.showCategories)}
@@ -190,22 +227,24 @@
     const tags = ctx.showCategories !== false ? ctx.renderSongTags(song) : "";
     const showTitles = ctx.showTitles !== false;
     const showFav = ctx.showFavorites !== false;
+    const hymnKey = typeof ctx.songKey === "function" ? ctx.songKey(song) : String(song.number || "");
     const langAttr = ctx.langCode ? ` data-lang-jump="${escapeHtml(ctx.langCode)}" data-edition="${escapeHtml(ctx.editionId || "")}"` : "";
     const actions = typeof ctx.renderHymnQueueActions === "function"
       ? ctx.renderHymnQueueActions(song, { code: ctx.langCode, editionId: ctx.editionId })
       : "";
     return `
-      <div class="hymn-index-list-item">
+      <div class="hymn-index-list-item" data-hymn-key="${escapeHtml(hymnKey)}">
       <button
         class="hymn-index-list-row"
         type="button"
+        data-hymn-key="${escapeHtml(hymnKey)}"
         data-song="${escapeHtml(song.number)}"${langAttr}
         aria-label="${escapeHtml(hymnAriaLabel(song, showTitles))}"
       >
         <span class="hymn-list-number">${escapeHtml(song.number)}</span>
         ${showTitles ? `<span class="hymn-list-title">${escapeHtml(song.title)}</span>` : ""}
         ${ctx.showCategories !== false && tags ? `<span class="hymn-list-tags">${tags}</span>` : ""}
-        ${showFav ? `<span class="hymn-list-fav" aria-label="${starred ? "Favourite" : "Not a favourite"}">${starred ? "★" : ""}</span>` : ""}
+        ${showFav ? `<span class="hymn-list-fav" aria-label="${starred ? "Favourite" : "Not a favourite"}">${starred ? (window.CISUiIcons ? window.CISUiIcons.get("star") : "★") : ""}</span>` : ""}
         <span class="hymn-list-action muted">Open</span>
       </button>
       ${actions}
@@ -230,8 +269,8 @@
 
     if (layout === "list") {
       return `
-        <div class="hymn-index-list density-${escapeHtml(density)}" role="list" aria-label="Hymn list, ${LAYOUT_LABELS.list}">
-          ${songs.map((song) => renderListRow(song, renderCtx)).join("")}
+        <div id="hymnIndexCollection" class="hymn-index-list density-${escapeHtml(density)}" role="list" aria-label="Hymn list, ${LAYOUT_LABELS.list}">
+          ${songs.map((song) => getCachedCardHtml(song, renderCtx, "list", () => renderListRow(song, renderCtx))).join("")}
         </div>
       `;
     }
@@ -239,14 +278,30 @@
     const layoutClass = layout === "compact" ? "layout-compact" : "layout-grid";
     return `
       <div
+        id="hymnIndexCollection"
         class="hymn-index-grid ${layoutClass} density-${escapeHtml(density)}"
         role="list"
         aria-label="Hymn index, ${escapeHtml(LAYOUT_LABELS[layout] || "Grid")}"
         aria-live="polite"
       >
-        ${songs.map((song) => renderGridCard(song, renderCtx)).join("")}
+        ${songs.map((song) => getCachedCardHtml(song, renderCtx, layout, () => renderGridCard(song, renderCtx))).join("")}
       </div>
     `;
+  }
+
+  function paintCollection(root, songs, settings, ctx) {
+    if (!root) return;
+    const html = renderCollection(songs, settings, ctx);
+    root.innerHTML = html;
+    const collection = root.querySelector("#hymnIndexCollection, .hymn-index-list, .hymn-index-empty");
+    if (collection) {
+      collection.classList.remove("is-pending");
+    }
+  }
+
+  function setCollectionPending(root) {
+    if (!root) return;
+    root.classList.add("is-pending");
   }
 
   function renderEmptyState(ctx) {
@@ -272,7 +327,9 @@
     return `
       <section class="section hymn-index-section">
         ${renderToolbar({ ...ctx, filterRow })}
-        ${renderCollection(ctx.songs || [], settings, ctx)}
+        <div id="hymnIndexCollectionRoot">
+          ${renderCollection(ctx.songs || [], settings, ctx)}
+        </div>
       </section>
     `;
   }
@@ -320,6 +377,9 @@
     renderPage,
     renderToolbar,
     renderCollection,
+    paintCollection,
+    setCollectionPending,
+    clearCardCache,
     renderEmptyState,
     sortSongs,
   };

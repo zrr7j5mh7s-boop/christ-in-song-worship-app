@@ -10,6 +10,8 @@
     defaultDestinations: ["main"],
     versesPerSlide: 1,
     autoSplit: true,
+    verseGrouping: "auto",
+    projectionTheme: "scripture_focus",
     showVerseNumbers: true,
     showTranslationAbbr: true,
     showCopyright: true,

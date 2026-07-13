@@ -29,6 +29,17 @@
   --radius: 10px;
   --radius-sm: 8px;
   --stage-font: 42px;
+  --btn-height: 40px;
+  --btn-height-touch: 44px;
+  --panel-padding: 18px;
+  --panel-gap: 14px;
+  --icon-size: 18px;
+  --focus-ring: 0 0 0 3px rgba(201, 162, 39, 0.35);
+  --panel-bg: var(--surface);
+  --panel-border: var(--line);
+  --status-ready: var(--green);
+  --status-warning: #b45309;
+  --status-off: var(--muted);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--cream-soft);
   color: var(--text);
@@ -1110,9 +1121,32 @@ mark {
   background: #f3f6f2;
 }
 
-.secondary-button:hover {
-  border-color: var(--line-strong);
-  background: #f3f6f2;
+.safety-button {
+  min-height: var(--btn-height);
+  padding: 0 13px;
+  border: 1px solid color-mix(in srgb, var(--wine) 35%, var(--line));
+  border-radius: var(--radius);
+  background: #fff8f6;
+  color: var(--wine);
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.safety-button:hover {
+  background: #fdeeed;
+  border-color: var(--wine);
+}
+
+.safety-button:disabled,
+.action-button:disabled,
+.secondary-button:disabled,
+.danger-button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .secondary-button.active {
@@ -4741,6 +4775,19 @@ body.presenter-live .sidebar {
   font-weight: 700;
 }
 
+.global-search-count.is-pending,
+#hymnIndexCollectionRoot.is-pending {
+  opacity: 0.72;
+}
+
+#hymnIndexCollectionRoot.is-pending::after {
+  content: "Updating…";
+  display: block;
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  margin-top: 6px;
+}
+
 .global-search-results {
   display: grid;
   gap: 18px;
@@ -6851,8 +6898,247 @@ body.service-mode-active .language-toolbar {
 }
 
 .live-lock-badge {
-  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  color: var(--status-warning);
 }
+
+.live-lock-badge .ui-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* UX consistency layer */
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.ui-icon {
+  display: inline-block;
+  vertical-align: -0.15em;
+  flex-shrink: 0;
+}
+
+.rail-btn .ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.operator-status-root {
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.operator-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 30px 10px;
+  overflow-x: auto;
+}
+
+.operator-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--cream-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.operator-status-pill.is-ready {
+  border-color: color-mix(in srgb, var(--status-ready) 35%, var(--line));
+  background: color-mix(in srgb, var(--status-ready) 8%, #fff);
+}
+
+.operator-status-pill.is-ready .operator-status-value {
+  color: var(--status-ready);
+}
+
+.operator-status-pill.is-warning {
+  border-color: color-mix(in srgb, var(--status-warning) 35%, var(--line));
+  background: color-mix(in srgb, var(--status-warning) 8%, #fff);
+}
+
+.operator-status-pill.is-warning .operator-status-value {
+  color: var(--status-warning);
+}
+
+.operator-status-pill.is-off {
+  color: var(--muted);
+}
+
+.operator-status-label {
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.operator-status-value {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.operator-primary-actions {
+  margin-bottom: 4px;
+}
+
+.operator-secondary-actions,
+.operator-safety-actions {
+  margin-top: 4px;
+}
+
+.operator-safety-actions .safety-button,
+.service-emergency-btn {
+  min-height: var(--btn-height-touch);
+}
+
+.section,
+.service-mode-panel,
+.live-hymn-panel,
+.preview-card,
+.timer-card {
+  padding: var(--panel-padding);
+}
+
+.hymn-card-title,
+.hymn-list-title,
+.search-result-title,
+.ttile {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.hymn-card-tags {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.hymn-card-tags .song-tag-chip {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(228, 197, 104, 0.35);
+  color: var(--gold-light);
+}
+
+.bible-search-result {
+  padding: var(--panel-padding);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.bible-search-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.empty-state {
+  padding: 22px 18px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--cream-soft);
+  color: var(--muted);
+  text-align: center;
+}
+
+.service-mode-panel,
+.live-hymn-panel {
+  border-color: var(--panel-border);
+  background: var(--panel-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.service-mode-panel-live {
+  border-color: color-mix(in srgb, var(--navy) 25%, var(--line));
+  box-shadow: inset 4px 0 0 var(--navy);
+}
+
+.service-mode-panel-next {
+  border-color: color-mix(in srgb, var(--green) 25%, var(--line));
+  box-shadow: inset 4px 0 0 var(--green);
+}
+
+.service-mode-type-badge,
+.service-readiness {
+  background: var(--cream);
+  color: var(--ink-soft);
+}
+
+.hymn-index-card:hover,
+.hymn-index-card:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.hymn-queue-actions .action-button:only-child,
+.button-row > .action-button:only-of-type {
+  box-shadow: none;
+}
+
+.service-touch-btn {
+  min-height: var(--btn-height-touch);
+  min-width: var(--btn-height-touch);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .hymn-index-card:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .operator-status-strip {
+    padding-inline: 16px;
+  }
+
+  .topbar-tools {
+    flex-wrap: wrap;
+  }
+
+  .button-row {
+    gap: 6px;
+  }
+}
+<<<<<<< HEAD
 <<<<<<< HEAD
 >>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
 =======
@@ -7094,6 +7380,8 @@ a:focus:not(:focus-visible) {
     gap: 6px;
   }
 }
+=======
+>>>>>>> e584b20 (Unify projection rendering so hymn, Bible, and OBS congregation outputs share themes, layout, and text fitting for readable slides on any screen.)
 
 /* Congregation projection output */
 .presenter-screen-body,
@@ -7342,6 +7630,7 @@ a:focus:not(:focus-visible) {
   }
 }
 
+<<<<<<< HEAD
 .quiet-service-mode-root:empty {
   display: none;
 }
@@ -7425,4 +7714,387 @@ body.quiet-service-mode-active .launch-splash {
   display: none !important;
 }
 
+<<<<<<< HEAD
 >>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
+=======
+>>>>>>> e584b20 (Unify projection rendering so hymn, Bible, and OBS congregation outputs share themes, layout, and text fitting for readable slides on any screen.)
+=======
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.live-touch-btn,
+.service-touch-btn {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0.65rem 1rem;
+  touch-action: manipulation;
+}
+
+.live-touch-row,
+.service-queue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.live-touch-btn:active,
+.service-touch-btn:active,
+.service-emergency-btn:active,
+.live-touch-btn.is-pressed {
+  transform: scale(0.98);
+  outline: 2px solid color-mix(in srgb, var(--accent, #1f4b99) 55%, white);
+  outline-offset: 2px;
+}
+
+.warn-touch-btn {
+  min-height: 48px;
+  border-color: color-mix(in srgb, var(--danger, #b42318) 45%, var(--line, #d8dde8));
+}
+
+.mini-actions button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.service-queue-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--line, #d8dde8);
+}
+
+.service-queue-actions {
+  grid-column: 1 / -1;
+}
+
+.shortcut-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.shortcut-table th,
+.shortcut-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.55rem 0.35rem;
+  border-bottom: 1px solid var(--line, #d8dde8);
+}
+
+.shortcut-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--line, #d8dde8);
+  background: var(--surface, #fff);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.shortcut-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(10rem, 0.8fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--line, #d8dde8);
+}
+
+.shortcut-conflicts {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--warning, #d97706) 45%, var(--line, #d8dde8));
+  background: color-mix(in srgb, var(--warning, #d97706) 8%, white);
+}
+
+.shortcut-category + .shortcut-category {
+  margin-top: 1.25rem;
+}
+
+.av-floating-toolbar button {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+.service-emergency-btn {
+  min-height: 52px;
+  min-width: 52px;
+}
+
+<<<<<<< HEAD
+>>>>>>> feddf9c (Add configurable keyboard shortcuts, touch-friendly live controls, and accessibility improvements for faster worship operation.)
+=======
+.worship-search-page .worship-search-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.worship-search-interpretation {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.worship-search-interpretation-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.worship-search-results {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.worship-search-group h3 {
+  margin-bottom: 0.65rem;
+}
+
+.worship-search-group-results {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.worship-search-result-wrap {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.65rem;
+  border: 1px solid var(--line, #d8dde8);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+
+.worship-search-result-wrap.active {
+  border-color: color-mix(in srgb, var(--accent, #1f4b99) 55%, var(--line, #d8dde8));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #1f4b99) 18%, transparent);
+}
+
+.worship-search-result {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.worship-search-result-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.worship-search-result-subtitle {
+  margin-top: 0.2rem;
+  font-size: 0.92rem;
+}
+
+.worship-search-result-snippet {
+  margin-top: 0.45rem;
+  color: var(--ink-soft, #475467);
+  line-height: 1.45;
+}
+
+.worship-search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.worship-search-recent-queries {
+  margin-bottom: 1rem;
+}
+
+<<<<<<< HEAD
+>>>>>>> da01d1b (Add unified Worship Search so operators can find hymns, Scripture, service items, and media from one place during live worship.)
+=======
+.stage-display-screen-body {
+  margin: 0;
+  background: #111827;
+  color: #f9fafb;
+  overflow: hidden;
+}
+
+.stage-display-root {
+  min-height: 100vh;
+}
+
+.stage-display-shell {
+  min-height: 100vh;
+  background: #111827;
+  color: #f9fafb;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.stage-display-safe-area {
+  padding: 4vmin;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.stage-display-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  opacity: 0.72;
+  font-size: clamp(14px, 1.6vw, 18px);
+}
+
+.stage-display-grid {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.layout-current-and-next .stage-display-grid,
+.layout-worship-team .stage-display-grid,
+.layout-musician .stage-display-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.layout-countdown .stage-display-grid,
+.layout-minimal-clock .stage-display-grid {
+  grid-template-columns: 1fr;
+  max-width: 720px;
+}
+
+.stage-display-block {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.stage-display-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+}
+
+.stage-display-block-label {
+  font-size: clamp(12px, 1.4vw, 15px);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.stage-display-block-title {
+  font-size: clamp(28px, 4.8vw, 56px);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stage-display-block-body {
+  margin-top: 0.55rem;
+  font-size: clamp(18px, 2.6vw, 30px);
+  line-height: 1.35;
+  color: rgba(249, 250, 251, 0.92);
+  white-space: pre-wrap;
+}
+
+.stage-display-block-meta {
+  margin-top: 0.35rem;
+  font-size: clamp(14px, 1.8vw, 18px);
+  color: rgba(249, 250, 251, 0.68);
+}
+
+.stage-display-status-icon.is-live { color: #86efac; }
+.stage-display-status-icon.is-warning { color: #fde68a; }
+.stage-display-status-icon.is-idle { color: rgba(249, 250, 251, 0.45); }
+
+.stage-display-private-message {
+  margin-top: 1.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(253, 230, 138, 0.45);
+  background: rgba(253, 230, 138, 0.12);
+  max-width: 70%;
+}
+
+.stage-display-private-label {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fde68a;
+  margin-bottom: 0.35rem;
+}
+
+.stage-display-private-message p {
+  margin: 0;
+  font-size: clamp(20px, 3vw, 34px);
+  line-height: 1.3;
+}
+
+.is-countdown-warning .stage-display-block-countdown {
+  border-color: rgba(253, 230, 138, 0.65);
+  box-shadow: inset 0 0 0 1px rgba(253, 230, 138, 0.35);
+}
+
+.is-countdown-warning .stage-display-block-countdown .stage-display-block-title {
+  color: #fde68a;
+}
+
+.stage-display-reconnect {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.16);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.stage-display-panel .stage-display-layout-chips,
+.stage-display-presenter-mount .stage-display-layout-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.85rem 0 1rem;
+}
+
+.stage-display-countdown-readout {
+  font-size: 1.35rem;
+  margin: 0.35rem 0 0.75rem;
+}
+
+.stage-display-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.stage-display-assignment {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.stage-display-controls-grid {
+  margin-top: 1rem;
+}
+
+.stage-display-presenter-mount {
+  margin-bottom: 1rem;
+}
+
+>>>>>>> ad24e9c (Add Stage Display so worship leaders and musicians can monitor live lyrics, Scripture, and cues on a private screen without changing congregation projection.)

@@ -205,7 +205,23 @@ function run() {
   assert.ok(screenSource.includes('cursor = "none"'), "projector window hides mouse pointer");
 
   const sw = read("app/sw.js");
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
   assert.match(sw, /christ-in-song-worship-v41/);
+=======
+  assert.match(sw, /christ-in-song-worship-v40/);
+>>>>>>> e584b20 (Unify projection rendering so hymn, Bible, and OBS congregation outputs share themes, layout, and text fitting for readable slides on any screen.)
+=======
+  assert.match(sw, /christ-in-song-worship-v42/);
+>>>>>>> feddf9c (Add configurable keyboard shortcuts, touch-friendly live controls, and accessibility improvements for faster worship operation.)
+=======
+  assert.match(sw, /christ-in-song-worship-v43/);
+>>>>>>> da01d1b (Add unified Worship Search so operators can find hymns, Scripture, service items, and media from one place during live worship.)
+=======
+  assert.match(sw, /christ-in-song-worship-v44/);
+>>>>>>> ad24e9c (Add Stage Display so worship leaders and musicians can monitor live lyrics, Scripture, and cues on a private screen without changing congregation projection.)
   assert.ok(sw.includes("projection-themes.js"));
   assert.ok(sw.includes("text-fit-engine.js"));
   assert.ok(sw.includes("slide-layout-engine.js"));

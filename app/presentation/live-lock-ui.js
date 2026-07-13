@@ -19,7 +19,7 @@
     }
     return `
       <div class="live-lock-strip live-lock-on" role="status" aria-live="polite">
-        <span class="live-lock-badge" aria-hidden="true">🔒</span>
+        <span class="live-lock-badge" aria-hidden="true">${window.CISUiIcons ? window.CISUiIcons.get("lock") : ""}</span>
         <strong>LIVE LOCK ENABLED</strong>
         <span class="muted">Risky administrative actions are disabled during service.</span>
         <button class="secondary-button service-touch-btn" type="button" data-command="live-lock-unlock" aria-pressed="true">Unlock</button>
