@@ -1,7 +1,7 @@
 {
   "name": "christ-in-song-worship-app",
   "version": "1.0.0",
-  "description": "Christ in Song Worship App — offline hymn library, worship builder, and full-screen presenter for Sabbath services.",
+  "description": "VaChinoda Worship App — offline hymn library, worship builder, and full-screen presenter for Sabbath services.",
   "author": {
     "name": "VaChinoda Worship",
     "email": "juliuschinoda@gmail.com"
@@ -30,7 +30,13 @@
     "test:obs-program-monitor": "node scripts/test-obs-program-monitor.js",
     "test:camera-sources": "node scripts/test-camera-sources.js",
     "test:hymn-index": "node scripts/test-hymn-index.js",
+    "test:hymnal-library": "node scripts/test-hymnal-library.js",
+    "test:hymnal-integration": "node scripts/test-hymnal-integration.js",
     "test:bible-projection": "node scripts/test-bible-projection.js",
+    "test:live-hymn-queue": "node scripts/test-live-hymn-queue.js",
+    "test:service-mode": "node scripts/test-service-mode.js",
+    "test:live-switch": "node scripts/test-live-switch.js",
+    "test:branding": "node scripts/test-branding.js",
     "test:help": "node scripts/test-help-centre.js",
     "test:performance": "node scripts/test-performance.js",
     "build:web-assets": "node scripts/build-production-assets.js",
@@ -59,7 +65,7 @@
   },
   "build": {
     "appId": "com.vachinoda.christinsong",
-    "productName": "Christ in Song Worship App",
+    "productName": "VaChinoda Worship App",
     "copyright": "Copyright © 2026 VaChinoda Worship",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "asar": true,
@@ -140,7 +146,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Christ in Song Worship App"
+      "shortcutName": "VaChinoda Worship App"
     },
     "linux": {
       "icon": "build/icon.png",
@@ -167,7 +173,7 @@
         }
       ],
       "desktop": {
-        "Name": "Christ in Song Worship App",
+        "Name": "VaChinoda Worship App",
         "Comment": "300-hymn worship OS with presenter mode",
         "Categories": "AudioVideo;Audio;Music;"
       }
