@@ -3,7 +3,20 @@
 
   const FORMAT = "christ-in-song-backup";
   const FORMAT_VERSION = 1;
-  const APP_NAME = "Christ in Song Worship App";
+
+  function brandInfo() {
+    if (window.CISBrandConfig) return window.CISBrandConfig.BRAND;
+    return {
+      appName: "VaChinoda Worship App",
+      shortName: "VaChinoda",
+      exportFilenamePrefix: "VaChinoda_Worship_App",
+      backupFormat: FORMAT,
+    };
+  }
+
+  function appName() {
+    return brandInfo().appName;
+  }
 
   const COMPONENTS = [
     { id: "worship-plans", label: "Worship Builders & Service Plans", file: "worship-plans.json", description: "Your worship builder order and opening song service." },
@@ -63,14 +76,14 @@
 
   function buildReadme(manifest) {
     const lines = [
-      "Christ in Song Worship Backup",
+      `${appName()} Backup`,
       "==============================",
       "",
       `Created: ${manifest.exportedAt}`,
       `Backup type: ${manifest.exportKind || "full"}`,
       "",
       "This .csbackup file is a zip archive containing your worship data.",
-      "To restore, open Christ in Song → Settings → Backup & Restore → Restore Backup.",
+      `To restore, open ${brandInfo().shortName} → Settings → Backup & Restore → Restore Backup.`,
       "",
       "Included in this backup:",
     ];
@@ -162,7 +175,8 @@
     const manifest = {
       format: FORMAT,
       formatVersion: FORMAT_VERSION,
-      app: APP_NAME,
+      app: appName(),
+      applicationName: appName(),
       exportedAt: new Date().toISOString(),
       exportKind: options.kind || (ids.length === COMPONENTS.length ? "full" : "component"),
       components: ids,
@@ -184,20 +198,21 @@
 
   function componentFilename(componentId) {
     const stamp = todayFileStamp();
-    if (componentId === "worship-plans") return `christ-in-song-worship-plans-${stamp}.csbackup`;
-    if (componentId === "language-packs") return `christ-in-song-language-packs-${stamp}.csbackup`;
-    if (componentId === "templates") return `christ-in-song-templates-${stamp}.csbackup`;
-    if (componentId === "tags") return `christ-in-song-tags-${stamp}.csbackup`;
-    if (componentId === "favorites") return `christ-in-song-favorites-${stamp}.csbackup`;
-    if (componentId === "settings") return `christ-in-song-settings-${stamp}.csbackup`;
-    return `christ-in-song-backup-${stamp}.csbackup`;
+    const prefix = brandInfo().exportFilenamePrefix;
+    if (componentId === "worship-plans") return `${prefix}_Worship_Plans_${stamp}.csbackup`;
+    if (componentId === "language-packs") return `${prefix}_Language_Packs_${stamp}.csbackup`;
+    if (componentId === "templates") return `${prefix}_Templates_${stamp}.csbackup`;
+    if (componentId === "tags") return `${prefix}_Tags_${stamp}.csbackup`;
+    if (componentId === "favorites") return `${prefix}_Favorites_${stamp}.csbackup`;
+    if (componentId === "settings") return `${prefix}_Settings_${stamp}.csbackup`;
+    return `${prefix}_Backup_${stamp}.csbackup`;
   }
 
   async function exportArchive(componentIds, options = {}) {
     const ids = componentIds || COMPONENTS.map((item) => item.id);
     const { blob, manifest } = await buildArchive(ids, options);
     const filename = options.filename
-      || (ids.length === 1 ? componentFilename(ids[0]) : `christ-in-song-backup-${todayFileStamp()}.csbackup`);
+      || (ids.length === 1 ? componentFilename(ids[0]) : `${brandInfo().exportFilenamePrefix}_Backup_${todayFileStamp()}.csbackup`);
     if (options.kind !== "auto") downloadBlob(filename, blob);
     return { blob, manifest, filename };
   }
@@ -217,7 +232,7 @@
     const manifestEntry = byName["manifest.json"];
     if (!manifestEntry) throw new Error("This backup file is missing its manifest.");
     const manifest = JSON.parse(new TextDecoder().decode(new Uint8Array(manifestEntry.content)));
-    if (manifest.format !== FORMAT) throw new Error("This file is not a Christ in Song backup.");
+    if (manifest.format !== FORMAT) throw new Error(`This file is not a ${appName()} backup.`);
     const data = {};
     (manifest.components || []).forEach((id) => {
       const item = COMPONENT_MAP[id];
@@ -232,7 +247,10 @@
     const manifest = {
       format: FORMAT,
       formatVersion: 0,
-      app: payload.app || APP_NAME,
+      app: payload.app || appName(),
+      applicationName: window.CISBrandConfig
+        ? window.CISBrandConfig.normalizeAppName(payload.applicationName || payload.app)
+        : (payload.applicationName || payload.app || appName()),
       exportedAt: payload.exportedAt || new Date().toISOString(),
       exportKind: payload.type || "legacy-json",
       components: [],
