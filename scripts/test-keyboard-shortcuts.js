@@ -133,7 +133,7 @@ function run() {
   const indexHtml = read("app/index.html");
   assert.match(indexHtml, /keyboard-shortcuts-registry\.js/);
   assert.match(indexHtml, /a11yAnnounce/);
-  assert.match(indexHtml, /styles\.css\?v=44/);
+  assert.match(indexHtml, /styles\.css\?v=46/);
 
   const styles = read("app/styles.css");
   assert.match(styles, /\.live-touch-btn/);
@@ -148,7 +148,7 @@ function run() {
   assert.match(serviceMode, /aria-label="Emergency controls"/);
 
   const sw = read("app/sw.js");
-  assert.match(sw, /christ-in-song-worship-v44/);
+  assert.match(sw, /christ-in-song-worship-v46/);
 
   const pkg = JSON.parse(read("package.json"));
   assert.ok(pkg.scripts["test:keyboard-shortcuts"]);

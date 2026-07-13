@@ -306,6 +306,7 @@
     buildSnapshot,
     getState,
     patchState,
+    applyState: patchState,
     openSession,
     closeSession,
     openOutputSurface,

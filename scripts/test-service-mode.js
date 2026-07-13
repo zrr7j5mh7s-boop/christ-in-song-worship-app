@@ -135,6 +135,8 @@ function run() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
   assert.match(indexHtml, /styles\.css\?v=37/);
 =======
   assert.match(indexHtml, /styles\.css\?v=36/);
@@ -160,6 +162,12 @@ function run() {
 =======
   assert.match(indexHtml, /styles\.css\?v=44/);
 >>>>>>> ad24e9c (Add Stage Display so worship leaders and musicians can monitor live lyrics, Scripture, and cues on a private screen without changing congregation projection.)
+=======
+  assert.match(indexHtml, /styles\.css\?v=45/);
+>>>>>>> 3c65f4b (Add session recovery so worship operators can restore the last-known-good live session after a crash or unexpected restart.)
+=======
+  assert.match(indexHtml, /styles\.css\?v=46/);
+>>>>>>> 52f084e (Prepare Release Candidate 1.0.0-rc.1 with versioned metadata, RC gate tests, and release documentation.)
 
   const styles = read("app/styles.css");
   assert.match(styles, /\.service-mode-trio/);
@@ -168,6 +176,8 @@ function run() {
   assert.match(styles, /body\.service-mode-active/);
 
   const sw = read("app/sw.js");
+<<<<<<< HEAD
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -201,6 +211,12 @@ function run() {
 =======
   assert.match(sw, /christ-in-song-worship-v44/);
 >>>>>>> ad24e9c (Add Stage Display so worship leaders and musicians can monitor live lyrics, Scripture, and cues on a private screen without changing congregation projection.)
+=======
+  assert.match(sw, /christ-in-song-worship-v45/);
+>>>>>>> 3c65f4b (Add session recovery so worship operators can restore the last-known-good live session after a crash or unexpected restart.)
+=======
+  assert.match(sw, /christ-in-song-worship-v46/);
+>>>>>>> 52f084e (Prepare Release Candidate 1.0.0-rc.1 with versioned metadata, RC gate tests, and release documentation.)
   assert.match(sw, /service-mode-service\.js/);
 
   const pkg = JSON.parse(read("package.json"));

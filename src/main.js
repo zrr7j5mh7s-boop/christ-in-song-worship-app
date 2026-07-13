@@ -17,6 +17,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { app, BrowserWindow, ipcMain, shell, Menu, screen, session, powerSaveBlocker } = require('electron');
 const log = require('electron-log/main');
+const release = require('./release-metadata');
 
 log.initialize();
 
@@ -183,6 +184,9 @@ ipcMain.handle('app:info', () => ({
   name: brand.appName,
   shortName: brand.shortName,
   version: app.getVersion(),
+  build: String(release.buildNumber),
+  releaseChannel: release.releaseChannel,
+  releaseLabel: release.releaseLabel,
   platform: process.platform,
   packaged: app.isPackaged,
 }));
