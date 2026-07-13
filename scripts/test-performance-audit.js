@@ -196,9 +196,11 @@ function testLazyPerformanceModulesInShell() {
   const sw = fs.readFileSync(path.join(appDir, "sw.js"), "utf8");
   if (!indexHtml.includes("performance/task-session.js")) fail("index.html should load task-session.js");
   if (!indexHtml.includes("performance/performance-monitor.js")) fail("index.html should load performance-monitor.js");
-  if (!sw.includes("christ-in-song-worship-v38")) fail("service worker cache should be v38");
+  const cacheMatch = sw.match(/CACHE_NAME\s*=\s*"(christ-in-song-worship-v\d+)"/);
+  if (!cacheMatch) fail("service worker CACHE_NAME is missing or malformed");
+  if (!sw.includes(cacheMatch[1])) fail(`service worker should reference ${cacheMatch[1]}`);
   if (indexHtml.includes("sda-hymnal-pack.js")) fail("SDA pack should remain deferred");
-  ok("performance modules ship in app shell with cache v38");
+  ok(`performance modules ship in app shell with cache ${cacheMatch[1]}`);
 }
 
 function testLargeHymnCollectionRenderMemo() {

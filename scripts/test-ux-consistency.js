@@ -101,33 +101,8 @@ function testHymnCardLongTitles() {
 
 function testCacheVersion() {
   const sw = read("sw.js");
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-  if (!sw.includes("christ-in-song-worship-v41")) fail("Service worker cache should be v41");
-  ok("cache version v41 for quiet service mode release");
-=======
-  if (!sw.includes("christ-in-song-worship-v39")) fail("Service worker cache should be v39");
-  ok("cache version v39 for UX release");
->>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
-=======
-  if (!sw.includes("christ-in-song-worship-v40")) fail("Service worker cache should be v40");
-  ok("cache version v40 for projection release");
->>>>>>> e584b20 (Unify projection rendering so hymn, Bible, and OBS congregation outputs share themes, layout, and text fitting for readable slides on any screen.)
-=======
-  if (!sw.includes("christ-in-song-worship-v42")) fail("Service worker cache should be v42");
-  ok("cache version v42 for keyboard shortcuts release");
->>>>>>> feddf9c (Add configurable keyboard shortcuts, touch-friendly live controls, and accessibility improvements for faster worship operation.)
-=======
-  if (!sw.includes("christ-in-song-worship-v43")) fail("Service worker cache should be v43");
-  ok("cache version v43 for worship search release");
->>>>>>> da01d1b (Add unified Worship Search so operators can find hymns, Scripture, service items, and media from one place during live worship.)
-=======
-  if (!sw.includes("christ-in-song-worship-v44")) fail("Service worker cache should be v44");
-  ok("cache version v44 for stage display release");
->>>>>>> ad24e9c (Add Stage Display so worship leaders and musicians can monitor live lyrics, Scripture, and cues on a private screen without changing congregation projection.)
+  if (!sw.includes("christ-in-song-worship-v47")) fail("Service worker cache should be v47");
+  ok("cache version v47 for RC1 release");
 }
 
 testDesignTokens();
