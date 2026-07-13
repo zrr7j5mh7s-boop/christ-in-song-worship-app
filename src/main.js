@@ -15,14 +15,14 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain, shell, Menu, screen, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, screen, session, powerSaveBlocker } = require('electron');
 const log = require('electron-log/main');
 
 log.initialize();
 
 const { buildMenu } = require('./menu');
 const brand = require('./brand-config');
-const { setupAutoUpdater } = require('./updater');
+const { setupAutoUpdater, setQuietMode } = require('./updater');
 const obsManager = require('./obs/obs-manager');
 
 // ---------------------------------------------------------------------
@@ -50,6 +50,8 @@ let obsMonitorWorshipContext = {
 };
 let obsMonitorStartPrefs = { deviceId: "", deviceLabel: "" };
 let updater = null;
+let displaySleepBlockerId = null;
+let appSuspensionBlockerId = null;
 
 const isDev = process.argv.includes('--dev') || !app.isPackaged;
 
@@ -186,6 +188,37 @@ ipcMain.handle('app:info', () => ({
 ipcMain.handle('updates:check', () => {
   if (updater) updater.checkForUpdates();
   return { started: true };
+});
+
+ipcMain.handle('quiet-mode:set-active', (_event, payload) => {
+  const enabled = Boolean(payload?.enabled);
+  setQuietMode(enabled);
+  return { quietMode: enabled };
+});
+
+ipcMain.handle('quiet-mode:set-power-blocker', (_event, payload) => {
+  const enabled = Boolean(payload?.enabled);
+  if (enabled) {
+    if (displaySleepBlockerId === null || !powerSaveBlocker.isStarted(displaySleepBlockerId)) {
+      displaySleepBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+    }
+    if (appSuspensionBlockerId === null || !powerSaveBlocker.isStarted(appSuspensionBlockerId)) {
+      appSuspensionBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+    }
+  } else {
+    if (displaySleepBlockerId !== null && powerSaveBlocker.isStarted(displaySleepBlockerId)) {
+      powerSaveBlocker.stop(displaySleepBlockerId);
+    }
+    if (appSuspensionBlockerId !== null && powerSaveBlocker.isStarted(appSuspensionBlockerId)) {
+      powerSaveBlocker.stop(appSuspensionBlockerId);
+    }
+    displaySleepBlockerId = null;
+    appSuspensionBlockerId = null;
+  }
+  return {
+    displaySleep: displaySleepBlockerId !== null && powerSaveBlocker.isStarted(displaySleepBlockerId),
+    appSuspension: appSuspensionBlockerId !== null && powerSaveBlocker.isStarted(appSuspensionBlockerId),
+  };
 });
 
 function getProjectorDisplay() {
