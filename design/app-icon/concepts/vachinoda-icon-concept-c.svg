@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="VaChinoda icon concept C">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1B2A4A"/>
+      <stop offset="100%" stop-color="#0F1A30"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E4C568"/>
+      <stop offset="100%" stop-color="#C9A227"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F5EFE0"/>
+      <stop offset="100%" stop-color="#D9C892"/>
+    </linearGradient>
+  </defs>
+
+  <g id="background">
+    <rect width="512" height="512" rx="104" fill="url(#bg)"/>
+    <rect x="10" y="10" width="492" height="492" rx="96" fill="none" stroke="#C9A227" stroke-opacity="0.3" stroke-width="3"/>
+  </g>
+
+  <g id="symbolic-mark">
+    <path id="open-bible" d="M104 400 C 168 368, 220 360, 256 364 C 292 360, 344 368, 408 400 L 408 456 C 344 432, 292 424, 256 428 C 220 424, 168 432, 104 456 Z" fill="url(#page)"/>
+    <path d="M248 364 L 264 364 L 264 428 L 248 428 Z" fill="url(#gold)"/>
+    <path id="church-arch" d="M256 124 C 318 188, 332 236, 332 300 L 332 356 L 180 356 L 180 300 C 180 236, 194 188, 256 124 Z" fill="#FFFFFF" fill-opacity="0.12" stroke="#E4C568" stroke-width="6"/>
+    <path d="M256 124 C 286 168, 296 206, 296 244 L 296 300 L 216 300 L 216 244 C 216 206, 226 168, 256 124 Z" fill="#131F38" fill-opacity="0.38"/>
+  </g>
+
+  <g id="vachinoda-emblem" transform="translate(256 248) scale(0.33) translate(-256 -248)">
+    <ellipse cx="205" cy="345" rx="54" ry="40" transform="rotate(-18 205 345)" fill="url(#gold)"/>
+    <rect x="248" y="120" width="24" height="228" fill="url(#gold)"/>
+    <path d="M272 120 C 330 132 352 168 340 214 C 336 178 312 152 272 168 Z" fill="url(#gold)"/>
+    <rect x="160" y="196" width="200" height="30" rx="4" fill="url(#gold)"/>
+  </g>
+</svg>
