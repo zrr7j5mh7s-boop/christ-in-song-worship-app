@@ -1,9 +1,9 @@
-const CACHE_NAME = "christ-in-song-worship-v46";
+const CACHE_NAME = "christ-in-song-worship-v47";
 
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=46",
+  "./styles.css?v=47",
   "./data/songs.js?v=2",
   "./data/extra-packs.js",
   "./lazy-pack-loader.js?v=1",
@@ -133,7 +133,9 @@ const APP_SHELL = [
   "./i18n/i18n-catalog.js?v=1",
   "./i18n/i18n-store.js?v=1",
   "./i18n/i18n.js?v=1",
-  "./app.js?v=46",
+  "./runtime/build-prefix.js?v=1",
+  "./runtime/register-service-worker.js?v=1",
+  "./app.js?v=47",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",

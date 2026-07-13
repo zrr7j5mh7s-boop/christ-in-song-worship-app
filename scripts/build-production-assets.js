@@ -120,7 +120,7 @@ async function main() {
   let indexHtml = fs.readFileSync(indexSrc, "utf8");
   indexHtml = indexHtml.replace(
     "<head>",
-    "<head>\n    <meta name=\"cis-build\" content=\"production\">\n    <script>window.CIS_BUILD_PREFIX = \"./dist/\";</script>",
+    "<head>\n    <meta name=\"cis-build\" content=\"production\">",
   );
   for (const [pattern, replacement] of SCRIPT_REWRITES) {
     indexHtml = indexHtml.replace(pattern, replacement);
