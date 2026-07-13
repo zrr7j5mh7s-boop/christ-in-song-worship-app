@@ -90,7 +90,7 @@
 
   function contentKind(slide, snapshot) {
     const slideKind = slide.kind || "";
-    if (["scripture", "sermon", "prayer", "benediction", "announcement", "offering", "special"].includes(slideKind)) {
+    if (["scripture", "sermon", "prayer", "benediction", "announcement", "offering", "special", "camera"].includes(slideKind)) {
       return slideKind;
     }
     return snapshot.contentKind || "hymn";
@@ -171,7 +171,7 @@
     `;
   }
 
-  function render(root, snapshot) {
+  function render(root, snapshot, cameraState) {
     if (!root) return;
     if (!snapshot || !snapshot.active) {
       root.className = "projector-output hidden";
@@ -191,7 +191,48 @@
       return;
     }
 
+    const liveCamera = cameraState?.live;
+    const compositor = window.CISCameraCompositor;
+    if (liveCamera?.active && !liveCamera.hidden && compositor) {
+      const layout = liveCamera.layout || "fullscreen";
+      const useOverlay = compositor.hasOverlayLayout(layout) || (kind !== "camera" && kind !== "hymn");
+      if (layout === "fullscreen" && kind === "camera") {
+        root.innerHTML = compositor.renderCameraStage(layout, "", {
+          cameraName: liveCamera.cameraName,
+          frozen: liveCamera.frozen,
+          hidden: liveCamera.hidden,
+          transition: liveCamera.transition,
+        });
+        return;
+      }
+      if (useOverlay) {
+        const overlayHtml = kind === "camera" ? "" : renderSlide(snapshot);
+        root.innerHTML = compositor.renderCameraStage(layout, overlayHtml, {
+          cameraName: liveCamera.cameraName,
+          frozen: liveCamera.frozen,
+          hidden: liveCamera.hidden,
+          transition: liveCamera.transition,
+        });
+        return;
+      }
+      if (layout === "fullscreen") {
+        root.innerHTML = compositor.renderCameraStage(layout, "", {
+          cameraName: liveCamera.cameraName,
+          frozen: liveCamera.frozen,
+          hidden: liveCamera.hidden,
+          transition: liveCamera.transition,
+        });
+        return;
+      }
+    }
+
     root.innerHTML = renderSlide(snapshot);
+  }
+
+  function bindCameraVideos(root, service) {
+    if (window.CISCameraCompositor && service) {
+      window.CISCameraCompositor.bindCameraVideos(root, service);
+    }
   }
 
   function requestFullscreen(root) {
@@ -206,6 +247,7 @@
   window.CISPresenterOutput = {
     configure,
     render,
+    bindCameraVideos,
     requestFullscreen,
   };
 })();

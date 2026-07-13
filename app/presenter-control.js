@@ -51,6 +51,8 @@
         <span><kbd>P</kbd> ${escapeHtml(t("presenterControl.pauseDisplay"))}</span>
         <span><kbd>Esc</kbd> ${escapeHtml(t("presenterControl.exit"))}</span>
         <span><kbd>F</kbd> ${escapeHtml(t("presenterControl.fullscreen"))}</span>
+        <span><kbd>V</kbd> Camera live</span>
+        <span><kbd>N</kbd> Next camera</span>
       </footer>
     `;
   }
@@ -160,6 +162,8 @@
             </article>
           </aside>
         </div>
+
+        ${window.CISCameraSourceUI ? window.CISCameraSourceUI.renderPresenterPanel(window.CISCameraSourceService?.getState?.() || {}) : ""}
 
         ${renderToolbar(snapshot)}
         ${renderKeyboardHints()}

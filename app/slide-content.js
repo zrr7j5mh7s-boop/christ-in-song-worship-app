@@ -10,6 +10,7 @@
     { id: "sermon", label: "Sermon Title / Topic", icon: "▣", role: "Sermon Title", projectorClass: "kind-sermon" },
     { id: "special", label: "Special Music", icon: "♫", role: "Special Music", projectorClass: "kind-special" },
     { id: "benediction", label: "Benediction / Closing", icon: "☼", role: "Benediction", projectorClass: "kind-benediction" },
+    { id: "camera", label: "Camera Source", icon: "◎", role: "Camera", projectorClass: "kind-camera" },
   ];
 
   const LEGACY_TYPE_MAP = {
@@ -45,6 +46,7 @@
 
   function resolveSlotType(slot) {
     if (!slot) return "hymn";
+    if (slot.type === "camera" || slot.cameraRole || slot.cameraId) return "camera";
     if (slot.type && SLIDE_TYPES.some((type) => type.id === slot.type)) return slot.type;
     if (slot.songKey && slot.type !== "custom") return "hymn";
     if (slot.itemType && LEGACY_TYPE_MAP[slot.itemType]) return LEGACY_TYPE_MAP[slot.itemType];
@@ -103,6 +105,26 @@
 
   function buildSlidesFromSlot(slot, getSongSlides) {
     const type = resolveSlotType(slot);
+    if (type === "camera") {
+      const meta = getSlideType("camera");
+      return [{
+        kind: "camera",
+        label: slot.role || meta.label,
+        marker: "",
+        body: slot.notes || "",
+        reference: "",
+        title: slot.title || slot.cameraRole || meta.label,
+        slideInHymn: 1,
+        totalSlides: 1,
+        cameraRole: slot.cameraRole || "",
+        cameraId: slot.cameraId || "",
+        cameraLayout: slot.cameraLayout || slot.layout || "fullscreen",
+        cameraDestinations: slot.cameraDestinations || slot.destinations || [],
+        cameraTransition: slot.cameraTransition || slot.transition || "cut",
+        cameraAudioMode: slot.cameraAudioMode || slot.audioMode || "video-only",
+        cameraBackupId: slot.cameraBackupId || slot.backupCameraId || "",
+      }];
+    }
     if (type === "hymn") {
       const songSlides = typeof getSongSlides === "function" ? getSongSlides(slot) : [];
       return (songSlides || []).map((slide, index) => ({
@@ -138,6 +160,9 @@
 
   function slotTitle(slot, getSongTitle) {
     const type = resolveSlotType(slot);
+    if (type === "camera") {
+      return slot.title || slot.role || getSlideType("camera").label;
+    }
     if (type === "hymn") {
       return typeof getSongTitle === "function" ? getSongTitle(slot) : slot.role || "Hymn";
     }
@@ -170,6 +195,13 @@
       scriptureRef: slot.scriptureRef || "",
       contentFormat: slot.contentFormat || "plain",
       songKey: isHymn ? (slot.songKey || "") : "",
+      cameraRole: slot.cameraRole || "",
+      cameraId: slot.cameraId || "",
+      cameraLayout: slot.cameraLayout || slot.layout || "fullscreen",
+      cameraDestinations: slot.cameraDestinations || slot.destinations || [],
+      cameraTransition: slot.cameraTransition || slot.transition || "cut",
+      cameraAudioMode: slot.cameraAudioMode || slot.audioMode || "video-only",
+      cameraBackupId: slot.cameraBackupId || slot.backupCameraId || "",
     };
   }
 
