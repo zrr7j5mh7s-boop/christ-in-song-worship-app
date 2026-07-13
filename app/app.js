@@ -131,15 +131,8 @@
     presenterOverlay: document.getElementById("presenterOverlay"),
     emergencyOverlay: document.getElementById("emergencyOverlay"),
     obsStatusRoot: document.getElementById("obsStatusRoot"),
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
     operatorStatusRoot: document.getElementById("operatorStatusRoot"),
     quietServiceModeRoot: document.getElementById("quietServiceModeRoot"),
->>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
-=======
-    operatorStatusRoot: document.getElementById("operatorStatusRoot"),
->>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
   };
 
   let embeddedProjectorActive = false;
@@ -963,11 +956,6 @@
     }
   }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
   function isServiceModeActive() {
     return Boolean(window.CISServiceModeService?.getState?.().active);
   }
@@ -1757,7 +1745,6 @@
     }
   }
 
-<<<<<<< HEAD
   function isPresentationLiveActive() {
     return Boolean(
       window.CISPresenterEngine?.getState?.().active
@@ -1922,9 +1909,6 @@
     root.innerHTML = window.CISLiveLockUI.renderStrip(window.CISLiveLockService.getState());
   }
 
->>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
-=======
->>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
   async function handleHymnQueueCommand(command, target) {
     const service = window.CISLiveHymnQueueService;
     if (!service) return;
@@ -4045,15 +4029,8 @@
     els.content.innerHTML = `${renderNotice()}${serviceBar}${renderView()}`;
     renderPresenterAV();
     renderObsTopbar();
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
     renderOperatorStatus();
     renderQuietServiceModeBanner();
->>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
-=======
-    renderOperatorStatus();
->>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
     renderEmergencyOverlay();
     if (state.view === "builder") bindBuilderInteractions();
     bindGlobalSearch();
@@ -4068,15 +4045,8 @@
     bindHelpCentre();
     renderHelpContextOverlay();
     paintLiveHymnQueuePanels();
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
     paintServiceModeWorkspace();
     renderLiveLockStrip();
->>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
-=======
-    paintServiceModeWorkspace();
->>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
     if (state.view === "presenter" || state.view === "settings") bindObsProgramMonitor();
     if (state.view === "cameras" || state.view === "presenter" || state.view === "settings") bindCameraSources();
     document.body.classList.toggle("service-mode-active", isServiceModeActive());
@@ -4134,11 +4104,6 @@
     }
   }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
   function navIconMarkup(id, fallback) {
     if (window.CISUiIcons) return window.CISUiIcons.nav(id);
     return fallback || "";
@@ -4158,15 +4123,10 @@
     });
     items.push({
       label: "Current Service",
-<<<<<<< HEAD
       value: isQuietServiceModeActive()
         ? "Quiet Service Mode"
         : (isServiceModeActive() ? "Service Mode" : (presenter?.active ? "Live" : "Browse")),
       tone: presenter?.active || isServiceModeActive() || isQuietServiceModeActive() ? "ready" : "off",
-=======
-      value: isServiceModeActive() ? "Service Mode" : (presenter?.active ? "Live" : "Browse"),
-      tone: presenter?.active || isServiceModeActive() ? "ready" : "off",
->>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
     });
 
     if (obs) {
@@ -4231,10 +4191,6 @@
     }
   }
 
-<<<<<<< HEAD
->>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
-=======
->>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
   function renderNav() {
     const serviceNavItems = [
       { id: "service", label: "Service Mode", icon: "⬤" },
@@ -7809,22 +7765,13 @@
   });
 
   function handleCommand(command, target) {
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
-=======
     if (command && command !== "close-modal" && window.CISFocusManager) {
       window.CISFocusManager.rememberFocus(target);
     }
->>>>>>> feddf9c (Add configurable keyboard shortcuts, touch-friendly live controls, and accessibility improvements for faster worship operation.)
     if (command && window.CISQuietServiceModeService?.shouldBlockAdminPopup?.(command)) {
       setNotice("That administrative action is deferred while Quiet Service Mode is active.", { important: true });
       return;
     }
->>>>>>> 8117b1f (Add Quiet Service Mode to suppress background interruptions during live worship while preserving autosave, recovery, and critical alerts.)
     if (command && window.CISLiveLockService) {
       if (window.CISLiveLockService.isCommandBlocked(command)) {
         setNotice("Live Lock is enabled. Unlock to perform this action.");
@@ -7838,16 +7785,10 @@
         return;
       }
     }
-=======
->>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
     if (command && window.CISServiceModeService && !window.CISServiceModeService.isCommandAllowed(command)) {
       setNotice("That action is hidden during Service Mode. Exit Service Mode for administrative tasks.");
       return;
     }
-<<<<<<< HEAD
->>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
-=======
->>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
     const slotIndex = Number(target.dataset.slot);
     const serviceSlotIndex = Number(target.dataset.serviceSlot);
     if (command && command.startsWith("hymn-")) {
@@ -8437,9 +8378,6 @@
       }
       return;
     }
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
     if (command === "service-mode-enter") return enterServiceMode();
     if (command === "quiet-service-mode-enter") return enterQuietServiceMode();
     if (command === "quiet-service-mode-exit") return exitQuietServiceMode();
@@ -8472,9 +8410,6 @@
       renderLiveLockStrip();
       return;
     }
-=======
-    if (command === "service-mode-enter") return enterServiceMode();
->>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
     if (command === "service-mode-exit") return exitServiceMode();
     if (command === "service-mode-confirm-restore") {
       if (window.CISServiceModeService) window.CISServiceModeService.confirmSessionRestore();
@@ -8490,10 +8425,6 @@
       render();
       return;
     }
-<<<<<<< HEAD
->>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
-=======
->>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
     if (command === "present-song") return openPresenter(selectedSong(), null);
     if (command === "present-current" || command === "open-presenter") return presentCurrent();
     if (command === "presenter-next") return presenterMove(1);
@@ -9031,26 +8962,13 @@
   setupBible();
   setupHymnalLibrary();
   setupLiveHymnQueue();
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
   setupServiceMode();
   setupQuietServiceMode();
   setupKeyboardShortcuts();
   setupLiveSwitch();
   setupLiveLock();
-<<<<<<< HEAD
->>>>>>> 2ab5bd5 (Add atomic Live switching and Live Lock so congregation output never changes until the next item is fully prepared, and operators can block accidental edits during service.)
-=======
-  setupServiceMode();
->>>>>>> ac027c6 (Add Service Mode so worship operators can run live services from a touch-friendly workspace with live, preview, and next context tied to hymn queue, Bible projection, and emergency output controls.)
-=======
   setupPerformance();
-<<<<<<< HEAD
->>>>>>> 1f16699 (Improve worship app responsiveness with debounced search, cancellation, and resource cleanup.)
-=======
   setupUx();
->>>>>>> 1e7c418 (Improve operator UI consistency with control hierarchy, status strip, and terminology.)
 
   const STARTUP_TIMEOUT_MS = 45000;
   let startupTimeoutId = null;
