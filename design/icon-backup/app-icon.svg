@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="VaChinoda Worship App">
+  <rect width="512" height="512" rx="96" fill="#131f38"/>
+  <path d="M129 126h254v44H129z" fill="#e4c568"/>
+  <path d="M164 218h184v28H164zm0 58h184v28H164zm0 58h132v28H164z" fill="#f5efe0"/>
+  <circle cx="362" cy="350" r="42" fill="#c9a227"/>
+  <path d="M348 340v-90h28v112c0 27-21 48-50 48-24 0-43-15-43-36 0-22 20-38 46-38 7 0 13 1 19 4z" fill="#f5efe0"/>
+</svg>

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="VaChinoda icon concept B">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1B2A4A"/>
+      <stop offset="100%" stop-color="#0F1A30"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E4C568"/>
+      <stop offset="100%" stop-color="#C9A227"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFF8EA"/>
+      <stop offset="100%" stop-color="#E5D7AE"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.04"/>
+    </linearGradient>
+  </defs>
+
+  <g id="background">
+    <rect width="512" height="512" rx="104" fill="url(#bg)"/>
+    <rect x="10" y="10" width="492" height="492" rx="96" fill="none" stroke="#C9A227" stroke-opacity="0.32" stroke-width="3"/>
+  </g>
+
+  <g id="open-bible">
+    <ellipse cx="256" cy="404" rx="168" ry="34" fill="#060B14" opacity="0.45"/>
+    <path d="M88 388 C 150 350, 214 340, 256 346 C 298 340, 362 350, 424 388 L 424 472 C 362 440, 298 430, 256 436 C 214 430, 150 440, 88 472 Z" fill="#0A1220" opacity="0.6"/>
+    <path d="M108 394 C 164 366, 218 358, 248 362 L 248 454 C 218 448, 164 454, 108 470 Z" fill="url(#page)"/>
+    <path d="M264 362 C 294 358, 348 366, 404 394 L 404 470 C 348 454, 294 448, 264 454 Z" fill="url(#page)"/>
+    <path d="M244 362 L 268 362 L 268 454 L 244 454 Z" fill="url(#gold)"/>
+    <path d="M124 418 C 182 398, 224 392, 248 394" fill="none" stroke="#C9A227" stroke-opacity="0.4" stroke-width="2.5"/>
+    <path d="M264 394 C 288 392, 330 398, 388 418" fill="none" stroke="#C9A227" stroke-opacity="0.4" stroke-width="2.5"/>
+  </g>
+
+  <g id="glass-church">
+    <path d="M256 92 L 360 188 L 360 336 L 152 336 L 152 188 Z" fill="url(#glass)" stroke="#E4C568" stroke-width="5"/>
+    <path d="M256 92 L 360 188 L 152 188 Z" fill="#FFFFFF" fill-opacity="0.18" stroke="#F5EFE0" stroke-width="4"/>
+    <path d="M168 220 L 256 156 L 344 220" fill="none" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="3"/>
+    <rect x="176" y="220" width="56" height="116" fill="#FFFFFF" fill-opacity="0.08" stroke="#E4C568" stroke-opacity="0.5" stroke-width="3"/>
+    <rect x="280" y="220" width="56" height="116" fill="#FFFFFF" fill-opacity="0.08" stroke="#E4C568" stroke-opacity="0.5" stroke-width="3"/>
+    <rect x="206" y="236" width="100" height="92" rx="10" fill="#131F38" fill-opacity="0.42" stroke="#E4C568" stroke-opacity="0.55" stroke-width="3"/>
+    <path d="M188 286 L 324 286" fill="none" stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="2"/>
+    <path d="M214 248 L 236 268" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="2"/>
+    <path d="M298 248 L 276 268" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="2"/>
+  </g>
+
+  <g id="vachinoda-emblem" transform="translate(256 258) scale(0.34) translate(-256 -248)">
+    <ellipse cx="205" cy="345" rx="54" ry="40" transform="rotate(-18 205 345)" fill="url(#gold)"/>
+    <rect x="248" y="120" width="24" height="228" fill="url(#gold)"/>
+    <path d="M272 120 C 330 132 352 168 340 214 C 336 178 312 152 272 168 Z" fill="url(#gold)"/>
+    <rect x="160" y="196" width="200" height="30" rx="4" fill="url(#gold)"/>
+  </g>
+</svg>

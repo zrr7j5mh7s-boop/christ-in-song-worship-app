@@ -11,6 +11,10 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const release = require(path.join(root, 'src/release-metadata.js'));
 
 const requiredIcons = [
+  'build/icons/vachinoda-app-icon.icns',
+  'build/icons/vachinoda-app-icon.ico',
+  'build/icons/vachinoda-app-icon-1024.png',
+  'design/app-icon/master/vachinoda-app-icon-master.svg',
   'build/icon.icns',
   'build/icon.ico',
   'build/icon.png',

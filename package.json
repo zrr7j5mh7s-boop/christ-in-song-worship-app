@@ -48,9 +48,12 @@
     "test:session-recovery": "node scripts/test-session-recovery.js",
     "test:production-rehearsal": "node scripts/test-production-rehearsal.js",
     "test:rc1": "node scripts/test-rc1-release.js",
+    "test:icons": "node scripts/test-icons.js",
     "test:projection-rendering": "node scripts/test-projection-rendering.js",
     "benchmark:performance": "node scripts/benchmark-performance.js",
     "build:web-assets": "node scripts/build-production-assets.js",
+    "build:icons": "node scripts/build-icons.js",
+    "generate:icon-previews": "node scripts/generate-icon-previews.js",
     "pack": "electron-builder --dir",
     "dist": "npm run build:web-assets && npm run verify:release && electron-builder --publish=never",
     "dist:rc1": "npm run build:web-assets && npm run test:rc1 && npm run verify:release && electron-builder --mac --publish=never",
@@ -85,6 +88,8 @@
     "files": [
       "src/**/*",
       "app/**/*",
+      "build/icons/vachinoda-app-icon.icns",
+      "build/icons/vachinoda-app-icon.ico",
       "build/icon.icns",
       "build/icon.ico",
       "build/icon.png",
@@ -99,6 +104,7 @@
       "docs/MANUAL_QA_CHECKLIST.md",
       "ARCHITECTURE.txt",
       "!build/icon.iconset/**",
+      "!build/icons/vachinoda-app-icon.iconset/**",
       "!**/*.map"
     ],
     "directories": {
@@ -107,7 +113,7 @@
     },
     "mac": {
       "category": "public.app-category.music",
-      "icon": "build/icon.icns",
+      "icon": "build/icons/vachinoda-app-icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -138,7 +144,7 @@
       }
     },
     "win": {
-      "icon": "build/icon.ico",
+      "icon": "build/icons/vachinoda-app-icon.ico",
       "target": [
         {
           "target": "nsis",
