@@ -111,4 +111,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('obs-monitor-stopped', listener);
     },
   },
+
+  cameraPreview: {
+    open: () => ipcRenderer.invoke('camera-preview:open'),
+
+    close: () => ipcRenderer.invoke('camera-preview:close'),
+
+    onClosed: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = () => callback();
+      ipcRenderer.on('camera-preview-closed', listener);
+      return () => ipcRenderer.removeListener('camera-preview-closed', listener);
+    },
+  },
 });

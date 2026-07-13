@@ -41,6 +41,7 @@ let mainWindow = null;
 let splashWindow = null;
 let projectorWindow = null;
 let obsMonitorWindow = null;
+let cameraPreviewWindow = null;
 let obsMonitorWorshipContext = {
   worshipPreview: "—",
   worshipLive: "—",
@@ -331,6 +332,56 @@ ipcMain.handle('obs-monitor:stopped', () => {
     mainWindow.webContents.send('obs-monitor-stopped');
   }
   return { ok: true };
+});
+
+function createCameraPreviewWindow() {
+  if (cameraPreviewWindow && !cameraPreviewWindow.isDestroyed()) {
+    cameraPreviewWindow.focus();
+    return cameraPreviewWindow;
+  }
+
+  const win = new BrowserWindow({
+    width: 720,
+    height: 480,
+    minWidth: 480,
+    minHeight: 320,
+    title: 'Christ in Song · Camera Preview',
+    backgroundColor: '#131F38',
+    autoHideMenuBar: true,
+    alwaysOnTop: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+    },
+  });
+
+  win.loadFile(path.join(__dirname, '..', 'app', 'camera', 'camera-preview-window.html'));
+  win.once('ready-to-show', () => win.show());
+  win.on('closed', () => {
+    cameraPreviewWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('camera-preview-closed');
+    }
+  });
+  cameraPreviewWindow = win;
+  return win;
+}
+
+ipcMain.handle('camera-preview:open', () => {
+  createCameraPreviewWindow();
+  return { opened: true };
+});
+
+ipcMain.handle('camera-preview:close', () => {
+  if (cameraPreviewWindow && !cameraPreviewWindow.isDestroyed()) {
+    cameraPreviewWindow.close();
+  }
+  cameraPreviewWindow = null;
+  return { closed: true };
 });
 
 obsManager.registerIpc(ipcMain);
