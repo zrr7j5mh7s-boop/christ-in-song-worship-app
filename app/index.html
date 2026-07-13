@@ -12,7 +12,7 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=35">
+    <link rel="stylesheet" href="./styles.css?v=41">
   </head>
   <body>
     <div id="launchSplash" class="launch-splash" aria-hidden="true">
@@ -33,10 +33,10 @@
           </div>
         </div>
         <nav class="nav-list" id="primaryNav"></nav>
-        <div class="sidebar-actions">
-          <button class="icon-button" type="button" data-command="emergency-black" title="Black screen">■</button>
-          <button class="icon-button" type="button" data-command="emergency-white" title="White screen">□</button>
-          <button class="icon-button" type="button" data-command="emergency-logo" title="Logo screen">VC</button>
+        <div class="sidebar-actions" aria-label="Emergency safety controls">
+          <button class="icon-button safety-icon-btn" type="button" data-command="emergency-black" title="Blackout" aria-label="Blackout">■</button>
+          <button class="icon-button safety-icon-btn" type="button" data-command="emergency-white" title="White screen" aria-label="White screen">□</button>
+          <button class="icon-button safety-icon-btn" type="button" data-command="emergency-logo" title="Show Logo" aria-label="Show Logo">VC</button>
         </div>
       </aside>
 
@@ -54,10 +54,15 @@
               <div id="hymnEditionSwitcher" class="hymn-edition-switcher"></div>
             </div>
             <button class="tool-button" type="button" data-command="open-presenter" id="topbarPresenterBtn">Presenter</button>
+            <button class="tool-button service-mode-enter-btn" type="button" data-command="service-mode-enter" id="topbarServiceModeBtn" aria-pressed="false">Enter Service Mode</button>
+            <button class="tool-button quiet-service-mode-btn" type="button" data-command="quiet-service-mode-enter" id="topbarQuietServiceModeBtn" aria-pressed="false">Enter Quiet Service Mode</button>
+            <div id="liveLockRoot" class="live-lock-root" aria-live="polite"></div>
             <button class="tool-button help-emergency-chip" type="button" data-command="help-open-emergency" title="Emergency Help" id="topbarEmergencyBtn">Emergency</button>
             <button class="tool-button" type="button" data-view="help" id="topbarHelpBtn" title="Help Centre (F1)">Help</button>
           </div>
         </header>
+        <div id="quietServiceModeRoot" class="quiet-service-mode-root" aria-live="polite"></div>
+        <div id="operatorStatusRoot" class="operator-status-root" aria-live="polite"></div>
         <section id="content" class="content" aria-live="polite"></section>
       </main>
     </div>
@@ -73,6 +78,11 @@
     <script src="./brand/brand-migration.js?v=1"></script>
     <script src="./data/songs.js?v=2"></script>
     <script src="./data/extra-packs.js"></script>
+    <script src="./performance/task-session.js?v=1"></script>
+    <script src="./performance/performance-monitor.js?v=1"></script>
+    <script src="./performance/passage-cache.js?v=1"></script>
+    <script src="./ux/ui-icons.js?v=1"></script>
+    <script src="./ux/operator-status-strip.js?v=1"></script>
     <script src="./lazy-pack-loader.js?v=1"></script>
     <script src="./slide-content.js?v=1"></script>
     <script src="./builder-slides.js?v=2"></script>
@@ -94,34 +104,51 @@
     <script src="./backup-store.js?v=1"></script>
     <script src="./backup-restore.js?v=1"></script>
     <script src="./vendor/fuse.min.js"></script>
-    <script src="./hymn-search.js?v=2"></script>
-    <script src="./hymn-search-ui.js?v=3"></script>
+    <script src="./hymn-search.js?v=3"></script>
+    <script src="./hymn-search-ui.js?v=4"></script>
     <script src="./data/bible-catalog.js?v=2"></script>
     <script src="./bible-store.js?v=2"></script>
     <script src="./bible-reader-ui.js?v=2"></script>
     <script src="./bible/bible-reference-parser.js?v=1"></script>
     <script src="./bible/bible-projection-settings.js?v=1"></script>
-    <script src="./bible/bible-projection-service.js?v=1"></script>
-    <script src="./bible/bible-search-service.js?v=1"></script>
+    <script src="./bible/bible-projection-service.js?v=2"></script>
+    <script src="./bible/bible-search-service.js?v=2"></script>
     <script src="./bible/bible-speech-service.js?v=1"></script>
-    <script src="./bible/bible-live-ui.js?v=1"></script>
+    <script src="./bible/bible-live-ui.js?v=2"></script>
     <script src="./hymn-queue/live-hymn-queue-settings.js?v=1"></script>
     <script src="./hymn-queue/live-hymn-queue-service.js?v=1"></script>
     <script src="./hymn-queue/live-hymn-queue-ui.js?v=1"></script>
+    <script src="./service-mode/service-mode-settings.js?v=1"></script>
+    <script src="./service-mode/service-mode-service.js?v=1"></script>
+    <script src="./service-mode/service-mode-ui.js?v=1"></script>
+    <script src="./quiet-service-mode/notification-classifier.js?v=1"></script>
+    <script src="./quiet-service-mode/quiet-service-mode-settings.js?v=1"></script>
+    <script src="./quiet-service-mode/quiet-service-mode-service.js?v=1"></script>
+    <script src="./quiet-service-mode/quiet-service-mode-ui.js?v=1"></script>
+    <script src="./presentation/presentation-state-model.js?v=1"></script>
+    <script src="./presentation/live-switch-settings.js?v=1"></script>
+    <script src="./presentation/live-switch-service.js?v=1"></script>
+    <script src="./presentation/live-lock-settings.js?v=1"></script>
+    <script src="./presentation/live-lock-service.js?v=1"></script>
+    <script src="./presentation/live-lock-ui.js?v=1"></script>
     <script src="./song-audio-store.js?v=1"></script>
     <script src="./song-audio-player.js?v=1"></script>
     <script src="./song-audio-ui.js?v=1"></script>
     <script src="./builder-save.js?v=1"></script>
     <script src="./builder-order-preview.js?v=1"></script>
-    <script src="./presenter-engine.js?v=1"></script>
-    <script src="./presenter-output.js?v=1"></script>
+    <script src="./presentation/projection-themes.js?v=1"></script>
+    <script src="./presentation/text-fit-engine.js?v=1"></script>
+    <script src="./presentation/slide-layout-engine.js?v=1"></script>
+    <script src="./presentation/projection-settings.js?v=1"></script>
+    <script src="./presenter-engine.js?v=2"></script>
+    <script src="./presenter-output.js?v=2"></script>
     <script src="./presenter-control.js?v=4"></script>
     <script src="./obs/obs-constants.js?v=2"></script>
     <script src="./obs/obs-sanitize.js?v=1"></script>
     <script src="./obs/obs-settings-store.js?v=2"></script>
     <script src="./obs/obs-event-service.js?v=1"></script>
     <script src="./obs/obs-ws-client.js?v=1"></script>
-    <script src="./obs/obs-connection-service.js?v=1"></script>
+    <script src="./obs/obs-connection-service.js?v=2"></script>
     <script src="./obs/obs-scene-service.js?v=2"></script>
     <script src="./obs/obs-source-service.js?v=1"></script>
     <script src="./obs/obs-output-service.js?v=2"></script>
@@ -129,10 +156,10 @@
     <script src="./obs/obs-program-monitor.js?v=1"></script>
     <script src="./obs/obs-program-monitor-ui.js?v=1"></script>
     <script src="./hymn-index-settings.js?v=1"></script>
-    <script src="./hymn-index-ui.js?v=2"></script>
+    <script src="./hymn-index-ui.js?v=3"></script>
     <script src="./camera/camera-constants.js?v=1"></script>
     <script src="./camera/camera-settings-store.js?v=1"></script>
-    <script src="./camera/camera-source-service.js?v=1"></script>
+    <script src="./camera/camera-source-service.js?v=2"></script>
     <script src="./camera/camera-compositor.js?v=1"></script>
     <script src="./camera/camera-source-ui.js?v=1"></script>
     <script src="./obs/obs-mapping-ui.js?v=2"></script>
@@ -150,7 +177,7 @@
     <script src="./i18n/i18n-catalog.js?v=1"></script>
     <script src="./i18n/i18n-store.js?v=1"></script>
     <script src="./i18n/i18n.js?v=1"></script>
-    <script src="./app.js?v=35"></script>
+    <script src="./app.js?v=39"></script>
     <script>
       if ("serviceWorker" in navigator && !window.electronAPI) {
         window.addEventListener("load", () => {

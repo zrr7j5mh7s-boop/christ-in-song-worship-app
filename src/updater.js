@@ -14,6 +14,24 @@ autoUpdater.logger = log;
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
+let quietModeActive = false;
+let pendingUpdateInfo = null;
+
+function setQuietMode(enabled) {
+  quietModeActive = Boolean(enabled);
+  autoUpdater.autoDownload = !quietModeActive;
+  if (!quietModeActive && pendingUpdateInfo) {
+    const info = pendingUpdateInfo;
+    pendingUpdateInfo = null;
+    return info;
+  }
+  return null;
+}
+
+function isQuietMode() {
+  return quietModeActive;
+}
+
 function sendStatus(mainWindow, status, extra) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('update-status', { status, ...extra });
@@ -26,6 +44,10 @@ function setupAutoUpdater(mainWindow) {
   });
 
   autoUpdater.on('update-available', (info) => {
+    if (quietModeActive) {
+      sendStatus(mainWindow, 'available-deferred', { version: info.version });
+      return;
+    }
     sendStatus(mainWindow, 'available', { version: info.version });
   });
 
@@ -43,6 +65,11 @@ function setupAutoUpdater(mainWindow) {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
+    if (quietModeActive) {
+      pendingUpdateInfo = info;
+      sendStatus(mainWindow, 'downloaded-deferred', { version: info.version });
+      return;
+    }
     sendStatus(mainWindow, 'downloaded', { version: info.version });
 
     dialog
@@ -78,4 +105,4 @@ function setupAutoUpdater(mainWindow) {
   };
 }
 
-module.exports = { setupAutoUpdater };
+module.exports = { setupAutoUpdater, setQuietMode, isQuietMode };

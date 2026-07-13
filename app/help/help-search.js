@@ -5,6 +5,11 @@
   let index = [];
 
   function buildIndex() {
+    if (window.CISQuietServiceModeService?.shouldPauseBackgroundTask?.(
+      window.CISQuietServiceModeService.BACKGROUND_TASKS.helpIndex
+    )) {
+      return index.length ? index : [];
+    }
     if (!window.CISHelpContent) return [];
     const rows = [];
     window.CISHelpContent.ARTICLES.forEach((article) => {
