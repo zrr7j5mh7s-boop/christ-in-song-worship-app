@@ -54,7 +54,7 @@
       keywords: ["setup", "install", "first time", "start"],
       aliases: ["getting started", "new church"],
       readMinutes: 6,
-      whatItDoes: "Gets Christ in Song ready for your first Sabbath service on this computer.",
+      whatItDoes: "Gets VaChinoda Worship App ready for your first Sabbath service on this computer.",
       whenToUse: "Before your first service or when setting up a new operator machine.",
       howToUse: [
         "Open the desktop app or install the PWA for offline use.",
@@ -312,7 +312,7 @@
       title: "Worship Preview/Live vs OBS Preview/Program",
       description: "Avoid confusing worship state with OBS Studio Mode.",
       keywords: ["obs preview", "obs program", "studio mode", "worship preview"],
-      diagram: "Christ in Song → Projector / Stage / OBS Browser Source → OBS Studio → Stream/Record/Virtual Camera",
+      diagram: "VaChinoda Worship App → Projector / Stage / OBS Browser Source → OBS Studio → Stream/Record/Virtual Camera",
       howToUse: [
         "Worship Preview: operator review before audience sees content.",
         "Worship Live: presenter active — updates projector and OBS overlays.",
@@ -471,7 +471,7 @@
     article({
       id: "about-app",
       category: "about",
-      title: "About Christ in Song Worship App",
+      title: "About VaChinoda Worship App",
       description: "Version, licences, and what's new.",
       keywords: ["about", "version", "updates", "licence"],
       related: ["backup-restore-guide"],

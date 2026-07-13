@@ -39,7 +39,7 @@
       ? `<div class="projector-camera-safe-guides" aria-hidden="true"><span class="safe-title"></span><span class="safe-lower"></span></div>`
       : "";
     const logoBadge = layout === "church-logo"
-      ? `<div class="projector-camera-logo-badge" aria-hidden="true"><span>✦</span><strong>CHRIST IN SONG</strong></div>`
+      ? `<div class="projector-camera-logo-badge" aria-hidden="true"><span>✦</span><strong>${escapeHtml((window.CISBrandConfig?.BRAND?.shortName || "VaChinoda").toUpperCase())}</strong></div>`
       : "";
 
     if (layout === "fullscreen" || !hasOverlayLayout(layout)) {

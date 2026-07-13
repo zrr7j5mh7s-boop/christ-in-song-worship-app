@@ -1,6 +1,6 @@
 # OBS Setup
 
-Step-by-step guide for connecting Christ in Song Worship App to OBS Studio (WebSocket 5.x). OBS is optional — worship, projector, and hymns work normally when OBS is off.
+Step-by-step guide for connecting VaChinoda Worship App to OBS Studio (WebSocket 5.x). OBS is optional — worship, projector, and hymns work normally when OBS is off.
 
 See also: [OBS_INTEGRATION.md](./OBS_INTEGRATION.md) (architecture), [OBS_MANUAL_QA.md](./OBS_MANUAL_QA.md) (acceptance testing).
 
@@ -21,7 +21,7 @@ See also: [OBS_INTEGRATION.md](./OBS_INTEGRATION.md) (architecture), [OBS_MANUAL
 
 ## 2. Connect the worship app
 
-1. Open Christ in Song → **Settings → OBS Studio**.
+1. Open VaChinoda Worship App → **Settings → OBS Studio**.
 2. Enable **OBS integration**.
 3. Enter host `127.0.0.1` and port `4455`.
 4. Enter your WebSocket password (stored encrypted; never shown again after save).

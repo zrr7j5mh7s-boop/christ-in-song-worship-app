@@ -1,4 +1,4 @@
-Christ in Song Worship App
+VaChinoda Worship App
 
 Open app/index.html in a browser, or run the desktop app with npm start.
 
