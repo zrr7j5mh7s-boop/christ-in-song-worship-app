@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' ws://127.0.0.1:* wss://127.0.0.1:* ws://localhost:* wss://localhost:*; object-src 'none'; base-uri 'self';">
+    <title>Christ in Song · OBS Program Monitor</title>
+    <link rel="stylesheet" href="../styles.css?v=28">
+  </head>
+  <body class="obs-monitor-window-body">
+    <header class="obs-monitor-window-bar">
+      <strong>OBS Program Monitor</strong>
+      <span id="obsMonitorWindowBadge" class="obs-monitor-live-badge idle">● PROGRAM</span>
+      <button type="button" class="secondary-button" data-command="obs-monitor-stop">Stop Monitor</button>
+    </header>
+    <main id="obsMonitorWindowRoot" class="obs-monitor-window-root"></main>
+    <script src="./obs/obs-constants.js?v=2"></script>
+    <script src="./obs/obs-sanitize.js?v=1"></script>
+    <script src="./obs/obs-settings-store.js?v=2"></script>
+    <script src="./obs/obs-event-service.js?v=1"></script>
+    <script src="./obs/obs-ws-client.js?v=1"></script>
+    <script src="./obs/obs-connection-service.js?v=1"></script>
+    <script src="./obs/obs-program-monitor.js?v=1"></script>
+    <script src="./obs/obs-program-monitor-ui.js?v=1"></script>
+    <script src="./obs/obs-program-monitor-window.js?v=1"></script>
+  </body>
+</html>

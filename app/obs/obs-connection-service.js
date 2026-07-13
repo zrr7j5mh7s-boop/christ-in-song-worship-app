@@ -57,10 +57,34 @@
     };
   }
 
+  function humanizeObsAuthError(message) {
+    const raw = String(message || "").trim();
+    const lower = raw.toLowerCase();
+    const store = window.CISObsSettingsStore;
+    const hasStoredPassword = Boolean(store && store.hasLocalPasswordMarker());
+
+    if (lower.includes("could not be read") || lower.includes("could not be decrypted")) {
+      return raw || "Saved OBS WebSocket password could not be read. Re-enter the password in Settings → OBS Studio.";
+    }
+    if (
+      lower.includes("missing an 'authentication'")
+      || lower.includes("missing authentication")
+      || lower.includes("password required")
+    ) {
+      return "OBS requires a WebSocket password. Enter the password from OBS (Tools → WebSocket Server Settings) in Settings → OBS Studio.";
+    }
+    if (lower.includes("authentication") || lower.includes("auth failed")) {
+      return hasStoredPassword
+        ? "OBS WebSocket password was rejected. Check that it matches OBS WebSocket Server Settings exactly."
+        : "OBS requires a WebSocket password. Enter the password from OBS (Tools → WebSocket Server Settings) in Settings → OBS Studio.";
+    }
+    return raw;
+  }
+
   function classifyBrowserError(error) {
-    const message = error && error.message ? error.message : "OBS connection failed";
+    const message = humanizeObsAuthError(error && error.message ? error.message : "OBS connection failed");
     const lower = message.toLowerCase();
-    if (lower.includes("authentication") || lower.includes("auth failed") || lower.includes("identify")) {
+    if (lower.includes("authentication") || lower.includes("auth failed") || lower.includes("password required")) {
       return { state: STATES.AUTHENTICATION_FAILED, message };
     }
     if (lower.includes("version") || lower.includes("rpc")) {
@@ -236,7 +260,10 @@
     if (!browserClient) browserClient = window.CISObsWsClient.createClient();
 
     try {
-      const password = await store.loadLocalPassword();
+      let password = await store.loadLocalPassword();
+      if (store.hasLocalPasswordMarker() && !password) {
+        throw new Error("Saved OBS WebSocket password could not be read. Re-enter the password in Settings → OBS Studio.");
+      }
       applyStatus({ state: STATES.AUTHENTICATING });
       const identified = await browserClient.connect(
         buildUrl(settings),
@@ -319,9 +346,17 @@
 
     const probe = window.CISObsWsClient.createClient();
     try {
-      const password = overrides && Object.prototype.hasOwnProperty.call(overrides, "password")
+      let password = overrides && Object.prototype.hasOwnProperty.call(overrides, "password")
         ? String(overrides.password || "")
         : (store ? await store.loadLocalPassword() : "");
+      if (
+        store
+        && !Object.prototype.hasOwnProperty.call(overrides || {}, "password")
+        && store.hasLocalPasswordMarker()
+        && !password
+      ) {
+        throw new Error("Saved OBS WebSocket password could not be read. Re-enter the password in Settings → OBS Studio.");
+      }
       await probe.connect(buildUrl(payload), password, payload.connectionTimeoutMs);
       const version = await probe.call("GetVersion");
       await probe.disconnect();
