@@ -4004,6 +4004,122 @@ body.presenter-live .sidebar {
   gap: 18px;
 }
 
+.bible-reader {
+  display: grid;
+  gap: 16px;
+}
+
+.bible-reader-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.bible-reader-head h2 {
+  margin: 0 0 4px;
+}
+
+.bible-version-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bible-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.bible-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 14px;
+}
+
+.bible-control select,
+.bible-jump input {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font: inherit;
+}
+
+.bible-jump input {
+  flex: 1 1 180px;
+}
+
+.bible-chapter-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.bible-chapter-chip {
+  min-width: 38px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 700;
+}
+
+.bible-chapter-chip.active {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.bible-text-stage {
+  min-height: 320px;
+}
+
+.bible-verses {
+  display: grid;
+  gap: 10px;
+  font-size: calc(16px * var(--reader-scale, 1));
+  line-height: 1.65;
+}
+
+.bible-verse {
+  margin: 0;
+}
+
+.bible-verse.highlight {
+  background: #eef6f0;
+  border-radius: 8px;
+  padding: 4px 6px;
+}
+
+.bible-verse-num {
+  display: inline-block;
+  min-width: 1.6em;
+  margin-right: 6px;
+  color: var(--green);
+  font-weight: 800;
+  font-size: 0.78em;
+  vertical-align: super;
+}
+
+.bible-nav-row {
+  position: sticky;
+  bottom: 0;
+  padding-bottom: 4px;
+  background: linear-gradient(180deg, rgba(247, 249, 245, 0), var(--bg) 28%);
+}
+
+.bible-status {
+  margin: 0;
+}
+
 .backup-center {
   padding: 20px;
 }
