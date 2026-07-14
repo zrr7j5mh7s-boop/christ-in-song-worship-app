@@ -32,7 +32,7 @@
           <div>
             <p class="eyebrow">Support · Offline help available</p>
             <h2>Help Centre</h2>
-            <p class="muted">Find instructions, service workflows, troubleshooting steps and emergency support for the Christ in Song Digital Worship System.</p>
+            <p class="muted">Find instructions, service workflows, troubleshooting steps and emergency support for the VaChinoda Worship App.</p>
           </div>
           <div class="help-header-meta">
             <span class="help-version" title="Application version">v${escapeHtml(version)}</span>
@@ -203,6 +203,14 @@
           <button type="button" class="help-emergency-btn" data-command="help-open-diagnostics">Open diagnostics</button>
           <button type="button" class="help-emergency-btn" data-command="help-copy-diagnostics">Copy diagnostic report</button>
           <button type="button" class="help-emergency-btn" data-command="export-backup">Create backup now</button>
+          <button type="button" class="help-emergency-btn" data-command="camera-switch-backup">Switch to backup camera</button>
+          <button type="button" class="help-emergency-btn" data-command="camera-send-live">Show main camera</button>
+          <button type="button" class="help-emergency-btn" data-command="camera-freeze-off">Stop frozen camera</button>
+          <button type="button" class="help-emergency-btn" data-command="camera-restart">Restart camera source</button>
+          <button type="button" class="help-emergency-btn" data-command="camera-refresh-devices">Refresh camera devices</button>
+          <button type="button" class="help-emergency-btn" data-command="emergency-logo">Show church logo</button>
+          <button type="button" class="help-emergency-btn warn" data-command="emergency-black" data-confirm="true">Blackout selected projectors</button>
+          <button type="button" class="help-emergency-btn" data-command="camera-return-previous">Return to previous live item</button>
         </div>
       </section>
     `;
@@ -245,16 +253,22 @@
   }
 
   function renderAbout(desktopInfo) {
-    const version = desktopInfo?.version || "1.0.0";
+    const version = desktopInfo?.version || window.CISReleaseMetadata?.VERSION || "1.0.0-rc.1";
+    const build = desktopInfo?.build || window.CISReleaseMetadata?.BUILD_NUMBER || "";
+    const releaseLabel = desktopInfo?.releaseLabel || window.CISReleaseMetadata?.RELEASE_LABEL || "";
+    const brand = window.CISBrandConfig ? window.CISBrandConfig.BRAND : { appName: "VaChinoda Worship App", shortName: "VaChinoda" };
     const seen = window.CISHelpStore ? window.CISHelpStore.getWhatsNewSeen() : "";
     const whatsNew = version !== seen;
     return `
       <section class="section help-about">
         <h2>About and Updates</h2>
-        ${whatsNew ? `<div class="help-whats-new"><strong>What's New in v${escapeHtml(version)}</strong><ul><li>Help Centre with offline search and emergency tools</li><li>OBS Studio integration (WebSocket 5.x, Browser Sources)</li><li>Interactive pre-service and setup checklists</li><li>Training Mode for operator practice</li></ul><button type="button" class="secondary-button" data-command="help-dismiss-whats-new">Dismiss</button></div>` : ""}
+        ${whatsNew ? `<div class="help-whats-new"><strong>What's New in v${escapeHtml(version)}</strong><ul><li>Release Candidate 1 — worship-system hardening and session recovery</li><li>Stage Display for private worship-team monitors</li><li>Unified Worship Search across hymns, Bible, media, and service items</li><li>Quiet Service Mode and keyboard shortcut improvements</li></ul><button type="button" class="secondary-button" data-command="help-dismiss-whats-new">Dismiss</button></div>` : ""}
         <dl class="help-about-grid">
-          <div><dt>Application</dt><dd>Christ in Song Worship App</dd></div>
+          <div><dt>Application</dt><dd>${escapeHtml(brand.appName)}</dd></div>
+          <div><dt>Short name</dt><dd>${escapeHtml(brand.shortName)}</dd></div>
           <div><dt>Version</dt><dd>${escapeHtml(version)}</dd></div>
+          ${build ? `<div><dt>Build</dt><dd>${escapeHtml(String(build))}</dd></div>` : ""}
+          ${releaseLabel ? `<div><dt>Release</dt><dd>${escapeHtml(releaseLabel)}</dd></div>` : ""}
           <div><dt>OBS integration</dt><dd>WebSocket 5.x · Browser Source server</dd></div>
           <div><dt>Bible translations</dt><dd>KJV, ASV, WEB (public domain)</dd></div>
           <div><dt>Support</dt><dd>juliuschinoda@gmail.com</dd></div>

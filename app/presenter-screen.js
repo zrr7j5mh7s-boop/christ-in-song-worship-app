@@ -17,6 +17,9 @@
     return escapeHtml(value).replace(/\n/g, "<br>");
   }
 
+  document.documentElement.style.cursor = "none";
+  document.body.style.cursor = "none";
+
   output.configure({ escapeHtml, lyricHtml });
   engine.attachRemoteListener();
 
@@ -35,15 +38,6 @@
   }
 
   engine.subscribe((snapshot) => output.render(root, snapshot));
-
-  document.addEventListener("click", (event) => {
-    const target = event.target.closest("[data-command]");
-    if (!target) return;
-    if (target.dataset.command === "emergency-clear") {
-      event.preventDefault();
-      engine.sendCommand("emergency-clear");
-    }
-  });
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {

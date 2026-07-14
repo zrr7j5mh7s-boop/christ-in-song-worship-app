@@ -49,15 +49,32 @@
     return null;
   }
 
+  function resolveObsTheme(snapshot) {
+    const themes = window.CISProjectionThemes;
+    if (!themes) {
+      return {
+        fontScale: snapshot?.fontScale || 1,
+        reducedMotion: Boolean(snapshot?.reducedMotion),
+      };
+    }
+    const themeId = snapshot?.projectionTheme || snapshot?.themeId || "camera_overlay";
+    const resolved = themes.resolveThemeForProfile(themeId, "obs");
+    return {
+      ...resolved,
+      fontScale: snapshot?.fontScale || 1,
+      reducedMotion: Boolean(snapshot?.reducedMotion),
+      transition: snapshot?.transition || resolved.transition || "fade",
+    };
+  }
+
   async function publishToHttp(payload) {
     const settings = getSettings();
     const sanitized = sanitize().sanitizePayload({
       ...payload,
       layouts: settings.overlayLayouts,
-      theme: {
-        fontScale: payload.theme?.fontScale || 1,
-        reducedMotion: Boolean(payload.theme?.reducedMotion),
-      },
+      theme: payload.theme?.background
+        ? payload.theme
+        : resolveObsTheme(payload.snapshot || payload),
       sentAt: Date.now(),
     });
 
@@ -109,6 +126,8 @@
     try {
       const clean = sanitize().sanitizePayload(payload || {});
       const httpPayload = {};
+      const snapshot = options?.snapshot || clean.snapshot || null;
+      if (snapshot) httpPayload.snapshot = snapshot;
 
       if (contentType === "bible" || contentType === "scripture") {
         liveState.scripture = clean.visible === false ? null : clean;
@@ -223,11 +242,18 @@
     const contentKind = item?.contentKind || item?.type || "song";
 
     if (contentKind === "scripture" || (item?.type === "custom" && contentKind === "scripture")) {
-      return publishLive("scripture", buildScripturePayload({
-        reference: item?.subtitle || snapshot.shortTitle || "",
-        text: body,
-        translation: "",
-      }));
+      const reference = slide.reference || item?.title || item?.subtitle || snapshot.shortTitle || "";
+      const translation = slide.translation || item?.translation || "";
+      const obsSettings = getSettings();
+      const obsLayout = snapshot.obsLayout || item?.obsLayout || obsSettings.overlayLayouts?.scripture?.obsLayout || "lower_third";
+      return publishLive("scripture", {
+        ...buildScripturePayload({
+          reference,
+          text: body,
+          translation,
+        }),
+        layout: obsLayout,
+      }, { snapshot });
     }
 
     if (contentKind === "announcement") {
@@ -254,9 +280,9 @@
       });
     }
 
-    const hymnPayload = buildHymnPayload(snapshot);
+    const hymnPayload = buildHymnPayload(snapshot, snapshot.obsLayout);
     if (!hymnPayload.lines) return null;
-    return publishLive("hymn", hymnPayload);
+    return publishLive("hymn", hymnPayload, { snapshot });
   }
 
   function getLiveState() {

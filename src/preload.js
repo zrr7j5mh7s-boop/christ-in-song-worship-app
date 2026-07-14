@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getAppInfo: () => ipcRenderer.invoke('app:info'),
 
+  openLogsFolder: () => ipcRenderer.invoke('app:open-logs'),
+
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
 
   onMenuCommand: (callback) => {
@@ -27,6 +29,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_event, status) => callback(status);
     ipcRenderer.on('update-status', listener);
     return () => ipcRenderer.removeListener('update-status', listener);
+  },
+
+  quietMode: {
+    setActive: (enabled) => ipcRenderer.invoke('quiet-mode:set-active', { enabled: Boolean(enabled) }),
+    setPowerBlocker: (enabled) => ipcRenderer.invoke('quiet-mode:set-power-blocker', { enabled: Boolean(enabled) }),
   },
 
   openProjector: () => ipcRenderer.invoke('presenter:open'),
@@ -109,6 +116,81 @@ contextBridge.exposeInMainWorld('electronAPI', {
       const listener = () => callback();
       ipcRenderer.on('obs-monitor-stopped', listener);
       return () => ipcRenderer.removeListener('obs-monitor-stopped', listener);
+    },
+  },
+
+  cameraPreview: {
+    open: () => ipcRenderer.invoke('camera-preview:open'),
+
+    close: () => ipcRenderer.invoke('camera-preview:close'),
+
+    onClosed: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = () => callback();
+      ipcRenderer.on('camera-preview-closed', listener);
+      return () => ipcRenderer.removeListener('camera-preview-closed', listener);
+    },
+  },
+
+  license: {
+    getLicenceStatus: () => ipcRenderer.invoke('license:get-status'),
+
+    activateLicence: (email, code, deviceName) => ipcRenderer.invoke('license:activate', {
+      email,
+      code,
+      deviceName,
+    }),
+
+    validateLicence: () => ipcRenderer.invoke('license:validate'),
+
+    deactivateLicence: () => ipcRenderer.invoke('license:deactivate'),
+
+    isCommandAllowed: (command) => ipcRenderer.invoke('license:is-command-allowed', { command }),
+
+    onLicenseStatus: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = (_event, status) => callback(status);
+      ipcRenderer.on('license-status', listener);
+      return () => ipcRenderer.removeListener('license-status', listener);
+    },
+  },
+
+  stageDisplay: {
+    listDisplays: () => ipcRenderer.invoke('stage-display:list-displays'),
+
+    savePrefs: (payload) => ipcRenderer.invoke('stage-display:save-prefs', payload),
+
+    getStartPrefs: () => ipcRenderer.invoke('stage-display:get-start-prefs'),
+
+    open: (payload) => ipcRenderer.invoke('stage-display:open', payload),
+
+    close: () => ipcRenderer.invoke('stage-display:close'),
+
+    restart: (payload) => ipcRenderer.invoke('stage-display:restart', payload),
+
+    publish: (payload) => ipcRenderer.invoke('stage-display:publish', payload),
+
+    notifyClosed: () => ipcRenderer.invoke('stage-display:closed'),
+
+    onState: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('stage-display-state', listener);
+      return () => ipcRenderer.removeListener('stage-display-state', listener);
+    },
+
+    onClosed: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = () => callback();
+      ipcRenderer.on('stage-display-closed', listener);
+      return () => ipcRenderer.removeListener('stage-display-closed', listener);
+    },
+
+    onDisplaysChanged: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('stage-display-displays-changed', listener);
+      return () => ipcRenderer.removeListener('stage-display-displays-changed', listener);
     },
   },
 });

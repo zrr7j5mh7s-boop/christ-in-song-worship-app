@@ -453,5 +453,7 @@
     call,
     refreshElectronStatus,
     syncBrowserRuntime,
+    clearReconnectTimer,
+    hasActiveReconnectTimer: () => Boolean(reconnectTimer),
   };
 })();

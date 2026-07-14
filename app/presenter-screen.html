@@ -3,15 +3,20 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="theme-color" content="#0a1020">
-    <title>Christ in Song · Projector Output</title>
-    <link rel="stylesheet" href="./styles.css?v=25">
+    <title>VaChinoda · Projector Output</title>
+    <link rel="stylesheet" href="./styles.css?v=40">
   </head>
   <body class="presenter-screen-body">
     <div id="projectorRoot" class="projector-output hidden" aria-hidden="true"></div>
+    <script src="./brand/brand-config.js?v=1"></script>
+    <script src="./presentation/projection-themes.js?v=1"></script>
+    <script src="./presentation/text-fit-engine.js?v=1"></script>
+    <script src="./presentation/slide-layout-engine.js?v=1"></script>
+    <script src="./camera/camera-compositor.js?v=1"></script>
     <script src="./presenter-engine.js?v=2"></script>
     <script src="./presenter-output.js?v=2"></script>
-    <script src="./presenter-screen.js?v=2"></script>
+    <script src="./presenter-screen.js?v=3"></script>
   </body>
 </html>

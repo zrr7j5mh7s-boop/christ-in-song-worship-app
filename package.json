@@ -1,7 +1,7 @@
 {
   "name": "christ-in-song-worship-app",
-  "version": "1.0.0",
-  "description": "Christ in Song Worship App — offline hymn library, worship builder, and full-screen presenter for Sabbath services.",
+  "version": "1.0.0-rc.1",
+  "description": "VaChinoda Worship App — offline hymn library, worship builder, and full-screen presenter for Sabbath services.",
   "author": {
     "name": "VaChinoda Worship",
     "email": "juliuschinoda@gmail.com"
@@ -28,20 +28,48 @@
     "test:obs-integration": "node scripts/test-obs-integration.js",
     "test:obs": "npm run test:obs-settings && npm run test:obs-integration && npm run test:obs-program-monitor",
     "test:obs-program-monitor": "node scripts/test-obs-program-monitor.js",
+    "test:camera-sources": "node scripts/test-camera-sources.js",
+    "test:hymn-index": "node scripts/test-hymn-index.js",
+    "test:hymnal-library": "node scripts/test-hymnal-library.js",
+    "test:hymnal-integration": "node scripts/test-hymnal-integration.js",
+    "test:bible-projection": "node scripts/test-bible-projection.js",
+    "test:live-hymn-queue": "node scripts/test-live-hymn-queue.js",
+    "test:service-mode": "node scripts/test-service-mode.js",
+    "test:live-switch": "node scripts/test-live-switch.js",
+    "test:branding": "node scripts/test-branding.js",
     "test:help": "node scripts/test-help-centre.js",
     "test:performance": "node scripts/test-performance.js",
+    "test:performance-audit": "node scripts/test-performance-audit.js",
+    "test:ux-consistency": "node scripts/test-ux-consistency.js",
+    "test:quiet-service-mode": "node scripts/test-quiet-service-mode.js",
+    "test:keyboard-shortcuts": "node scripts/test-keyboard-shortcuts.js",
+    "test:worship-search": "node scripts/test-worship-search.js",
+    "test:stage-display": "node scripts/test-stage-display.js",
+    "test:session-recovery": "node scripts/test-session-recovery.js",
+    "test:production-rehearsal": "node scripts/test-production-rehearsal.js",
+    "test:rc1": "node scripts/test-rc1-release.js",
+    "test:icons": "node scripts/test-icons.js",
+    "test:projection-rendering": "node scripts/test-projection-rendering.js",
+    "test:pilot-license": "node scripts/test-pilot-license.js",
+    "test:pilot-device-proof": "node scripts/test-pilot-device-proof.js",
+    "mock:license-server": "node scripts/mock-license-server.js",
+    "scan:secrets": "node scripts/scan-packaged-secrets.js",
+    "benchmark:performance": "node scripts/benchmark-performance.js",
     "build:web-assets": "node scripts/build-production-assets.js",
+    "build:icons": "node scripts/build-icons.js",
+    "generate:icon-previews": "node scripts/generate-icon-previews.js",
     "pack": "electron-builder --dir",
-    "dist": "npm run build:web-assets && npm run verify:release && electron-builder --publish=never",
-    "dist:mac": "npm run build:web-assets && npm run verify:release && electron-builder --mac --publish=never",
-    "dist:mac:unsigned": "npm run build:web-assets && npm run verify:release && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish=never",
-    "dist:win": "npm run build:web-assets && npm run verify:release && electron-builder --win --publish=never",
-    "dist:linux": "npm run build:web-assets && npm run verify:release && electron-builder --linux --publish=never",
-    "dist:all": "npm run build:web-assets && npm run verify:release && electron-builder --mac --win --linux --publish=never",
-    "release": "npm run build:web-assets && npm run verify:release && electron-builder --publish=always",
-    "release:mac": "npm run build:web-assets && npm run verify:release && electron-builder --mac --publish=always",
-    "release:win": "npm run build:web-assets && npm run verify:release && electron-builder --win --publish=always",
-    "release:linux": "npm run build:web-assets && npm run verify:release && electron-builder --linux --publish=always"
+    "dist": "npm run build:web-assets && npm run test:pilot-license && npm run test:pilot-device-proof && npm run scan:secrets && npm run verify:release && electron-builder --publish=never",
+    "dist:rc1": "npm run build:web-assets && npm run test:rc1 && npm run test:pilot-license && npm run test:pilot-device-proof && npm run scan:secrets && npm run verify:release && electron-builder --mac --publish=never",
+    "dist:mac": "npm run build:web-assets && npm run test:pilot-license && npm run test:pilot-device-proof && npm run scan:secrets && npm run verify:release && electron-builder --mac --publish=never",
+    "dist:mac:unsigned": "npm run build:web-assets && npm run test:pilot-license && npm run test:pilot-device-proof && npm run scan:secrets && npm run verify:release && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish=never",
+    "dist:win": "npm run build:web-assets && npm run test:pilot-license && npm run test:pilot-device-proof && npm run scan:secrets && npm run verify:release && electron-builder --win --publish=never",
+    "dist:linux": "npm run build:web-assets && npm run test:pilot-license && npm run test:pilot-device-proof && npm run scan:secrets && npm run verify:release && electron-builder --linux --publish=never",
+    "dist:all": "npm run build:web-assets && npm run test:pilot-license && npm run test:pilot-device-proof && npm run scan:secrets && npm run verify:release && electron-builder --mac --win --linux --publish=never",
+    "release": "npm run build:web-assets && npm run test:pilot-license && npm run test:pilot-device-proof && npm run scan:secrets && npm run verify:release && electron-builder --publish=always",
+    "release:mac": "npm run build:web-assets && npm run test:pilot-license && npm run test:pilot-device-proof && npm run scan:secrets && npm run verify:release && electron-builder --mac --publish=always",
+    "release:win": "npm run build:web-assets && npm run test:pilot-license && npm run test:pilot-device-proof && npm run scan:secrets && npm run verify:release && electron-builder --win --publish=always",
+    "release:linux": "npm run build:web-assets && npm run test:pilot-license && npm run test:pilot-device-proof && npm run scan:secrets && npm run verify:release && electron-builder --linux --publish=always"
   },
   "devDependencies": {
     "@electron/notarize": "^2.5.0",
@@ -56,25 +84,35 @@
   },
   "build": {
     "appId": "com.vachinoda.christinsong",
-    "productName": "Christ in Song Worship App",
+    "productName": "VaChinoda Worship App",
+    "buildVersion": "1",
     "copyright": "Copyright © 2026 VaChinoda Worship",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "asar": true,
     "files": [
       "src/**/*",
       "app/**/*",
+      "build/icons/vachinoda-app-icon.icns",
+      "build/icons/vachinoda-app-icon.ico",
       "build/icon.icns",
       "build/icon.ico",
       "build/icon.png",
       "build/icon.svg",
       "build/entitlements.mac.plist",
-      "scripts/**/*",
       "package.json",
       "README.md",
       "BUILD_GUIDE.md",
       "CODE_SIGNING.md",
+      "docs/RC1/**",
+      "docs/MANUAL_QA_CHECKLIST.md",
       "ARCHITECTURE.txt",
+      "!src/license/.dev-keys/**",
+      "!src/license/license-signing-private.pem",
+      "!scripts/**",
+      "!docs/pilot/**",
+      "!.env.example",
       "!build/icon.iconset/**",
+      "!build/icons/vachinoda-app-icon.iconset/**",
       "!**/*.map"
     ],
     "directories": {
@@ -83,7 +121,7 @@
     },
     "mac": {
       "category": "public.app-category.music",
-      "icon": "build/icon.icns",
+      "icon": "build/icons/vachinoda-app-icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -114,7 +152,7 @@
       }
     },
     "win": {
-      "icon": "build/icon.ico",
+      "icon": "build/icons/vachinoda-app-icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -137,7 +175,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Christ in Song Worship App"
+      "shortcutName": "VaChinoda Worship App"
     },
     "linux": {
       "icon": "build/icon.png",
@@ -164,7 +202,7 @@
         }
       ],
       "desktop": {
-        "Name": "Christ in Song Worship App",
+        "Name": "VaChinoda Worship App",
         "Comment": "300-hymn worship OS with presenter mode",
         "Categories": "AudioVideo;Audio;Music;"
       }

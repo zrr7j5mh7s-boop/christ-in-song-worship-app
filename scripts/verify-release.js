@@ -8,8 +8,13 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const release = require(path.join(root, 'src/release-metadata.js'));
 
 const requiredIcons = [
+  'build/icons/vachinoda-app-icon.icns',
+  'build/icons/vachinoda-app-icon.ico',
+  'build/icons/vachinoda-app-icon-1024.png',
+  'design/app-icon/master/vachinoda-app-icon-master.svg',
   'build/icon.icns',
   'build/icon.ico',
   'build/icon.png',
@@ -60,6 +65,16 @@ if (!pkg.repository || !String(pkg.repository.url || '').includes(publish.repo))
 
 ok(`appId ${pkg.build.appId}`);
 ok(`version ${pkg.version}`);
+if (pkg.version !== release.version) {
+  fail(`package.json version ${pkg.version} does not match src/release-metadata.js ${release.version}`);
+}
+if (pkg.build.buildVersion !== String(release.buildNumber)) {
+  fail(`buildVersion ${pkg.build.buildVersion} does not match release buildNumber ${release.buildNumber}`);
+}
+if (pkg.build.appId !== release.appId) {
+  fail(`appId changed — would create a new user-data profile: ${pkg.build.appId}`);
+}
+ok(`release ${release.releaseLabel}`);
 ok(`publish https://github.com/${publish.owner}/${publish.repo}/releases`);
 ok('icons and entitlements present');
 ok('notarize hook wired (set APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID for macOS release builds)');
@@ -75,3 +90,33 @@ if (helpTest.status !== 0) {
   fail(`Help Centre tests failed:\n${helpTest.stdout || ''}${helpTest.stderr || ''}`);
 }
 ok('help centre tests passed');
+
+const pilotTest = spawnSync(process.execPath, [path.join(__dirname, 'test-pilot-license.js')], {
+  cwd: root,
+  stdio: 'pipe',
+  encoding: 'utf8',
+});
+if (pilotTest.status !== 0) {
+  fail(`Pilot licence tests failed:\n${pilotTest.stdout || ''}${pilotTest.stderr || ''}`);
+}
+ok('pilot licence tests passed');
+
+const deviceProofTest = spawnSync(process.execPath, [path.join(__dirname, 'test-pilot-device-proof.js')], {
+  cwd: root,
+  stdio: 'pipe',
+  encoding: 'utf8',
+});
+if (deviceProofTest.status !== 0) {
+  fail(`Pilot device proof tests failed:\n${deviceProofTest.stdout || ''}${deviceProofTest.stderr || ''}`);
+}
+ok('pilot device proof tests passed');
+
+const secretScan = spawnSync(process.execPath, [path.join(__dirname, 'scan-packaged-secrets.js')], {
+  cwd: root,
+  stdio: 'pipe',
+  encoding: 'utf8',
+});
+if (secretScan.status !== 0) {
+  fail(`Secret scan failed:\n${secretScan.stdout || ''}${secretScan.stderr || ''}`);
+}
+ok('secret scan passed');

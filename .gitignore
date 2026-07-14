@@ -23,6 +23,7 @@ Thumbs.db
 # Env / secrets - never commit signing credentials
 .env
 .env.*
+!.env.example
 *.p12
 *.pfx
 *.provisionprofile
@@ -31,3 +32,10 @@ Thumbs.db
 npm-debug.log*
 logs/
 *.log
+
+# Pilot licensing dev signing keys (never ship private keys)
+src/license/.dev-keys/
+src/license/license-signing-private.pem
+
+# Supabase local temporary files
+supabase/.temp/

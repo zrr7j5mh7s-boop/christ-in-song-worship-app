@@ -515,6 +515,22 @@ function registerIpc(ipcMain) {
   ipcMain.handle('obs:test-connection', (_event, payload) => testConnection(payload || {}));
 
   ipcMain.handle('obs:call', async (_event, requestType, requestData) => {
+    const liveObsCalls = {
+      StartStream: 'obs-start-stream',
+      StartRecord: 'obs-start-record',
+      StartVirtualCam: 'obs-start-vcam',
+    };
+    const licenseCommand = liveObsCalls[String(requestType || '')];
+    if (licenseCommand) {
+      const licenseService = require('../license/license-service');
+      if (!licenseService.isCommandAllowed(licenseCommand)) {
+        return {
+          ok: false,
+          denied: true,
+          message: 'Pilot licence required for OBS live output. Open Settings to activate or contact your administrator.',
+        };
+      }
+    }
     try {
       const data = await call(requestType, requestData);
       return { ok: true, data };

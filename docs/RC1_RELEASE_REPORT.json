@@ -1,0 +1,16 @@
+{
+  "releaseVersion": "1.0.0-rc.1",
+  "buildNumber": 1,
+  "framework": "Electron 31 + electron-builder 24",
+  "packaging": "asar desktop bundle",
+  "platformsBuilt": [],
+  "criticalDefects": [],
+  "highDefects": [],
+  "knownLimitations": [
+    "macOS build unsigned in this environment — Gatekeeper may block first open",
+    "OBS, projector, and camera hardware validated by automated mocks; manual worship-pilot checklist required",
+    "OBS WebSocket password is not exported in backups by design",
+    "Multi-hour soak represented by automated iteration proxy, not live 3+ hour manual run"
+  ],
+  "releaseRecommendation": "Approved with documented limitations"
+}

@@ -51,19 +51,23 @@
         <span><kbd>P</kbd> ${escapeHtml(t("presenterControl.pauseDisplay"))}</span>
         <span><kbd>Esc</kbd> ${escapeHtml(t("presenterControl.exit"))}</span>
         <span><kbd>F</kbd> ${escapeHtml(t("presenterControl.fullscreen"))}</span>
+        <span><kbd>Shift</kbd><kbd>]</kbd> Take Next Live</span>
+        <span><kbd>Shift</kbd><kbd>[</kbd> Restore previous hymn</span>
+        <span><kbd>V</kbd> Camera live</span>
+        <span><kbd>N</kbd> Next camera</span>
       </footer>
     `;
   }
 
   function renderToolbar(snapshot) {
-    const paused = snapshot.paused ? "active" : "";
+    const paused = snapshot.paused ? "active is-pressed" : "";
     return `
-      <div class="av-floating-toolbar" role="toolbar" aria-label="Live presentation controls">
-        <button type="button" data-command="emergency-black" title="Black screen (B)">${escapeHtml(t("presenterControl.black"))}</button>
-        <button type="button" data-command="emergency-white" title="White screen (W)">${escapeHtml(t("presenterControl.white"))}</button>
-        <button type="button" data-command="emergency-logo" title="Logo screen (L)">${escapeHtml(t("presenterControl.logo"))}</button>
-        <button type="button" data-command="emergency-clear" title="Return to lyrics (C)">${escapeHtml(t("presenterControl.clear"))}</button>
-        <button type="button" class="${paused}" data-command="presenter-pause" title="Pause display (P)">${snapshot.paused ? escapeHtml(t("presenterControl.resume")) : escapeHtml(t("presenterControl.pauseDisplay"))}</button>
+      <div class="av-floating-toolbar live-touch-row" role="toolbar" aria-label="Live presentation controls">
+        <button type="button" class="live-touch-btn" data-command="emergency-black" aria-label="Black screen" aria-keyshortcuts="B">Black</button>
+        <button type="button" class="live-touch-btn" data-command="emergency-white" aria-label="White screen" aria-keyshortcuts="W">White</button>
+        <button type="button" class="live-touch-btn" data-command="emergency-logo" aria-label="Show logo screen" aria-keyshortcuts="L">Logo</button>
+        <button type="button" class="live-touch-btn" data-command="emergency-clear" aria-label="Return to lyrics" aria-keyshortcuts="C">Clear</button>
+        <button type="button" class="live-touch-btn ${paused}" data-command="presenter-pause" aria-label="${snapshot.paused ? "Resume display" : "Pause display"}" aria-pressed="${snapshot.paused ? "true" : "false"}" aria-keyshortcuts="P">${snapshot.paused ? escapeHtml(t("presenterControl.resume")) : escapeHtml(t("presenterControl.pauseDisplay"))}</button>
       </div>
     `;
   }
@@ -137,17 +141,20 @@
           <section class="av-live-panel">
             <div class="av-live-label">${escapeHtml(t("presenterControl.audienceScreen"))}</div>
             ${renderLivePreview(snapshot, currentSlide)}
-            <div class="av-transport">
-              <button type="button" data-command="presenter-prev" ${snapshot.canPrev ? "" : "disabled"}>${escapeHtml(t("presenterControl.previous"))}</button>
-              <button type="button" class="action-button" data-command="presenter-next" ${snapshot.canNext ? "" : "disabled"}>${escapeHtml(t("presenterControl.next"))}</button>
-              <button type="button" data-command="presenter-fullscreen">${escapeHtml(t("presenterControl.fullscreen"))}</button>
-              <button type="button" data-command="close-presenter">${escapeHtml(t("presenterControl.exit"))}</button>
+            <div class="av-transport live-touch-row">
+              <button type="button" class="live-touch-btn" data-command="presenter-prev" ${snapshot.canPrev ? "" : "disabled"} aria-label="Previous stanza">${escapeHtml(t("presenterControl.previous"))}</button>
+              <button type="button" class="action-button live-touch-btn" data-command="presenter-next" ${snapshot.canNext ? "" : "disabled"} aria-label="Next stanza">${escapeHtml(t("presenterControl.next"))}</button>
+              <button type="button" class="live-touch-btn" data-command="show-chorus" aria-label="Show chorus">Chorus</button>
+              <button type="button" class="live-touch-btn" data-command="presenter-fullscreen" aria-label="Fullscreen">${escapeHtml(t("presenterControl.fullscreen"))}</button>
+              <button type="button" class="live-touch-btn" data-command="close-presenter" aria-label="Exit presenter">${escapeHtml(t("presenterControl.exit"))}</button>
             </div>
           </section>
 
           <aside class="av-side-panel">
+            ${window.CISLiveHymnQueueUI && window.CISLiveHymnQueueService
+    ? window.CISLiveHymnQueueUI.renderCompactNextPanel(window.CISLiveHymnQueueService.getState())
+    : previewBlock(t("presenterControl.nextHymn"), nextHymnTitle, nextHymn && nextHymn.firstLine, t("presenterControl.endOfQueue"))}
             ${previewBlock(t("presenterControl.nextSlide"), nextSlideTitle, nextSlide && nextSlide.body, t("presenterControl.endOfHymn"))}
-            ${previewBlock(t("presenterControl.nextHymn"), nextHymnTitle, nextHymn && nextHymn.firstLine, t("presenterControl.endOfQueue"))}
             <article class="av-preview-card timer-card">
               <span>${escapeHtml(t("presenterControl.timer"))}</span>
               <strong>${escapeHtml(formatDuration(snapshot.timerRemaining || 0))}</strong>
@@ -160,6 +167,8 @@
             </article>
           </aside>
         </div>
+
+        ${window.CISCameraSourceUI ? window.CISCameraSourceUI.renderPresenterPanel(window.CISCameraSourceService?.getState?.() || {}) : ""}
 
         ${renderToolbar(snapshot)}
         ${renderKeyboardHints()}

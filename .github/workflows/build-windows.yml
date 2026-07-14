@@ -1,0 +1,46 @@
+name: Build Windows x64
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - split-v2/15-windows-ci
+      - integration/test-all-prs
+      - cursor/merge-electron-pwa-worship-os
+      - design/new-app-icon
+
+jobs:
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: RC1 gate tests
+        run: npm run test:rc1
+
+      - name: Build web assets
+        run: npm run build:web-assets
+
+      - name: Verify release metadata
+        run: npm run verify:release
+
+      - name: Build Windows x64 installer
+        run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vachinoda-worship-app-win-x64
+          path: |
+            dist/*win-x64*.exe
+            dist/win-unpacked/**
