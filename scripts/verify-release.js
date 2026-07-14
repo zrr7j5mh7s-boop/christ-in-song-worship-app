@@ -90,3 +90,33 @@ if (helpTest.status !== 0) {
   fail(`Help Centre tests failed:\n${helpTest.stdout || ''}${helpTest.stderr || ''}`);
 }
 ok('help centre tests passed');
+
+const pilotTest = spawnSync(process.execPath, [path.join(__dirname, 'test-pilot-license.js')], {
+  cwd: root,
+  stdio: 'pipe',
+  encoding: 'utf8',
+});
+if (pilotTest.status !== 0) {
+  fail(`Pilot licence tests failed:\n${pilotTest.stdout || ''}${pilotTest.stderr || ''}`);
+}
+ok('pilot licence tests passed');
+
+const deviceProofTest = spawnSync(process.execPath, [path.join(__dirname, 'test-pilot-device-proof.js')], {
+  cwd: root,
+  stdio: 'pipe',
+  encoding: 'utf8',
+});
+if (deviceProofTest.status !== 0) {
+  fail(`Pilot device proof tests failed:\n${deviceProofTest.stdout || ''}${deviceProofTest.stderr || ''}`);
+}
+ok('pilot device proof tests passed');
+
+const secretScan = spawnSync(process.execPath, [path.join(__dirname, 'scan-packaged-secrets.js')], {
+  cwd: root,
+  stdio: 'pipe',
+  encoding: 'utf8',
+});
+if (secretScan.status !== 0) {
+  fail(`Secret scan failed:\n${secretScan.stdout || ''}${secretScan.stderr || ''}`);
+}
+ok('secret scan passed');

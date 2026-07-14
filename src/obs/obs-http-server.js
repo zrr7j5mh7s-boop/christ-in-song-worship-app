@@ -257,8 +257,17 @@ function stop() {
   });
 }
 
-function registerIpc(ipcMain) {
-  ipcMain.handle('obs-http:start', (_event, options) => start(options));
+function registerIpc(ipcMain, options = {}) {
+  const isLiveOutputAllowed = typeof options.isLiveOutputAllowed === 'function'
+    ? options.isLiveOutputAllowed
+    : () => true;
+
+  ipcMain.handle('obs-http:start', (_event, startOptions) => {
+    if (!isLiveOutputAllowed()) {
+      return { ok: false, denied: true, error: 'Pilot licence required for OBS live output.' };
+    }
+    return start(startOptions);
+  });
   ipcMain.handle('obs-http:stop', () => stop());
   ipcMain.handle('obs-http:get-info', () => ({
     running: Boolean(server),
@@ -267,7 +276,12 @@ function registerIpc(ipcMain) {
     routes: getRouteUrls(),
     heartbeat: getHeartbeat(),
   }));
-  ipcMain.handle('obs-http:publish', (_event, payload) => publishLive(payload || {}));
+  ipcMain.handle('obs-http:publish', (_event, payload) => {
+    if (!isLiveOutputAllowed()) {
+      return { ok: false, denied: true, error: 'Pilot licence required for OBS live output.' };
+    }
+    return publishLive(payload || {});
+  });
   ipcMain.handle('obs-http:get-live', () => getLivePayload());
 }
 

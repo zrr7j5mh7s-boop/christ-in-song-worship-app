@@ -1,0 +1,26 @@
+# VaChinoda pilot licensing Edge Functions
+#
+# The Electron desktop app does not use Supabase Auth. These five endpoints
+# authenticate via:
+#   - activate-license: hashed activation code + approved email + device public key
+#   - validate-license: server-issued challenge + Ed25519 device proof-of-possession
+#   - deactivate-device: device proof (self) or PILOT_ADMIN_TOKEN (admin)
+#   - revoke-license / reset-device: PILOT_ADMIN_TOKEN only
+#
+# JWT verification is intentionally disabled ONLY for these functions.
+# Do not disable verify_jwt for unrelated functions.
+
+[functions.activate-license]
+verify_jwt = false
+
+[functions.validate-license]
+verify_jwt = false
+
+[functions.deactivate-device]
+verify_jwt = false
+
+[functions.revoke-license]
+verify_jwt = false
+
+[functions.reset-device]
+verify_jwt = false

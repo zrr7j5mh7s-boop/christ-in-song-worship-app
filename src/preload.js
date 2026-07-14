@@ -132,6 +132,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
 
+  license: {
+    getLicenceStatus: () => ipcRenderer.invoke('license:get-status'),
+
+    activateLicence: (email, code, deviceName) => ipcRenderer.invoke('license:activate', {
+      email,
+      code,
+      deviceName,
+    }),
+
+    validateLicence: () => ipcRenderer.invoke('license:validate'),
+
+    deactivateLicence: () => ipcRenderer.invoke('license:deactivate'),
+
+    isCommandAllowed: (command) => ipcRenderer.invoke('license:is-command-allowed', { command }),
+
+    onLicenseStatus: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const listener = (_event, status) => callback(status);
+      ipcRenderer.on('license-status', listener);
+      return () => ipcRenderer.removeListener('license-status', listener);
+    },
+  },
+
   stageDisplay: {
     listDisplays: () => ipcRenderer.invoke('stage-display:list-displays'),
 

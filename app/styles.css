@@ -7916,3 +7916,113 @@ body.quiet-service-mode-active .launch-splash {
   padding: 0.75rem 1rem;
 }
 
+.license-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgba(10, 16, 32, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.license-overlay--blocked {
+  background: rgba(24, 10, 10, 0.78);
+}
+
+.license-card {
+  width: min(520px, 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, #1a2744 0%, #121b31 100%);
+  color: #f4f7ff;
+  padding: 1.5rem;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.license-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9eb4df;
+}
+
+.license-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.45rem;
+}
+
+.license-copy,
+.license-footnote {
+  color: #c5d2ef;
+  line-height: 1.45;
+}
+
+.license-status-dl {
+  display: grid;
+  gap: 0.45rem;
+  margin: 1rem 0;
+}
+
+.license-status-dl div {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 0.5rem;
+}
+
+.license-status-dl dt {
+  color: #9eb4df;
+  font-size: 0.85rem;
+}
+
+.license-status-dl dd {
+  margin: 0;
+}
+
+.license-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.license-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.license-form input {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  padding: 0.55rem 0.65rem;
+}
+
+.license-settings-panel .license-watermark-panel {
+  margin: 1rem 0;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px dashed rgba(19, 31, 56, 0.25);
+  background: rgba(19, 31, 56, 0.04);
+  color: #4b5568;
+  font-size: 0.82rem;
+}
+
+.license-settings-panel .license-watermark-panel p {
+  margin: 0.15rem 0;
+}
+
+.license-presenter-watermark {
+  margin: 0 0 0.75rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(19, 31, 56, 0.12);
+  background: rgba(19, 31, 56, 0.04);
+  color: #5b6475;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+}
+

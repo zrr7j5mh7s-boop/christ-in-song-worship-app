@@ -20,4 +20,22 @@ npm start
 ```bash
 npm run test:branding
 npm run test:live-hymn-queue
+npm run test:pilot-license
+```
+
+## Controlled pilot licensing
+
+Pilot desktop builds require approved-email activation, one-device binding, signed server validation, and a seven-day offline grace period. See:
+
+- [`docs/pilot/PILOT_DEPLOYMENT.md`](docs/pilot/PILOT_DEPLOYMENT.md)
+- [`docs/pilot/DATABASE_SETUP.md`](docs/pilot/DATABASE_SETUP.md)
+- [`docs/pilot/LICENCE_ADMINISTRATION.md`](docs/pilot/LICENCE_ADMINISTRATION.md)
+- [`docs/pilot/RECOVERY_AND_DEVICE_RESET.md`](docs/pilot/RECOVERY_AND_DEVICE_RESET.md)
+- [`.env.example`](.env.example)
+
+Development mock server:
+
+```bash
+npm run mock:license-server
+PILOT_LICENSE_MOCK_SERVER=true npm start
 ```

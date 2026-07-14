@@ -195,6 +195,8 @@
     obsUrls: {},
     obsHeartbeat: {},
     stageDisplayDisplays: [],
+    licenseStatus: null,
+    licenseOverlayDismissed: false,
     help: {
       category: "",
       articleId: "",
@@ -6354,6 +6356,7 @@
     const remaining = timerRemaining();
     const time = new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit" }).format(new Date());
     return `
+      ${window.CISLicenseUI ? window.CISLicenseUI.renderPresenterWatermark(state.licenseStatus) : ""}
       ${renderLiveHymnQueueMount(true)}
       <div class="operator-grid">
         <section class="section">
@@ -6543,6 +6546,9 @@
       </section>`;
     return `
       <div class="settings-page">
+        ${window.CISLicenseUI && electronBridge?.license
+    ? window.CISLicenseUI.renderSettingsPanel(state.licenseStatus)
+    : ""}
         ${hymnalPanel}
         <div class="dashboard-grid">
           <section class="section">
@@ -7768,6 +7774,16 @@
     if (command && command !== "close-modal" && window.CISFocusManager) {
       window.CISFocusManager.rememberFocus(target);
     }
+    if (command && electronBridge?.license && state.licenseStatus) {
+      if (window.CISLicenseGate?.shouldBlockCommand(state.licenseStatus, command)) {
+        setNotice(state.licenseStatus.message || "Pilot licence required for live outputs.", { important: true });
+        if (!state.licenseStatus.canPresent) {
+          state.licenseOverlayDismissed = false;
+          renderLicenseChrome();
+        }
+        return;
+      }
+    }
     if (command && window.CISQuietServiceModeService?.shouldBlockAdminPopup?.(command)) {
       setNotice("That administrative action is deferred while Quiet Service Mode is active.", { important: true });
       return;
@@ -8110,6 +8126,30 @@
     if (command === "copy-plan") return copyPlan();
     if (command === "export-plan") return exportPlan();
     if (command === "export-backup") return exportBackup();
+    if (command === "license-validate" && electronBridge?.license?.validateLicence) {
+      electronBridge.license.validateLicence()
+        .then((result) => {
+          if (result?.status) state.licenseStatus = result.status;
+          setNotice(result?.status?.message || "Licence validation complete.");
+          renderLicenseChrome();
+          if (state.view === "settings") render();
+        })
+        .catch((error) => setNotice(error?.message || "Licence validation failed."));
+      return;
+    }
+    if (command === "license-deactivate" && electronBridge?.license?.deactivateLicence) {
+      if (!window.confirm("Deactivate this device and remove the local pilot licence cache?")) return;
+      electronBridge.license.deactivateLicence()
+        .then((result) => {
+          if (result?.status) state.licenseStatus = result.status;
+          state.licenseOverlayDismissed = false;
+          setNotice("Pilot licence deactivated on this device.");
+          renderLicenseChrome();
+          if (state.view === "settings") render();
+        })
+        .catch((error) => setNotice(error?.message || "Licence deactivation failed."));
+      return;
+    }
     if (command === "export-bulletin") return exportBulletin();
     if (command === "restore-backup") {
       if (window.CISBackupRestore) return window.CISBackupRestore.openRestoreDialog();
@@ -8887,6 +8927,85 @@
     deferredInstallPrompt = event;
   });
 
+  function setupLicenseBridge() {
+    if (!electronBridge?.license) return;
+
+    const refreshStatus = (status) => {
+      if (!status) return;
+      state.licenseStatus = status;
+      if (!status.canPresent) state.licenseOverlayDismissed = false;
+      renderLicenseChrome();
+      if (state.view === "settings" || state.view === "presenter") render();
+    };
+
+    electronBridge.license.getLicenceStatus()
+      .then(refreshStatus)
+      .catch((error) => console.warn("[License] status load failed:", error));
+
+    if (electronBridge.license.onLicenseStatus) {
+      electronBridge.license.onLicenseStatus(refreshStatus);
+    }
+  }
+
+  function bindLicenseOverlayEvents(root) {
+    if (!root || root._licenseBound) return;
+    root._licenseBound = true;
+    root.addEventListener("submit", (event) => {
+      const form = event.target.closest("#licenseActivationForm");
+      if (!form || !electronBridge?.license?.activateLicence) return;
+      event.preventDefault();
+      const data = new FormData(form);
+      const email = String(data.get("email") || "").trim();
+      const code = String(data.get("code") || "").trim();
+      const deviceName = String(data.get("deviceName") || "").trim();
+      electronBridge.license.activateLicence(email, code, deviceName)
+        .then((result) => {
+          if (result?.status) state.licenseStatus = result.status;
+          if (!result?.ok) {
+            setNotice(result?.error || result?.status?.message || "Activation failed.", { important: true });
+          } else {
+            state.licenseOverlayDismissed = true;
+            setNotice("Pilot licence activated.");
+          }
+          renderLicenseChrome();
+          if (state.view === "settings") render();
+        })
+        .catch((error) => setNotice(error?.message || "Activation failed.", { important: true }));
+    });
+    root.addEventListener("click", (event) => {
+      const action = event.target.closest("[data-license-action]");
+      if (!action) return;
+      const kind = action.dataset.licenseAction;
+      if (kind === "continue") {
+        state.licenseOverlayDismissed = true;
+        renderLicenseChrome();
+        return;
+      }
+      if (kind === "deactivate") {
+        handleCommand("license-deactivate", action);
+      }
+    });
+  }
+
+  function renderLicenseChrome() {
+    if (!electronBridge?.license || !window.CISLicenseUI) return;
+    let root = document.getElementById("licenseOverlayRoot");
+    if (!root) {
+      root = document.createElement("div");
+      root.id = "licenseOverlayRoot";
+      document.body.appendChild(root);
+    }
+    const status = state.licenseStatus;
+    if (!status || (status.canPresent && state.licenseOverlayDismissed)) {
+      root.innerHTML = "";
+      root.hidden = true;
+      return;
+    }
+    root.hidden = false;
+    root.innerHTML = window.CISLicenseUI.renderActivationOverlay(status, {});
+    bindLicenseOverlayEvents(root);
+  }
+
   function setupDesktopBridge() {
     if (!desktopBridge) return;
 
@@ -8945,6 +9064,7 @@
   setupI18n();
   setupBranding();
   setupDesktopBridge();
+  setupLicenseBridge();
   setupTemplateSystem();
   setupBuilderSlides();
   setupBuilderSystems();
@@ -9022,6 +9142,7 @@
   function completeStartupRender() {
     try {
       render();
+      renderLicenseChrome();
       clearStartupTimeout();
     } catch (error) {
       showStartupFailure("The worship dashboard could not open.", error);

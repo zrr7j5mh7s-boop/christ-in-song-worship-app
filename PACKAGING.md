@@ -1,6 +1,19 @@
-# Christ in Song Worship App Packaging
+# VaChinoda Worship App Packaging
 
 This project includes an Electron desktop shell around the offline web app.
+
+## Controlled pilot builds
+
+Pilot installers include licence activation and output gating. Before packaging:
+
+```bash
+npm run test:pilot-license
+npm run scan:secrets
+```
+
+Embed the verification public key at `src/license/license-public-key.pem` (or set `PILOT_LICENSE_PUBLIC_KEY` at build time). Never package signing private keys or Supabase service-role credentials.
+
+See [`docs/pilot/PILOT_DEPLOYMENT.md`](docs/pilot/PILOT_DEPLOYMENT.md).
 
 ## Desktop App Features
 

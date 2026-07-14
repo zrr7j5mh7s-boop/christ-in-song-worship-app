@@ -4,8 +4,8 @@
     "arch": "arm64",
     "node": "v24.18.0",
     "framework": "Electron + offline PWA worship OS",
-    "cacheVersion": "christ-in-song-worship-v46",
-    "testDate": "2026-07-12T11:03:51.309Z"
+    "cacheVersion": "christ-in-song-worship-v47",
+    "testDate": "2026-07-14T20:09:23.201Z"
   },
   "devicesTested": [
     "macOS development host"
@@ -286,15 +286,15 @@
   ],
   "performance": {
     "iterations": 400,
-    "searchLatencyMedianMs": 4.302,
+    "searchLatencyMedianMs": 4.286,
     "previewLatencyMedianMs": 0.002,
-    "liveSwitchLatencyMedianMs": 0.009
+    "liveSwitchLatencyMedianMs": 0.006
   },
   "memory": {
     "heapUsedStartMb": 9.36,
-    "heapUsedEndMb": 16.25,
-    "heapDeltaMb": 6.89,
-    "rssEndMb": 79.02
+    "heapUsedEndMb": 12.66,
+    "heapDeltaMb": 3.3,
+    "rssEndMb": 79.11
   },
   "accessibility": {
     "keyboardShortcutsRegistered": true,

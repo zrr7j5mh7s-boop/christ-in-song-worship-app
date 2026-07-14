@@ -25,6 +25,8 @@ const { buildMenu } = require('./menu');
 const brand = require('./brand-config');
 const { setupAutoUpdater, setQuietMode } = require('./updater');
 const obsManager = require('./obs/obs-manager');
+const { registerLicenseIpc } = require('./license/license-ipc');
+const licenseService = require('./license/license-service');
 
 // ---------------------------------------------------------------------
 // Single instance lock - only one copy of the app should ever run.
@@ -317,6 +319,8 @@ function createProjectorWindow() {
 }
 
 ipcMain.handle('presenter:open', () => {
+  const denied = denyIfLicenseBlocks('open-presenter');
+  if (denied) return denied;
   createProjectorWindow();
   return { opened: true, dualDisplay: hasExternalDisplay() };
 });
@@ -374,6 +378,8 @@ function createObsMonitorWindow() {
 }
 
 ipcMain.handle('obs-monitor:open', (_event, payload) => {
+  const denied = denyIfLicenseBlocks('open-obs-monitor');
+  if (denied) return denied;
   obsMonitorStartPrefs = {
     deviceId: payload?.deviceId || '',
     deviceLabel: payload?.deviceLabel || '',
@@ -449,6 +455,8 @@ function createCameraPreviewWindow() {
 }
 
 ipcMain.handle('camera-preview:open', () => {
+  const denied = denyIfLicenseBlocks('open-camera-preview');
+  if (denied) return denied;
   createCameraPreviewWindow();
   return { opened: true };
 });
@@ -546,6 +554,8 @@ ipcMain.handle('stage-display:save-prefs', (_event, payload) => {
 ipcMain.handle('stage-display:get-start-prefs', () => ({ ...stageDisplayPrefs }));
 
 ipcMain.handle('stage-display:open', (_event, payload) => {
+  const denied = denyIfLicenseBlocks('open-stage-display');
+  if (denied) return denied;
   if (payload && typeof payload === 'object') {
     stageDisplayPrefs = { ...stageDisplayPrefs, ...payload };
   }
@@ -622,13 +632,29 @@ function registerDisplayChangeListeners() {
 obsManager.registerIpc(ipcMain);
 
 const obsHttpServer = require('./obs/obs-http-server');
-obsHttpServer.registerIpc(ipcMain);
+obsHttpServer.registerIpc(ipcMain, {
+  isLiveOutputAllowed: () => licenseService.isCommandAllowed('open-obs-monitor'),
+});
+
+let licenseIpc = null;
+
+function denyIfLicenseBlocks(command) {
+  if (!licenseService.isCommandAllowed(command)) {
+    return {
+      ok: false,
+      denied: true,
+      error: 'Pilot licence required for live outputs. Open Settings to activate or contact your administrator.',
+    };
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------
 app.whenReady().then(() => {
   registerDisplayChangeListeners();
+  licenseService.initialize();
 
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     if (permission === 'media' || permission === 'camera' || permission === 'videoCapture') {
@@ -640,6 +666,8 @@ app.whenReady().then(() => {
 
   splashWindow = createSplashWindow();
   mainWindow = createMainWindow();
+  licenseIpc = registerLicenseIpc(ipcMain, mainWindow);
+  licenseIpc.pushStatus();
   obsManager.setMainWindow(mainWindow);
   obsHttpServer.start({ port: 47823 }).catch((err) => {
     log.warn('[obs-http] Could not start browser source server:', err.message);
@@ -665,6 +693,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  licenseService.shutdown();
   if (process.platform !== 'darwin') {
     app.quit();
   }
