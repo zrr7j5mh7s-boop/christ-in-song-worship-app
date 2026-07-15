@@ -3,6 +3,7 @@
 
 const path = require('node:path');
 const fs = require('node:fs');
+const runtimeConfig = require('./license-runtime-config');
 
 const DEFAULTS = {
   validationIntervalMs: 24 * 60 * 60 * 1000,
@@ -24,13 +25,21 @@ function readPublicKeyPem() {
   return '';
 }
 
-function resolveApiBase() {
+function resolveApiBase(app) {
   if (process.env.PILOT_LICENSE_API_BASE) {
     return process.env.PILOT_LICENSE_API_BASE.replace(/\/$/, '');
   }
   const projectUrl = process.env.SUPABASE_URL || process.env.PILOT_SUPABASE_URL || '';
   if (projectUrl) {
     return `${projectUrl.replace(/\/$/, '')}/functions/v1`;
+  }
+  if (app?.isPackaged) {
+    const embeddedBase = String(runtimeConfig.apiBase || '').trim();
+    if (embeddedBase) return embeddedBase.replace(/\/$/, '');
+    const embeddedProject = String(runtimeConfig.supabaseUrl || '').trim();
+    if (embeddedProject) {
+      return `${embeddedProject.replace(/\/$/, '')}/functions/v1`;
+    }
   }
   return '';
 }
@@ -42,7 +51,7 @@ function isMockServerEnabled(app) {
 }
 
 function getConfig(app) {
-  const apiBase = resolveApiBase();
+  const apiBase = resolveApiBase(app);
   const publicKeyPem = readPublicKeyPem();
   const mockEnabled = isMockServerEnabled(app);
   const mockBase = mockEnabled
