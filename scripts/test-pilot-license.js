@@ -164,7 +164,11 @@ async function run() {
 
   const keys = require('../src/license/license-crypto').ensureDevKeyPair();
   assert.ok(keys.publicKeyPem.includes('BEGIN PUBLIC KEY'), 'dev public key generated');
-  assert.ok(fs.existsSync(path.join(ROOT, 'src/license/license-public-key.pem')), 'public verification key present');
+  assert.ok(
+    fs.existsSync(path.join(ROOT, 'src/license/.dev-keys/license-signing-public.pem')),
+    'dev public verification key present',
+  );
+  process.env.PILOT_LICENSE_PUBLIC_KEY = keys.publicKeyPem;
 
   const mock = await startMockServer();
   const { licenseCrypto, licenseStore, licenseConfig, licenseService } = freshLicenseModules(userDataDir);
