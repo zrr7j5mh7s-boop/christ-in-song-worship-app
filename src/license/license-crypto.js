@@ -116,7 +116,7 @@ function signTokenForMock(payload, privateKeyPem) {
 function ensureDevKeyPair() {
   const keyDir = path.join(__dirname, '.dev-keys');
   const privatePath = path.join(keyDir, 'license-signing-private.pem');
-  const publicPath = path.join(__dirname, 'license-public-key.pem');
+  const publicPath = path.join(keyDir, 'license-signing-public.pem');
   if (!fs.existsSync(privatePath) || !fs.existsSync(publicPath)) {
     const pair = generateDeviceKeyPair();
     fs.mkdirSync(keyDir, { recursive: true });

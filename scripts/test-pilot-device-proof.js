@@ -132,6 +132,9 @@ async function run() {
   assert.equal(constantTimeEqual('short', 'longer'), false);
   log('constant-time administrator-token comparison');
 
+  const devKeys = require('../src/license/license-crypto').ensureDevKeyPair();
+  process.env.PILOT_LICENSE_PUBLIC_KEY = devKeys.publicKeyPem;
+
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pilot-proof-'));
   const mods = freshModules(tmp);
   await startMock(mods.mock);
