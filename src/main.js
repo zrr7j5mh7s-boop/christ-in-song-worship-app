@@ -44,6 +44,7 @@ if (!gotSingleInstanceLock) {
 let mainWindow = null;
 let splashWindow = null;
 let projectorWindow = null;
+let lastPresenterPayload = null;
 let obsMonitorWindow = null;
 let cameraPreviewWindow = null;
 let stageDisplayWindow = null;
@@ -302,6 +303,15 @@ function createProjectorWindow() {
   });
 
   win.loadFile(path.join(__dirname, '..', 'app', 'presenter-screen.html'));
+  win.webContents.on('did-finish-load', () => {
+    // Replay the latest presentation state so a newly created or reloaded
+    // projector window renders immediately instead of waiting for the next
+    // state change. The payload carries the full snapshot (slide, display
+    // mode, theme, output profile), so blank/clear states replay correctly.
+    if (lastPresenterPayload && !win.isDestroyed()) {
+      win.webContents.send('presenter-state', lastPresenterPayload);
+    }
+  });
   win.once('ready-to-show', () => {
     win.show();
     if (externalDisplay) {
@@ -334,10 +344,33 @@ ipcMain.handle('presenter:close', () => {
 });
 
 ipcMain.handle('presenter:publish', (_event, payload) => {
+  lastPresenterPayload = payload || null;
   if (projectorWindow && !projectorWindow.isDestroyed()) {
     projectorWindow.webContents.send('presenter-state', payload);
   }
   return { delivered: true };
+});
+
+// Commands from the projector output window are forwarded to the main
+// window, where they run through the same guards as menu commands
+// (licence gate, Live Lock, Quiet Service Mode). Only known presenter
+// commands are accepted.
+const PRESENTER_OUTPUT_COMMANDS = new Set([
+  'presenter-next',
+  'presenter-prev',
+  'presenter-pause',
+  'emergency-black',
+  'emergency-white',
+  'emergency-logo',
+  'emergency-clear',
+  'close-presenter',
+]);
+
+ipcMain.on('presenter:command', (_event, command) => {
+  if (!PRESENTER_OUTPUT_COMMANDS.has(String(command || ''))) return;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('menu-command', command);
+  }
 });
 
 function createObsMonitorWindow() {

@@ -5296,6 +5296,7 @@
         return currentPresenterItem();
       },
       nextContext: (_engineState, item) => buildPresenterNextContext(item),
+      onRemoteCommand: (command) => handleDesktopCommand(command),
       getProjectionContext: (_engineState, item, slide) => getProjectionContextForOutput(item, slide),
       canGoPrev: (_engineState, item) => presenterCanGoPrev(item),
       canGoNext: (_engineState, item) => presenterCanGoNext(item),
@@ -6360,7 +6361,7 @@
       ${renderLiveHymnQueueMount(true)}
       <div class="operator-grid">
         <section class="section">
-          <p class="eyebrow">Clock ${escapeHtml(time)}</p>
+          <p class="eyebrow">Clock <span data-presenter-dashboard-clock>${escapeHtml(time)}</span></p>
           <h2>${currentInfo
     ? escapeHtml(t("presenter.current", { title: slotTitle(currentInfo.slot) }))
     : currentSong
@@ -6396,7 +6397,7 @@
             </article>
             <article class="timer-card">
               <span>${escapeHtml(t("presenter.countdown"))}</span>
-              <strong>${formatDuration(remaining)}</strong>
+              <strong data-presenter-dashboard-timer>${formatDuration(remaining)}</strong>
               <div class="button-row">
                 <button class="secondary-button" type="button" data-command="timer-minus">-5</button>
                 <button class="secondary-button" type="button" data-command="timer-plus">+5</button>
@@ -9195,22 +9196,43 @@
       showStartupFailure("Application data failed to load.", error);
     }
   });
+  function updatePresenterClockText() {
+    const timerText = formatDuration(timerRemaining());
+    const controlRoot = els.presenterControlRoot;
+    if (controlRoot && controlRoot.innerHTML && window.CISPresenterEngine) {
+      const clock = window.CISPresenterEngine.formatClock();
+      controlRoot.querySelectorAll("[data-presenter-clock]").forEach((el) => {
+        el.textContent = clock;
+      });
+      controlRoot.querySelectorAll("[data-presenter-timer]").forEach((el) => {
+        el.textContent = timerText;
+      });
+    }
+    const dashboardClocks = document.querySelectorAll("[data-presenter-dashboard-clock]");
+    if (dashboardClocks.length) {
+      const shortClock = new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit" }).format(new Date());
+      dashboardClocks.forEach((el) => {
+        el.textContent = shortClock;
+      });
+    }
+    document.querySelectorAll("[data-presenter-dashboard-timer]").forEach((el) => {
+      el.textContent = timerText;
+    });
+  }
+
   const presenterClockInterval = window.setInterval(() => {
     if (state.timerRunning && timerRemaining() <= 0) {
+      // Timer expiry is a real state change: persist it and publish once so
+      // subscribed surfaces (control panel, outputs, OBS) re-render normally.
       state.timerRunning = false;
       state.timerSeconds = 0;
       persistTimer();
       syncTimerToPresenter();
     }
-    if (window.CISPresenterEngine && window.CISPresenterEngine.getState().active) {
-      syncTimerToPresenter();
-      window.CISPresenterEngine.publishState();
-      renderPresenterAV();
-      return;
-    }
-    if ((state.view === "presenter" || state.presenter.open) && state.timerRunning) {
-      render();
-    }
+    // Per-second ticks only touch clock/timer text nodes in place. The
+    // presenter control panel and outputs are re-rendered exclusively by
+    // presentation state changes, never by this interval.
+    updatePresenterClockText();
   }, 1000);
   if (window.CISPerformanceMonitor) window.CISPerformanceMonitor.trackInterval(presenterClockInterval);
 })();

@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   publishPresenterState: (payload) => ipcRenderer.invoke('presenter:publish', payload),
 
+  sendPresenterCommand: (command) => ipcRenderer.send('presenter:command', command),
+
   onPresenterState: (callback) => {
     if (typeof callback !== 'function') return () => {};
     const listener = (_event, payload) => callback(payload);
