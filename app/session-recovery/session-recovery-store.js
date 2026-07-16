@@ -10,7 +10,7 @@
   let dbPromise = null;
 
   function supportsIndexedDb() {
-    return typeof indexedDB !== "undefined";
+    return typeof indexedDB !== "undefined" && typeof indexedDB?.open === "function";
   }
 
   function openDatabase() {
@@ -27,7 +27,10 @@
           }
         };
         request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error || new Error("Could not open session recovery database."));
+        request.onerror = () => {
+          dbPromise = null;
+          reject(request.error || new Error("Could not open session recovery database."));
+        };
       });
     }
     return dbPromise;
@@ -38,10 +41,13 @@
       const tx = db.transaction(STORE_NAME, mode);
       const store = tx.objectStore(STORE_NAME);
       let settled = false;
-      const finish = (value) => {
-        if (!settled) {
+      let callbackDone = false;
+      let transactionDone = false;
+      let callbackValue;
+      const maybeFinish = () => {
+        if (callbackDone && transactionDone && !settled) {
           settled = true;
-          resolve(value);
+          resolve(callbackValue);
         }
       };
       const fail = (error) => {
@@ -50,15 +56,29 @@
           reject(error);
         }
       };
-      tx.oncomplete = () => finish(undefined);
+      const abort = () => {
+        try {
+          if (mode === "readwrite" && typeof tx.abort === "function") tx.abort();
+        } catch (_error) {}
+      };
+      tx.oncomplete = () => {
+        transactionDone = true;
+        maybeFinish();
+      };
       tx.onerror = () => fail(tx.error || new Error("Session recovery transaction failed."));
       tx.onabort = () => fail(tx.error || new Error("Session recovery transaction aborted."));
       try {
         const result = fn(store, tx);
         Promise.resolve(result).then((value) => {
-          if (value !== undefined) finish(value);
-        }).catch(fail);
+          callbackValue = value;
+          callbackDone = true;
+          maybeFinish();
+        }).catch((error) => {
+          abort();
+          fail(error);
+        });
       } catch (error) {
+        abort();
         fail(error);
       }
     }));
@@ -89,7 +109,6 @@
       return { ok: false, message: validation.errors?.join(" ") || "Snapshot validation failed.", preserved: true };
     }
 
-    const existingLatest = await getRecord(LATEST_ID);
     const record = {
       id: LATEST_ID,
       snapshot,
@@ -97,27 +116,35 @@
       size: JSON.stringify(snapshot).length,
     };
 
-    return withStore("readwrite", async (store) => {
-      if (existingLatest?.snapshot) {
-        await new Promise((resolve, reject) => {
-          const request = store.put({
+    return withStore("readwrite", (store) => new Promise((resolve, reject) => {
+      const latestRequest = store.get(LATEST_ID);
+      latestRequest.onerror = () => reject(latestRequest.error || new Error("Could not read latest recovery snapshot."));
+      latestRequest.onsuccess = () => {
+        const existingLatest = latestRequest.result;
+        const writeLatest = () => {
+          const writeRequest = store.put(record);
+          writeRequest.onerror = () => reject(writeRequest.error || new Error("Could not write latest recovery snapshot."));
+          writeRequest.onsuccess = () => {
+            resolve({ ok: true, id: record.id, writtenAt: record.writtenAt });
+          };
+        };
+
+        if (existingLatest?.snapshot) {
+          const previousRequest = store.put({
             id: PREVIOUS_ID,
             snapshot: existingLatest.snapshot,
             writtenAt: existingLatest.writtenAt,
             size: existingLatest.size || 0,
             promotedFrom: LATEST_ID,
           });
-          request.onsuccess = () => resolve();
-          request.onerror = () => reject(request.error);
-        });
-      }
-      await new Promise((resolve, reject) => {
-        const request = store.put(record);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-      });
-      return { ok: true, id: record.id, writtenAt: record.writtenAt };
-    });
+          previousRequest.onerror = () => reject(previousRequest.error || new Error("Could not preserve previous recovery snapshot."));
+          previousRequest.onsuccess = writeLatest;
+          return;
+        }
+
+        writeLatest();
+      };
+    }));
   }
 
   async function clearSnapshots() {

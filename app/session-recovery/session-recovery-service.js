@@ -60,6 +60,13 @@
     }
   }
 
+  function readStartupFlags() {
+    return {
+      cleanExit: wasCleanExit(),
+      sessionActive: wasSessionActive(),
+    };
+  }
+
   function buildSnapshotFromApp() {
     if (typeof adapters.captureSession !== "function") return null;
     const raw = adapters.captureSession();
@@ -121,8 +128,26 @@
 
   async function checkOnStartup() {
     loadSettings();
+    const startupFlags = readStartupFlags();
     markCleanExit(false);
-    const { latest, previous } = await window.CISSessionRecoveryStore.readSnapshots();
+    if (!window.CISSessionRecoveryStore?.supportsIndexedDb?.()) {
+      recoveryOffer = null;
+      return { interrupted: false, storageUnavailable: true };
+    }
+
+    let records;
+    try {
+      records = await window.CISSessionRecoveryStore.readSnapshots();
+    } catch (error) {
+      recoveryOffer = null;
+      return {
+        interrupted: false,
+        storageError: true,
+        message: error?.message || "Session recovery storage unavailable.",
+      };
+    }
+
+    const { latest, previous } = records;
     const validate = window.CISSessionRecoverySnapshot.validateSnapshot;
     let snapshot = latest;
     let source = "latest";
@@ -142,9 +167,10 @@
     }
 
     const interrupted = Boolean(
-      snapshot
-      && (wasSessionActive() || snapshot.sessionActive)
-      && !wasCleanExit(),
+      settings.markInterruptedOnUncleanExit !== false
+      && snapshot
+      && (startupFlags.sessionActive || snapshot.sessionActive)
+      && !startupFlags.cleanExit,
     );
 
     if (!interrupted || !snapshot) {
@@ -205,10 +231,15 @@
     return { items: [], warnings: [] };
   }
 
+  function recordCleanExit(reason) {
+    const result = flushSave(reason || "clean-exit");
+    markCleanExit(true);
+    return result;
+  }
+
   function setupLifecycle() {
     window.addEventListener("beforeunload", () => {
-      void flushSave("beforeunload");
-      markCleanExit(true);
+      void recordCleanExit("beforeunload");
     });
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") void flushSave("hidden");
@@ -229,6 +260,7 @@
     setupLifecycle,
     markSessionActive,
     markCleanExit,
+    recordCleanExit,
     buildSnapshotFromApp,
   };
 })();
