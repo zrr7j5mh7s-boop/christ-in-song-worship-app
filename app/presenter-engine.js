@@ -38,7 +38,18 @@
   }
 
   function handleRemoteMessage(message) {
-    if (!message || message.type !== "presenter:state") return;
+    if (!message) return;
+    if (message.type === "presenter:command") {
+      if (adapters.onRemoteCommand) adapters.onRemoteCommand(message.command);
+      return;
+    }
+    if (message.type === "presenter:request-state") {
+      // An output surface (projector window) booted or reloaded and needs the
+      // current presentation state. Only the active controller replies.
+      if (state.active) publishState();
+      return;
+    }
+    if (message.type !== "presenter:state") return;
     if (message.source === "control") return;
     notify();
   }
@@ -85,6 +96,14 @@
     return Math.max(0, Math.ceil((state.timerEndsAt - Date.now()) / 1000));
   }
 
+  function formatClock(date) {
+    return new Intl.DateTimeFormat([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).format(date || new Date());
+  }
+
   function currentItem() {
     if (!adapters.currentPresenterItem) return null;
     return adapters.currentPresenterItem(state);
@@ -100,12 +119,7 @@
     const index = item ? Math.max(0, Math.min(item.slides.length - 1, state.slideIndex)) : 0;
     const slide = item && item.slides[index] ? item.slides[index] : null;
     const context = item ? nextContext(item) : { nextSlide: null, nextHymn: null };
-    const now = new Date();
-    const clock = new Intl.DateTimeFormat([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }).format(now);
+    const clock = formatClock();
 
     const hymnTitle = item && item.title && item.title.includes(" · ")
       ? item.title.slice(item.title.indexOf(" · ") + 3)
@@ -319,5 +333,6 @@
     sendCommand,
     attachRemoteListener,
     timerRemaining,
+    formatClock,
   };
 })();

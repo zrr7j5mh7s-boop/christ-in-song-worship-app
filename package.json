@@ -50,6 +50,7 @@
     "test:rc1": "node scripts/test-rc1-release.js",
     "test:icons": "node scripts/test-icons.js",
     "test:projection-rendering": "node scripts/test-projection-rendering.js",
+    "test:presenter-reliability": "node scripts/test-presenter-reliability.js",
     "test:pilot-license": "node scripts/test-pilot-license.js",
     "test:pilot-device-proof": "node scripts/test-pilot-device-proof.js",
     "mock:license-server": "node scripts/mock-license-server.js",

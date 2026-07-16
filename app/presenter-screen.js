@@ -21,15 +21,15 @@
   document.body.style.cursor = "none";
 
   output.configure({ escapeHtml, lyricHtml });
-  engine.attachRemoteListener();
 
   function renderFromBus(message) {
     if (!message || !message.snapshot) return;
     output.render(root, message.snapshot);
   }
 
+  let bus = null;
   if (typeof BroadcastChannel !== "undefined") {
-    const bus = new BroadcastChannel(engine.CHANNEL_NAME);
+    bus = new BroadcastChannel(engine.CHANNEL_NAME);
     bus.onmessage = (event) => renderFromBus(event.data);
   }
 
@@ -37,26 +37,66 @@
     window.electronAPI.onPresenterState((payload) => renderFromBus(payload));
   }
 
-  engine.subscribe((snapshot) => output.render(root, snapshot));
+  // Commands are always forwarded to the controller window, where licence,
+  // Live Lock, and confirmation guards run. Nothing executes locally: this
+  // window's own engine state is inert and must never be broadcast.
+  function forwardCommand(command) {
+    if (window.electronAPI && window.electronAPI.sendPresenterCommand) {
+      window.electronAPI.sendPresenterCommand(command);
+      return;
+    }
+    if (bus) bus.postMessage({ type: "presenter:command", command, sentAt: Date.now() });
+  }
+
+  // Escape must never end the live session from a single accidental press.
+  // In fullscreen it only exits fullscreen (browser default). Outside
+  // fullscreen it requires a second press within the confirmation window,
+  // and the close command is still subject to Live Lock on the controller.
+  const CLOSE_CONFIRM_WINDOW_MS = 2000;
+  let closeArmedAt = 0;
+
+  function handleEscape() {
+    if (document.fullscreenElement) {
+      closeArmedAt = 0;
+      return;
+    }
+    const now = Date.now();
+    if (closeArmedAt && now - closeArmedAt <= CLOSE_CONFIRM_WINDOW_MS) {
+      closeArmedAt = 0;
+      forwardCommand("close-presenter");
+      return;
+    }
+    closeArmedAt = now;
+  }
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
       event.preventDefault();
-      engine.sendCommand("presenter-next");
+      forwardCommand("presenter-next");
     }
     if (event.key === "ArrowLeft" || event.key === "PageUp") {
       event.preventDefault();
-      engine.sendCommand("presenter-prev");
+      forwardCommand("presenter-prev");
     }
-    if (event.key === "Escape") engine.sendCommand("close-presenter");
+    if (event.key === "Escape") {
+      handleEscape();
+      return;
+    }
     const key = event.key.toLowerCase();
-    if (key === "b") engine.sendCommand("emergency-black");
-    if (key === "w") engine.sendCommand("emergency-white");
-    if (key === "l") engine.sendCommand("emergency-logo");
-    if (key === "c") engine.sendCommand("emergency-clear");
-    if (key === "p") engine.sendCommand("presenter-pause");
+    if (key === "b") forwardCommand("emergency-black");
+    if (key === "w") forwardCommand("emergency-white");
+    if (key === "l") forwardCommand("emergency-logo");
+    if (key === "c") forwardCommand("emergency-clear");
+    if (key === "p") forwardCommand("presenter-pause");
     if (key === "f") output.requestFullscreen(root);
   });
+
+  // Ask the controller to replay the current presentation state so a newly
+  // opened or reloaded projector window renders immediately. In the desktop
+  // app the main process replays the last payload after did-finish-load.
+  if (!window.electronAPI && bus) {
+    bus.postMessage({ type: "presenter:request-state", sentAt: Date.now() });
+  }
 
   window.addEventListener("load", () => {
     setTimeout(() => output.requestFullscreen(document.documentElement), 250);

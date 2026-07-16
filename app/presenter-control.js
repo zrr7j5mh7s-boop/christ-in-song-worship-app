@@ -124,11 +124,11 @@
           <div class="av-header-stats">
             <div class="av-stat">
               <span>${escapeHtml(t("presenterControl.clock"))}</span>
-              <strong>${escapeHtml(snapshot.clock || "--:--")}</strong>
+              <strong data-presenter-clock>${escapeHtml(snapshot.clock || "--:--")}</strong>
             </div>
             <div class="av-stat">
               <span>${escapeHtml(t("presenterControl.timer"))}</span>
-              <strong>${escapeHtml(formatDuration(snapshot.timerRemaining || 0))}</strong>
+              <strong data-presenter-timer>${escapeHtml(formatDuration(snapshot.timerRemaining || 0))}</strong>
             </div>
             <div class="av-stat">
               <span>${escapeHtml(t("presenterControl.slide"))}</span>
@@ -157,7 +157,7 @@
             ${previewBlock(t("presenterControl.nextSlide"), nextSlideTitle, nextSlide && nextSlide.body, t("presenterControl.endOfHymn"))}
             <article class="av-preview-card timer-card">
               <span>${escapeHtml(t("presenterControl.timer"))}</span>
-              <strong>${escapeHtml(formatDuration(snapshot.timerRemaining || 0))}</strong>
+              <strong data-presenter-timer>${escapeHtml(formatDuration(snapshot.timerRemaining || 0))}</strong>
               <div class="button-row">
                 <button type="button" data-command="timer-minus">-5 min</button>
                 <button type="button" data-command="timer-plus">+5 min</button>
