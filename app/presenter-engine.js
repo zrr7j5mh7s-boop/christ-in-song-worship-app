@@ -155,6 +155,10 @@
       layout: slide?.layout || projection.layout || "fullscreen",
       obsLayout: slide?.obsLayout || projection.obsLayout || "lower_third",
       stageShowNextVerse: projection.stageShowNextVerse !== false,
+      backgroundId: projection.backgroundId || "black",
+      customBackgroundDataUrl: projection.customBackgroundDataUrl || "",
+      projectorBackgroundCss: projection.projectorBackgroundCss || "",
+      churchLogo: projection.churchLogo || null,
       fitWarnings: slide?.fitWarning || [],
       slide: slide
         ? {

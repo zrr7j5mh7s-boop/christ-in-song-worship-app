@@ -208,8 +208,6 @@
           <button type="button" class="help-emergency-btn" data-command="camera-freeze-off">Stop frozen camera</button>
           <button type="button" class="help-emergency-btn" data-command="camera-restart">Restart camera source</button>
           <button type="button" class="help-emergency-btn" data-command="camera-refresh-devices">Refresh camera devices</button>
-          <button type="button" class="help-emergency-btn" data-command="emergency-logo">Show church logo</button>
-          <button type="button" class="help-emergency-btn warn" data-command="emergency-black" data-confirm="true">Blackout selected projectors</button>
           <button type="button" class="help-emergency-btn" data-command="camera-return-previous">Return to previous live item</button>
         </div>
       </section>

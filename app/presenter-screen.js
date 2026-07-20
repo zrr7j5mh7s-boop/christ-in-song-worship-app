@@ -98,10 +98,6 @@
     bus.postMessage({ type: "presenter:request-state", sentAt: Date.now() });
   }
 
-  window.addEventListener("load", () => {
-    setTimeout(() => output.requestFullscreen(document.documentElement), 250);
-  });
-
   window.addEventListener("beforeunload", () => {
     if (window.opener && !window.opener.closed) {
       try {

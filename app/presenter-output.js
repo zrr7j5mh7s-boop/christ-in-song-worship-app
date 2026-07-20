@@ -73,10 +73,18 @@
     `;
   }
 
-  function renderEmergency(mode) {
+  function renderEmergency(mode, snapshot) {
     const appName = window.CISBrandConfig ? window.CISBrandConfig.BRAND.appName.toUpperCase() : "VACHINODA WORSHIP APP";
     const shortName = window.CISBrandConfig ? window.CISBrandConfig.BRAND.shortName : "VaChinoda";
+    const logoSettings = snapshot?.churchLogo || {};
     if (mode === "logo") {
+      if (logoSettings.imageDataUrl) {
+        return `
+          <div class="projector-emergency logo has-custom-logo" aria-label="Show Logo">
+            <img src="${escapeHtml(logoSettings.imageDataUrl)}" alt="Church logo" class="projector-custom-logo-image">
+          </div>
+        `;
+      }
       return `
         <div class="projector-emergency logo" aria-label="Show Logo">
           <div class="projector-logo-lockup">
@@ -247,12 +255,30 @@
     return renderHymnBlock(snapshot, slide, theme, transitionClassName);
   }
 
+  function applyOutputBackground(root, snapshot, theme) {
+    if (!root) return;
+    const background = snapshot?.projectorBackgroundCss
+      || (window.CISProjectionBackgrounds?.resolveBackground?.({
+        backgroundId: snapshot?.backgroundId,
+        customBackgroundDataUrl: snapshot?.customBackgroundDataUrl,
+      })?.css)
+      || theme?.background
+      || "#0a1020";
+    root.style.setProperty("--projector-bg", background);
+    if (String(background).startsWith("url(")) {
+      root.style.background = background;
+    } else {
+      root.style.background = background;
+    }
+  }
+
   function render(root, snapshot, cameraState) {
     if (!root) return;
     const theme = snapshot ? resolveTheme(snapshot) : null;
     if (theme && window.CISProjectionThemes) {
       window.CISProjectionThemes.applyThemeToRoot(root, theme);
     }
+    applyOutputBackground(root, snapshot, theme);
 
     if (!snapshot || !snapshot.active) {
       root.className = "projector-output hidden";
@@ -268,7 +294,7 @@
     root.setAttribute("aria-hidden", "false");
 
     if (snapshot.displayMode && snapshot.displayMode !== "lyrics") {
-      root.innerHTML = renderEmergency(snapshot.displayMode);
+      root.innerHTML = renderEmergency(snapshot.displayMode, snapshot);
       return;
     }
 

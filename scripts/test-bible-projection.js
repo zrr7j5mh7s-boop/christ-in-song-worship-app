@@ -80,6 +80,165 @@ function mockBook() {
   };
 }
 
+function makeModeTab(mode, active) {
+  const tab = {
+    dataset: { mode },
+    classList: {
+      _active: active,
+      toggle(_className, on) {
+        this._active = on;
+      },
+    },
+    _ariaSelected: active ? "true" : "false",
+    tabIndex: active ? 0 : -1,
+    setAttribute(name, value) {
+      if (name === "aria-selected") this._ariaSelected = value;
+    },
+    getAttribute(name) {
+      if (name === "aria-selected") return this._ariaSelected;
+      return null;
+    },
+  };
+  return tab;
+}
+
+function makeWorkspaceRoot(modeTabs, resultsHost) {
+  return {
+    querySelector(selector) {
+      if (selector === "[data-bible-results-host]") return resultsHost;
+      if (selector === "[data-bible-error]") return { innerHTML: "", hidden: true };
+      if (selector === "[data-bible-loading]") return { hidden: true };
+      if (selector === "[data-bible-suggestions]") return { innerHTML: "" };
+      if (selector === "[data-bible-speech]") return { innerHTML: "" };
+      if (selector === "[data-bible-live-label]") return { textContent: "" };
+      if (selector === "[data-bible-preparing]") return { textContent: "" };
+      return null;
+    },
+    querySelectorAll(selector) {
+      if (selector === "[data-bible-mode-tab]") return modeTabs;
+      if (selector.startsWith("[data-bible-command=")) return [];
+      return [];
+    },
+  };
+}
+
+function buttonSnippet(html, mode) {
+  const match = html.match(new RegExp(`<button[^>]*data-mode="${mode}"[^>]*>`));
+  return match ? match[0] : "";
+}
+
+async function testBibleSearchModeSelector(ui, service, search, store) {
+  const referenceHtml = ui.renderLiveWorkspace({
+    translations: store.getTranslations(),
+    projectionState: { preview: { searchMode: "reference", slides: [], searchResults: [] }, live: {} },
+    settings: service.getSettings(),
+    bibleMode: "live",
+  });
+  const referenceTab = buttonSnippet(referenceHtml, "reference");
+  const textTabReferenceMode = buttonSnippet(referenceHtml, "text");
+  assert.match(referenceTab, /class="secondary-button active"/);
+  assert.match(textTabReferenceMode, /aria-selected="false"/);
+
+  const phraseHtml = ui.renderLiveWorkspace({
+    translations: store.getTranslations(),
+    projectionState: { preview: { searchMode: "text", slides: [], searchResults: [] }, live: {} },
+    settings: service.getSettings(),
+    bibleMode: "live",
+  });
+  const phraseTab = buttonSnippet(phraseHtml, "text");
+  const referenceTabPhraseMode = buttonSnippet(phraseHtml, "reference");
+  assert.match(phraseTab, /class="secondary-button active"/);
+  assert.match(referenceTabPhraseMode, /aria-selected="false"/);
+
+  const refBtn = makeModeTab("reference", true);
+  const textBtn = makeModeTab("text", false);
+  const resultsHost = { innerHTML: "" };
+  const root = makeWorkspaceRoot([refBtn, textBtn], resultsHost);
+
+  ui.updateWorkspace(root, {
+    projectionState: {
+      preview: {
+        searchMode: "text",
+        searchResults: [{
+          reference: "John 3:16",
+          translation: "KJV",
+          text: "For God so loved the world",
+        }],
+      },
+      live: {},
+    },
+  });
+  assert.equal(refBtn.classList._active, false, "Reference tab deactivates when switching to phrase mode");
+  assert.equal(textBtn.classList._active, true, "Word / phrase tab activates on partial update");
+  assert.equal(textBtn.getAttribute("aria-selected"), "true");
+  assert.match(resultsHost.innerHTML, /John 3:16/, "phrase results render after mode switch partial update");
+
+  ui.updateWorkspace(root, {
+    projectionState: {
+      preview: {
+        searchMode: "reference",
+        slides: [{ reference: "John 3:16", body: "For God so loved the world", slideInHymn: 1, totalSlides: 1 }],
+        slideIndex: 0,
+        referenceLabel: "John 3:16",
+        searchResults: [],
+      },
+      live: {},
+    },
+  });
+  assert.equal(refBtn.classList._active, true, "Reference tab reactivates when switching back");
+  assert.equal(textBtn.classList._active, false);
+  assert.match(resultsHost.innerHTML, /For God so loved the world/, "reference passage renders after switching back");
+
+  service.setPreviewField("searchMode", "text");
+  assert.equal(service.getState().preview.searchMode, "text");
+  service.setPreviewField("searchMode", "reference");
+  assert.equal(service.getState().preview.searchMode, "reference");
+
+  const appSource = read("app/app.js");
+  const modeSwitchBlock = appSource.match(/if \(command === "set-search-mode"\) \{[\s\S]*?\n    \}/);
+  assert.ok(modeSwitchBlock, "set-search-mode handler must exist");
+  assert.match(modeSwitchBlock[0], /paintBibleLive\(\{ partial: true \}\)/);
+  assert.doesNotMatch(modeSwitchBlock[0], /runBiblePhraseSearch/);
+
+  const uiSource = read("app/bible/bible-live-ui.js");
+  assert.match(uiSource, /updateSearchModeTabs/);
+  const bindBlock = uiSource.match(/if \(command === "set-search-mode"\) \{[\s\S]*?return;\n      \}/);
+  assert.ok(bindBlock, "bindWorkspace must special-case set-search-mode");
+  assert.match(bindBlock[0], /keydown/);
+  assert.match(bindBlock[0], /Enter/);
+
+  let keyboardActivations = 0;
+  const modeButton = {
+    tagName: "BUTTON",
+    dataset: { bibleCommand: "set-search-mode", mode: "text" },
+    addEventListener(type, handler) {
+      if (type === "keydown") this.onKeydown = handler;
+    },
+  };
+  const keyboardRoot = {
+    querySelector() { return null; },
+    querySelectorAll(selector) {
+      if (selector === "[data-bible-command]") return [modeButton];
+      return [];
+    },
+  };
+  ui.bindWorkspace(keyboardRoot, () => { keyboardActivations += 1; });
+  modeButton.onKeydown({ key: " ", preventDefault() {} });
+  assert.equal(keyboardActivations, 1, "Space activates search-mode control through keyboard handler");
+
+  search.clearIndex();
+  await search.buildIndex("KJV");
+  service.setPreviewField("searchMode", "text");
+  const phraseResults = await search.searchText("God so loved", { translation: "KJV", limit: 5 });
+  service.setPreviewField("searchResults", phraseResults || [], { silent: true });
+  const resultsHtml = ui.renderSearchResults(service.getState().preview.searchResults);
+  assert.match(resultsHtml, /bible-search-result/, "phrase search results render in text mode");
+  assert.match(resultsHtml, /<mark>God<\/mark>/, "phrase search highlights matching terms");
+
+  const emptyPhraseHtml = ui.renderSearchResults([], { searchMode: "text", referenceInput: "xyzzy no verse" });
+  assert.match(emptyPhraseHtml, /No matching verses found/i);
+}
+
 async function run() {
   const catalog = loadCatalog();
   const { parser, store } = loadStoreAndParser(catalog);
@@ -164,6 +323,17 @@ async function run() {
   assert.equal(service.getState().live.active, true);
   assert.equal(service.getState().live.referenceLabel, "John 3:16");
 
+  service.clearLive();
+  await service.loadPreviewFromInput("John 3:16");
+  mods.CISLiveSwitchService = { isSwitching: () => true };
+  const blockedDuringSwitch = service.sendLive();
+  assert.equal(blockedDuringSwitch.ok, false);
+  assert.match(blockedDuringSwitch.message, /already in progress/i);
+  const allowedFromLiveSwitch = service.sendLive({ fromLiveSwitch: true });
+  assert.equal(allowedFromLiveSwitch.ok, true);
+  assert.equal(service.getState().live.referenceLabel, "John 3:16");
+  delete mods.CISLiveSwitchService;
+
   await service.setPreviewTranslation("ASV");
   assert.equal(service.getState().preview.translation, "ASV");
   assert.equal(service.getState().live.translation, "KJV");
@@ -217,6 +387,8 @@ async function run() {
   assert.ok(html.includes("Bible Live"));
   assert.ok(html.includes("bibleLiveReferenceInput"));
   assert.ok(html.includes("Send Live"));
+
+  await testBibleSearchModeSelector(ui, service, search, mods.CISBibleStore);
 
   mods.CISBibleStore.loadBook = originalLoad;
 
