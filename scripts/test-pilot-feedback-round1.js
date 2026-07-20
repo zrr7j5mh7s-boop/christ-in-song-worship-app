@@ -6,6 +6,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
+const {
+  normalizeSource,
+  assertSetSearchModeBindSpecialCase,
+} = require("./lib/source-text-helpers");
+
 const ROOT = path.join(__dirname, "..");
 
 function read(rel) {
@@ -105,13 +110,18 @@ function testEmergencyHelpDuplicatesRemoved() {
 
 function testBibleSearchModeSelectorRegression() {
   const uiSource = read("app/bible/bible-live-ui.js");
-  const appSource = read("app/app.js");
-  assert.match(uiSource, /updateSearchModeTabs/);
-  assert.match(uiSource, /data-bible-mode-tab/);
-  const bindBlock = uiSource.match(/if \(command === "set-search-mode"\) \{[\s\S]*?return;\n      \}/);
+  const appSource = normalizeSource(read("app/app.js"));
+  assert.match(normalizeSource(uiSource), /updateSearchModeTabs/);
+  assert.match(normalizeSource(uiSource), /data-bible-mode-tab/);
+  assertSetSearchModeBindSpecialCase(assert, uiSource, "bible-live-ui.js");
+  const bindBlock = normalizeSource(uiSource).match(
+    /if\s*\(\s*command\s*===\s*"set-search-mode"\s*\)\s*\{[\s\S]*?return;\s*\}/,
+  );
   assert.ok(bindBlock, "bindWorkspace must special-case set-search-mode");
   assert.match(bindBlock[0], /keydown/);
-  const modeSwitchBlock = appSource.match(/if \(command === "set-search-mode"\) \{[\s\S]*?\n    \}/);
+  const modeSwitchBlock = appSource.match(
+    /if\s*\(\s*command\s*===\s*"set-search-mode"\s*\)\s*\{[\s\S]*?paintBibleLive\(\{ partial: true \}\)/,
+  );
   assert.ok(modeSwitchBlock, "set-search-mode handler must exist");
   assert.match(modeSwitchBlock[0], /paintBibleLive\(\{ partial: true \}\)/);
   assert.doesNotMatch(modeSwitchBlock[0], /runBiblePhraseSearch/);

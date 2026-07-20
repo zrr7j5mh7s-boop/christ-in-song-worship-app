@@ -7,6 +7,11 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const ROOT = path.join(__dirname, "..");
+const {
+  normalizeSource,
+  assertSetSearchModeBindSpecialCase,
+  testSetSearchModeBindSourceRegression,
+} = require("./lib/source-text-helpers");
 
 function read(file) {
   return fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -194,25 +199,29 @@ async function testBibleSearchModeSelector(ui, service, search, store) {
   service.setPreviewField("searchMode", "reference");
   assert.equal(service.getState().preview.searchMode, "reference");
 
-  const appSource = read("app/app.js");
-  const modeSwitchBlock = appSource.match(/if \(command === "set-search-mode"\) \{[\s\S]*?\n    \}/);
+  testSetSearchModeBindSourceRegression(assert);
+
+  const appSource = normalizeSource(read("app/app.js"));
+  const modeSwitchBlock = appSource.match(
+    /if\s*\(\s*command\s*===\s*"set-search-mode"\s*\)\s*\{[\s\S]*?paintBibleLive\(\{ partial: true \}\)/,
+  );
   assert.ok(modeSwitchBlock, "set-search-mode handler must exist");
   assert.match(modeSwitchBlock[0], /paintBibleLive\(\{ partial: true \}\)/);
   assert.doesNotMatch(modeSwitchBlock[0], /runBiblePhraseSearch/);
 
-  const uiSource = read("app/bible/bible-live-ui.js");
-  assert.match(uiSource, /updateSearchModeTabs/);
-  const bindBlock = uiSource.match(/if \(command === "set-search-mode"\) \{[\s\S]*?return;\n      \}/);
-  assert.ok(bindBlock, "bindWorkspace must special-case set-search-mode");
-  assert.match(bindBlock[0], /keydown/);
-  assert.match(bindBlock[0], /Enter/);
+  assertSetSearchModeBindSpecialCase(assert, read("app/bible/bible-live-ui.js"), "bible-live-ui.js");
+  assert.match(normalizeSource(read("app/bible/bible-live-ui.js")), /updateSearchModeTabs/);
 
   let keyboardActivations = 0;
   const modeButton = {
     tagName: "BUTTON",
     dataset: { bibleCommand: "set-search-mode", mode: "text" },
     addEventListener(type, handler) {
+      if (type === "click") this.onClick = handler;
       if (type === "keydown") this.onKeydown = handler;
+    },
+    click() {
+      if (this.onClick) this.onClick();
     },
   };
   const keyboardRoot = {
@@ -225,6 +234,12 @@ async function testBibleSearchModeSelector(ui, service, search, store) {
   ui.bindWorkspace(keyboardRoot, () => { keyboardActivations += 1; });
   modeButton.onKeydown({ key: " ", preventDefault() {} });
   assert.equal(keyboardActivations, 1, "Space activates search-mode control through keyboard handler");
+  keyboardActivations = 0;
+  modeButton.onKeydown({ key: "Enter", preventDefault() {} });
+  assert.equal(keyboardActivations, 1, "Enter activates search-mode control through keyboard handler");
+  keyboardActivations = 0;
+  modeButton.click();
+  assert.equal(keyboardActivations, 1, "Click activates search-mode control through dedicated handler");
 
   search.clearIndex();
   await search.buildIndex("KJV");
