@@ -49,8 +49,8 @@
     speechSuggestion: null,
   };
 
-  function notify() {
-    listeners.forEach((fn) => fn(getPublicState()));
+  function notify(meta) {
+    listeners.forEach((fn) => fn(getPublicState(), meta || null));
   }
 
   function getSettings() {
@@ -358,7 +358,8 @@
     state.history = state.history.slice(0, 80);
   }
 
-  function sendLive() {
+  function sendLive(options) {
+    const fromLiveSwitch = Boolean(options && options.fromLiveSwitch);
     if (state.preview.loading) {
       return { ok: false, message: "Passage is still loading. Current Live output is unchanged." };
     }
@@ -368,7 +369,7 @@
     if (!state.preview.slides.length) {
       return { ok: false, message: state.preview.error || "Load a passage in Preview before sending Live." };
     }
-    if (window.CISLiveSwitchService?.isSwitching?.()) {
+    if (!fromLiveSwitch && window.CISLiveSwitchService?.isSwitching?.()) {
       return { ok: false, message: "A Live switch is already in progress." };
     }
 
@@ -493,10 +494,10 @@
     notify();
   }
 
-  function setPreviewField(field, value) {
+  function setPreviewField(field, value, options = {}) {
     if (Object.prototype.hasOwnProperty.call(state.preview, field)) {
       state.preview[field] = value;
-      notify();
+      if (!options.silent) notify({ field });
     }
   }
 

@@ -62,8 +62,13 @@
     `;
   }
 
-  function renderSearchResults(results) {
-    if (!results?.length) return "";
+  function renderSearchResults(results, preview = {}) {
+    if (!results?.length) {
+      if (preview.searchMode === "text" && String(preview.referenceInput || "").trim()) {
+        return `<p class="muted bible-live-empty">No matching verses found for that phrase.</p>`;
+      }
+      return "";
+    }
     return `
       <div class="bible-live-search-results">
         ${results.map((item, index) => `
@@ -123,6 +128,73 @@
         </div>
       </div>
     `;
+  }
+
+  function updateSearchModeTabs(root, searchMode) {
+    const isText = searchMode === "text";
+    root.querySelectorAll("[data-bible-mode-tab]").forEach((button) => {
+      const active = (button.dataset.mode || "reference") === (isText ? "text" : "reference");
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+      button.tabIndex = active ? 0 : -1;
+    });
+  }
+
+  function updateWorkspace(root, options) {
+    if (!root) return;
+    const preview = options.projectionState?.preview || {};
+    const live = options.projectionState?.live || {};
+    const liveLabel = live.active && !live.cleared
+      ? `${live.referenceLabel} — ${live.translation}`
+      : live.cleared ? "Scripture cleared" : "Nothing Live";
+
+    updateSearchModeTabs(root, preview.searchMode);
+
+    const resultsHost = root.querySelector("[data-bible-results-host]");
+    if (resultsHost) {
+      resultsHost.innerHTML = preview.searchMode === "text"
+        ? renderSearchResults(preview.searchResults, preview)
+        : renderPassage(preview.slides, preview.slideIndex, preview.referenceLabel);
+    }
+
+    const errorEl = root.querySelector("[data-bible-error]");
+    if (errorEl) {
+      errorEl.innerHTML = preview.error ? `<p class="bible-live-error" role="alert">${escapeHtml(preview.error)}</p>` : "";
+      errorEl.hidden = !preview.error;
+    }
+
+    const loadingEl = root.querySelector("[data-bible-loading]");
+    if (loadingEl) {
+      loadingEl.hidden = !preview.loading;
+    }
+
+    const suggestionsEl = root.querySelector("[data-bible-suggestions]");
+    if (suggestionsEl) {
+      suggestionsEl.innerHTML = renderSuggestions(preview.suggestions);
+    }
+
+    const speechEl = root.querySelector("[data-bible-speech]");
+    if (speechEl) {
+      speechEl.innerHTML = renderSpeechSuggestion(options.projectionState?.speechSuggestion);
+    }
+
+    const liveLabelEl = root.querySelector("[data-bible-live-label]");
+    if (liveLabelEl) liveLabelEl.textContent = liveLabel;
+
+    const preparingEl = root.querySelector("[data-bible-preparing]");
+    if (preparingEl) {
+      preparingEl.textContent = `${preview.referenceLabel || "—"}${preview.translation ? ` — ${preview.translation}` : ""}`;
+    }
+
+    root.querySelectorAll("[data-bible-command='prev-verse']").forEach((btn) => {
+      btn.disabled = !preview.parsed;
+    });
+    root.querySelectorAll("[data-bible-command='next-verse']").forEach((btn) => {
+      btn.disabled = !preview.parsed;
+    });
+    root.querySelectorAll("[data-bible-command='change-live-version']").forEach((btn) => {
+      btn.disabled = !live.active || live.cleared;
+    });
   }
 
   function renderLiveWorkspace(options) {
@@ -185,15 +257,17 @@
           </label>
         </div>
 
-        <div class="bible-live-mode-tabs">
-          <button class="secondary-button ${preview.searchMode !== "text" ? "active" : ""}" type="button" data-bible-command="set-search-mode" data-mode="reference">Reference</button>
-          <button class="secondary-button ${preview.searchMode === "text" ? "active" : ""}" type="button" data-bible-command="set-search-mode" data-mode="text">Word / phrase</button>
+        <div class="bible-live-mode-tabs" role="tablist" aria-label="Bible search mode" data-bible-mode-tabs>
+          <button class="secondary-button ${preview.searchMode !== "text" ? "active" : ""}" type="button" role="tab" aria-selected="${preview.searchMode !== "text" ? "true" : "false"}" tabindex="${preview.searchMode !== "text" ? "0" : "-1"}" data-bible-command="set-search-mode" data-bible-mode-tab data-mode="reference">Reference</button>
+          <button class="secondary-button ${preview.searchMode === "text" ? "active" : ""}" type="button" role="tab" aria-selected="${preview.searchMode === "text" ? "true" : "false"}" tabindex="${preview.searchMode === "text" ? "0" : "-1"}" data-bible-command="set-search-mode" data-bible-mode-tab data-mode="text">Word / phrase</button>
         </div>
 
-        ${preview.error ? `<p class="bible-live-error" role="alert">${escapeHtml(preview.error)}</p>` : ""}
-        ${preview.loading ? `<p class="muted" role="status">Loading passage…</p>` : ""}
-        ${renderSuggestions(preview.suggestions)}
-        ${preview.searchMode === "text" ? renderSearchResults(preview.searchResults) : renderPassage(preview.slides, preview.slideIndex, preview.referenceLabel)}
+        ${preview.error ? `<div data-bible-error><p class="bible-live-error" role="alert">${escapeHtml(preview.error)}</p></div>` : `<div data-bible-error hidden></div>`}
+        <p class="muted" data-bible-loading role="status" ${preview.loading ? "" : "hidden"}>Loading passage…</p>
+        <div data-bible-suggestions>${renderSuggestions(preview.suggestions)}</div>
+        <div data-bible-results-host>
+        ${preview.searchMode === "text" ? renderSearchResults(preview.searchResults, preview) : renderPassage(preview.slides, preview.slideIndex, preview.referenceLabel)}
+        </div>
 
         <div class="bible-live-actions">
           <button class="secondary-button" type="button" data-bible-command="prev-verse" ${!preview.parsed ? "disabled" : ""}>Previous Verse</button>
@@ -206,23 +280,22 @@
           <button class="secondary-button" type="button" data-bible-command="change-live-version" ${!live.active || live.cleared ? "disabled" : ""}>Change Live Version</button>
           <button class="secondary-button" type="button" data-bible-command="clear-scripture">Clear Scripture</button>
           <button class="secondary-button" type="button" data-bible-command="restore-scripture">Restore Previous</button>
-          <button class="secondary-button" type="button" data-bible-command="show-logo">Show Logo</button>
           <button class="secondary-button" type="button" data-bible-command="blackout">Blackout</button>
           <button class="secondary-button" type="button" data-bible-command="${speechState?.listening ? "speech-stop" : "speech-start"}">
             ${speechState?.listening ? "Stop listening" : "Speech detect"}
           </button>
         </div>
 
-        ${renderSpeechSuggestion(projectionState?.speechSuggestion)}
+        ${renderSpeechSuggestion(projectionState?.speechSuggestion) ? `<div data-bible-speech>${renderSpeechSuggestion(projectionState?.speechSuggestion)}</div>` : `<div data-bible-speech></div>`}
 
         <footer class="bible-live-status" aria-live="polite">
           <div class="bible-live-status-row">
             <span class="bible-live-status-label">Currently Live:</span>
-            <strong>${escapeHtml(liveLabel)}</strong>
+            <strong data-bible-live-label>${escapeHtml(liveLabel)}</strong>
           </div>
           <div class="bible-live-status-row">
             <span class="bible-live-status-label">Preparing:</span>
-            <span>${escapeHtml(preview.referenceLabel || "—")}${preview.translation ? ` — ${escapeHtml(preview.translation)}` : ""}</span>
+            <span data-bible-preparing>${escapeHtml(preview.referenceLabel || "—")}${preview.translation ? ` — ${escapeHtml(preview.translation)}` : ""}</span>
           </div>
           ${preview.nextVerseRef ? `<div class="bible-live-status-row"><span class="muted">Next: ${escapeHtml(preview.nextVerseRef)}</span></div>` : ""}
           ${preview.prevVerseRef ? `<div class="bible-live-status-row"><span class="muted">Previous: ${escapeHtml(preview.prevVerseRef)}</span></div>` : ""}
@@ -249,6 +322,16 @@
         element.addEventListener("change", () => handlers(command, element));
         return;
       }
+      if (command === "set-search-mode") {
+        element.addEventListener("click", () => handlers(command, element));
+        element.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handlers(command, element);
+          }
+        });
+        return;
+      }
       element.addEventListener("click", () => handlers(command, element));
     });
 
@@ -268,6 +351,8 @@
     DESTINATIONS,
     renderLiveWorkspace,
     renderSearchResults,
+    updateWorkspace,
+    updateSearchModeTabs,
     bindWorkspace,
   };
 })();

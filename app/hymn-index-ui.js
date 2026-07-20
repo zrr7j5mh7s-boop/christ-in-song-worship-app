@@ -128,12 +128,14 @@
             <span>Show categories</span>
           </label>
           <label class="hymn-index-sort-wrap">
-            <span class="hymn-index-control-label">Sort</span>
-            <select id="indexSortSelect" data-command="set-index-sort" aria-label="Sort hymns">
-              ${SORT_OPTIONS.map((opt) => `
-                <option value="${escapeHtml(opt.id)}" ${settings.sort === opt.id ? "selected" : ""}>${escapeHtml(opt.label)}</option>
-              `).join("")}
-            </select>
+            <span class="hymn-index-control-label" id="indexSortLabel">Sort</span>
+            <span class="hymn-index-sort-control">
+              <select id="indexSortSelect" data-command="set-index-sort" aria-labelledby="indexSortLabel indexSortLabel">
+                ${SORT_OPTIONS.map((opt) => `
+                  <option value="${escapeHtml(opt.id)}" ${settings.sort === opt.id ? "selected" : ""}>${escapeHtml(opt.label)}</option>
+                `).join("")}
+              </select>
+            </span>
           </label>
           <details class="hymn-index-display-menu">
             <summary class="secondary-button hymn-index-options-btn" aria-label="Display options">

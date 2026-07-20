@@ -242,17 +242,31 @@
     }
   }
 
+  function highlightActiveResult() {
+    const root = document.getElementById("globalSearchResults");
+    if (!root) return;
+    root.querySelectorAll("[data-search-result]").forEach((card) => {
+      const index = Number(card.dataset.flatIndex);
+      const active = index === activeIndex;
+      card.classList.toggle("active", active);
+      card.setAttribute("aria-selected", active ? "true" : "false");
+      const wrap = card.closest(".search-result-card-wrap");
+      if (wrap) wrap.classList.toggle("active", active);
+    });
+    scrollActiveIntoView();
+  }
+
   function setActiveIndex(nextIndex) {
     const total = lastPayload.flat.length;
     if (!total) {
       activeIndex = -1;
-      paintResults(lastPayload);
+      highlightActiveResult();
       return;
     }
     if (nextIndex < 0) activeIndex = total - 1;
     else if (nextIndex >= total) activeIndex = 0;
     else activeIndex = nextIndex;
-    paintResults(lastPayload);
+    highlightActiveResult();
   }
 
   function openActiveResult() {
@@ -329,9 +343,12 @@
     });
 
     root.addEventListener("click", (event) => {
+      const action = event.target.closest("[data-command]");
+      if (action && action.closest("#globalSearchResults")) {
+        return;
+      }
       const card = event.target.closest("[data-search-result]");
       if (!card) return;
-      event.stopPropagation();
       call("onOpenSong", card.dataset.song, card.dataset.langJump, card.dataset.editionJump);
     });
 

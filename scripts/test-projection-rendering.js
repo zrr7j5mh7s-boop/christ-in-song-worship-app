@@ -203,6 +203,11 @@ function run() {
 
   const screenSource = read("app/presenter-screen.js");
   assert.ok(screenSource.includes('cursor = "none"'), "projector window hides mouse pointer");
+  assert.doesNotMatch(
+    screenSource,
+    /setTimeout\(\(\) => output\.requestFullscreen/,
+    "projector window must not auto-request fullscreen without a user gesture",
+  );
 
   const sw = read("app/sw.js");
   assert.match(sw, /christ-in-song-worship-v47/);

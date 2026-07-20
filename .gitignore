@@ -1,6 +1,8 @@
 node_modules/
 dist/
 release/
+.tmp-electron-acceptance/
+docs/PILOT_FEEDBACK_ELECTRON_ACCEPTANCE.json
 out/
 build/icon.iconset/*.png.tmp
 

@@ -699,6 +699,39 @@
     setNotice(t("notice.audioRemoved", { number: song.number }));
   }
 
+  function ensureLiveProjectorReady() {
+    if (!window.CISPresenterEngine) return false;
+    if (!window.CISPresenterEngine.getState().active) {
+      startPresenterSession({ displayMode: "lyrics" });
+    }
+    if (typeof window.CISPresenterEngine.openOutputSurface === "function") {
+      window.CISPresenterEngine.openOutputSurface();
+    }
+    return window.CISPresenterEngine.getState().active;
+  }
+
+  function getChurchLogoSettings() {
+    return window.CISChurchLogoSettings
+      ? window.CISChurchLogoSettings.load((key, fallback) => loadJson(key, fallback))
+      : {};
+  }
+
+  function getProjectionOutputSettings() {
+    return window.CISProjectionSettings
+      ? window.CISProjectionSettings.load(loadJson)
+      : (window.CISProjectionSettings?.DEFAULTS || {});
+  }
+
+  function persistProjectionOutputSettings(patch) {
+    if (!window.CISProjectionSettings) return getProjectionOutputSettings();
+    const next = window.CISProjectionSettings.save(
+      { ...getProjectionOutputSettings(), ...patch },
+      saveJson,
+    );
+    if (window.CISPresenterEngine?.getState?.().active) renderPresenterAV();
+    return next;
+  }
+
   function setupBible() {
     if (!window.CISBibleReaderUI || !window.CISBibleStore) return;
     window.CISBibleReaderUI.configure({ escapeHtml });
@@ -721,31 +754,31 @@
         }
       },
       onSendLive: ({ slideIndex }) => {
+        if (!ensureLiveProjectorReady()) {
+          setNotice("Could not open the projector output. Check that Presenter is available.", { important: true });
+          return;
+        }
         const key = window.CISBibleProjectionService.BIBLE_LIVE_KEY;
+        const item = window.CISBibleProjectionService.getPresenterItem();
+        if (!item || !item.slides?.length) {
+          setNotice("Bible passage is not ready for projection.", { important: true });
+          return;
+        }
         state.presenter.songKey = key;
         state.presenter.planIndex = null;
         state.presenter.slideIndex = slideIndex || 0;
         state.presenter.queueKeys = [];
         state.presenter.queueIndex = null;
-        if (!window.CISPresenterEngine?.getState?.().active) {
-          startPresenterSession({
-            songKey: key,
-            planIndex: null,
-            slideIndex: state.presenter.slideIndex,
-            queueKeys: [],
-            queueIndex: null,
-          });
-        } else {
-          window.CISPresenterEngine.patchState({
-            songKey: key,
-            planIndex: null,
-            slideIndex: state.presenter.slideIndex,
-            queueKeys: [],
-            queueIndex: null,
-          });
-        }
+        window.CISPresenterEngine.patchState({
+          songKey: key,
+          planIndex: null,
+          slideIndex: state.presenter.slideIndex,
+          queueKeys: [],
+          queueIndex: null,
+          displayMode: "lyrics",
+        });
         renderPresenterAV();
-        if (state.view === "bible") paintBibleLive();
+        paintBibleLive({ partial: true });
       },
       onClearLive: () => {
         if (window.CISObsOutputService?.clearOverlay) {
@@ -769,8 +802,10 @@
     }
     if (!window.CISBibleProjectionService._subscribed) {
       window.CISBibleProjectionService._subscribed = true;
-      window.CISBibleProjectionService.subscribe(() => {
-        if (state.view === "bible") paintBibleLive();
+      window.CISBibleProjectionService.subscribe((event) => {
+        if (state.view !== "bible") return;
+        if (event?.field === "referenceInput") return;
+        paintBibleLive({ partial: true });
       });
     }
   }
@@ -1861,7 +1896,10 @@
           return { ...result, displayMode: "lyrics" };
         }
         if (item.type === "bible" && window.CISBibleProjectionService) {
-          const result = window.CISBibleProjectionService.sendLive();
+          if (!ensureLiveProjectorReady()) {
+            return { ok: false, message: "Could not open the projector output." };
+          }
+          const result = window.CISBibleProjectionService.sendLive({ fromLiveSwitch: true });
           return { ...result, displayMode: "lyrics" };
         }
         return { ok: false, message: "Unsupported Live content." };
@@ -2147,8 +2185,15 @@
       return;
     }
     if (command === "set-search-mode") {
-      service.setPreviewField("searchMode", element.dataset.mode || "reference");
-      paintBibleLive();
+      const mode = element.dataset.mode || "reference";
+      service.setPreviewField("searchMode", mode);
+      if (mode === "text") {
+        service.setPreviewField("error", "", { silent: true });
+        service.setPreviewField("suggestions", [], { silent: true });
+      } else {
+        service.setPreviewField("searchResults", [], { silent: true });
+      }
+      paintBibleLive({ partial: true });
       return;
     }
     if (command === "search-reference" || command === "preview-load") {
@@ -2157,7 +2202,7 @@
       const mode = service.getState().preview.searchMode;
       if (mode === "text" && window.CISBibleSearchService) {
         await runBiblePhraseSearch(value, service.getState().preview.translation);
-        paintBibleLive();
+        paintBibleLive({ partial: true });
         return;
       }
       await service.loadPreviewFromInput(value);
@@ -2182,12 +2227,20 @@
     }
     if (command === "send-live") {
       if (window.CISLiveSwitchService) {
+        if (!ensureLiveProjectorReady()) {
+          setNotice("Could not open the projector output.", { important: true });
+          return;
+        }
         const result = await window.CISLiveSwitchService.commit({ type: "bible" });
-        setNotice(result.message || (result.ok ? "Scripture sent Live." : "Send Live cancelled."));
+        setNotice(result.message || (result.ok ? "Scripture sent Live." : "Send Live cancelled."), { important: !result.ok });
+        return;
+      }
+      if (!ensureLiveProjectorReady()) {
+        setNotice("Could not open the projector output.", { important: true });
         return;
       }
       const result = service.sendLive();
-      setNotice(result.message || "");
+      setNotice(result.message || "", { important: !result.ok });
       return;
     }
     if (command === "change-live-version") {
@@ -2218,8 +2271,12 @@
     }
     if (command === "send-result-live" || command === "history-live") {
       await service.loadPreviewFromInput(element.dataset.reference || "");
+      if (!ensureLiveProjectorReady()) {
+        setNotice("Could not open the projector output.", { important: true });
+        return;
+      }
       const result = service.sendLive();
-      setNotice(result.message || "");
+      setNotice(result.message || "", { important: !result.ok });
       return;
     }
     if (command === "add-result-service") {
@@ -2300,37 +2357,43 @@
     input.dataset.perfBound = "1";
     input.addEventListener("input", () => {
       const service = window.CISBibleProjectionService;
-      if (!service || service.getState().preview.searchMode !== "text") return;
-      const translation = service.getState().preview.translation;
-      if (!biblePhraseSearchSession) {
-        void runBiblePhraseSearch(input.value, translation).then(() => paintBibleLive());
-        return;
-      }
-      biblePhraseSearchSession.scheduleDebounced((gen, isCurrent) => {
-        if (!isCurrent(gen)) return;
-        return runBiblePhraseSearch(input.value, translation).then(() => {
-          if (!isCurrent(gen)) return;
-          paintBibleLive();
-        });
-      });
+      if (!service) return;
+      service.setPreviewField("referenceInput", input.value, { silent: true });
     });
   }
 
-  function paintBibleLive() {
+  function paintBibleLive(options = {}) {
     const root = document.getElementById("bibleLiveRoot");
     if (!root || !window.CISBibleLiveUI || !window.CISBibleProjectionService) return;
-    root.innerHTML = window.CISBibleLiveUI.renderLiveWorkspace({
-      translations: window.CISBibleStore.getTranslations(),
-      projectionState: window.CISBibleProjectionService.getState(),
-      settings: window.CISBibleProjectionService.getSettings(),
-      speechState: window.CISBibleSpeechService ? window.CISBibleSpeechService.getState() : null,
-      sermonMode: state.bibleSermonMode,
-      bibleMode: state.bibleMode,
-    });
-    window.CISBibleLiveUI.bindWorkspace(root, handleBibleCommand);
-    bindBibleLiveInput(root);
     const input = root.querySelector("#bibleLiveReferenceInput");
-    if (input && state.bibleSermonMode) input.focus();
+    const hadFocus = document.activeElement === input;
+    const selStart = input?.selectionStart ?? null;
+    const selEnd = input?.selectionEnd ?? null;
+    const canPartial = options.partial === true && root.querySelector(".bible-live-workspace");
+
+    if (canPartial && typeof window.CISBibleLiveUI.updateWorkspace === "function") {
+      window.CISBibleLiveUI.updateWorkspace(root, {
+        projectionState: window.CISBibleProjectionService.getState(),
+        speechState: window.CISBibleSpeechService ? window.CISBibleSpeechService.getState() : null,
+      });
+    } else {
+      root.innerHTML = window.CISBibleLiveUI.renderLiveWorkspace({
+        translations: window.CISBibleStore.getTranslations(),
+        projectionState: window.CISBibleProjectionService.getState(),
+        settings: window.CISBibleProjectionService.getSettings(),
+        speechState: window.CISBibleSpeechService ? window.CISBibleSpeechService.getState() : null,
+        sermonMode: state.bibleSermonMode,
+        bibleMode: state.bibleMode,
+      });
+      window.CISBibleLiveUI.bindWorkspace(root, handleBibleCommand);
+      bindBibleLiveInput(root);
+    }
+
+    const nextInput = root.querySelector("#bibleLiveReferenceInput");
+    if (nextInput && (hadFocus || state.bibleSermonMode)) {
+      nextInput.focus();
+      if (selStart != null && selEnd != null) nextInput.setSelectionRange(selStart, selEnd);
+    }
   }
 
   function bindBibleLive() {
@@ -5099,12 +5162,13 @@
   }
 
   function getProjectionContextForOutput(item, slide) {
-    const projection = window.CISProjectionSettings
-      ? window.CISProjectionSettings.load(loadJson)
-      : (window.CISProjectionSettings?.DEFAULTS || {});
+    const projection = getProjectionOutputSettings();
     const bibleSettings = window.CISBibleProjectionService?.getSettings?.() || {};
     let outputProfile = projection.outputProfile || "projector";
     if (item?.destinations?.includes?.("stage")) outputProfile = "stage";
+    const background = window.CISProjectionBackgrounds
+      ? window.CISProjectionBackgrounds.resolveBackground(projection)
+      : null;
     return {
       themeId: bibleSettings.projectionTheme || projection.themeId || "classic_dark",
       projectionTheme: bibleSettings.projectionTheme || projection.themeId || "classic_dark",
@@ -5116,6 +5180,10 @@
       layout: slide?.layout || item?.layout || bibleSettings.defaultLayout || "fullscreen",
       obsLayout: slide?.obsLayout || item?.obsLayout || bibleSettings.obsLayout || "lower_third",
       stageShowNextVerse: projection.stageShowNextVerse !== false,
+      backgroundId: projection.backgroundId || "black",
+      customBackgroundDataUrl: projection.customBackgroundDataUrl || "",
+      projectorBackgroundCss: background?.css || "#0a1020",
+      churchLogo: getChurchLogoSettings(),
     };
   }
 
@@ -5316,7 +5384,6 @@
         embeddedProjectorActive = enabled;
         if (enabled) {
           els.presenterOutputRoot.classList.remove("hidden");
-          window.CISPresenterOutput.requestFullscreen(els.presenterOutputRoot);
         } else {
           els.presenterOutputRoot.classList.add("hidden");
           if (document.fullscreenElement === els.presenterOutputRoot && document.exitFullscreen) {
@@ -6550,6 +6617,10 @@
         ${window.CISLicenseUI && electronBridge?.license
     ? window.CISLicenseUI.renderSettingsPanel(state.licenseStatus)
     : ""}
+        ${window.CISChurchLogoUI
+    ? window.CISChurchLogoUI.renderSettingsPanel(getChurchLogoSettings())
+      + window.CISChurchLogoUI.renderBackgroundPanel(getProjectionOutputSettings())
+    : ""}
         ${hymnalPanel}
         <div class="dashboard-grid">
           <section class="section">
@@ -7213,16 +7284,13 @@
   }
 
   function setEmergency(mode) {
-    if (window.CISPresenterEngine && window.CISPresenterEngine.getState().active) {
-      window.CISPresenterEngine.setDisplayMode(mode);
-      renderPresenterAV();
+    if (!ensureLiveProjectorReady()) {
+      state.emergencyMode = mode;
+      renderEmergencyOverlay();
       return;
     }
-    state.emergencyMode = mode;
-    renderEmergencyOverlay();
-    if (els.emergencyOverlay.requestFullscreen) {
-      els.emergencyOverlay.requestFullscreen().catch(() => {});
-    }
+    window.CISPresenterEngine.setDisplayMode(mode);
+    renderPresenterAV();
   }
 
   function clearEmergency() {
@@ -7260,8 +7328,11 @@
     }
     els.emergencyOverlay.className = `emergency-overlay ${state.emergencyMode}`;
     els.emergencyOverlay.setAttribute("aria-hidden", "false");
+    const logoSettings = getChurchLogoSettings();
     els.emergencyOverlay.innerHTML = state.emergencyMode === "logo"
-      ? `<div class="emergency-logo"><span class="emergency-logo-mark" aria-hidden="true">✦</span><strong>${escapeHtml(brandAppName().toUpperCase())}</strong><span>${escapeHtml(brandShortName())}</span></div><button class="emergency-return" type="button" data-command="emergency-clear">Return to lyrics</button>`
+      ? (logoSettings.imageDataUrl
+        ? `<img src="${escapeHtml(logoSettings.imageDataUrl)}" alt="Church logo" class="emergency-logo-image"><button class="emergency-return" type="button" data-command="emergency-clear">Return to lyrics</button>`
+        : `<div class="emergency-logo"><span class="emergency-logo-mark" aria-hidden="true">✦</span><strong>${escapeHtml(brandAppName().toUpperCase())}</strong><span>${escapeHtml(brandShortName())}</span></div><button class="emergency-return" type="button" data-command="emergency-clear">Return to lyrics</button>`)
       : `<button class="emergency-return" type="button" data-command="emergency-clear">Return to lyrics</button>`;
   }
 
@@ -7702,10 +7773,12 @@
       return;
     }
 
-    const songNumber = target.dataset.song;
-    const command = target.dataset.command;
+    const songTarget = target.closest("[data-song]");
+    const songNumber = songTarget?.dataset.song;
+    const commandTarget = target.closest("[data-command]");
+    const command = commandTarget?.dataset.command || target.dataset.command;
     if (songNumber && !command) {
-      openSong(songNumber, target.dataset.langJump, target.dataset.editionJump);
+      openSong(songNumber, songTarget.dataset.langJump || songTarget.dataset.editionJump, songTarget.dataset.edition);
       return;
     }
 
@@ -7715,7 +7788,7 @@
       return;
     }
 
-    handleCommand(command, target);
+    handleCommand(command, commandTarget || target);
   });
 
   document.addEventListener("input", (event) => {
@@ -7755,9 +7828,36 @@
     if (target.dataset?.command) {
       handleCommand(target.dataset.command, target);
     }
+    if (target.dataset?.command === "church-logo-import" && target.files?.[0] && window.CISChurchLogoSettings) {
+      void window.CISChurchLogoSettings.importFile(target.files[0], (key, fallback) => loadJson(key, fallback), saveJson)
+        .then((result) => {
+          target.value = "";
+          setNotice(result.ok ? "Church logo saved." : (result.message || "Logo import failed."));
+          if (state.view === "settings") render();
+        });
+    }
+    if (target.dataset?.command === "projection-background-import" && target.files?.[0] && window.CISProjectionBackgrounds) {
+      void window.CISProjectionBackgrounds.importCustomFile(target.files[0])
+        .then((result) => {
+          target.value = "";
+          if (!result.ok) {
+            setNotice(result.message || "Background import failed.");
+            return;
+          }
+          persistProjectionOutputSettings(result.patch);
+          setNotice("Custom background saved.");
+          if (state.view === "settings") render();
+        });
+    }
   });
 
   document.addEventListener("keydown", (event) => {
+    const card = event.target.closest?.(".hymn-index-card, .hymn-index-list-row");
+    if (card && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      openSong(card.dataset.song, card.dataset.langJump, card.dataset.editionJump);
+      return;
+    }
     if (window.CISKeyboardShortcutsService?.handleEvent(event)) return;
     if (state.view === "song" && !window.CISKeyboardShortcutsService?.isTypingTarget?.(event.target)) {
       if (event.key === "ArrowRight") {
@@ -7936,7 +8036,7 @@
     if (command === "set-index-sort") {
       const sort = target.dataset.sort || target.value || "number-asc";
       persistIndexDisplay({ sort });
-      render();
+      paintIndexCollection();
       return;
     }
     if (command === "index-all-hymns") {
@@ -8472,6 +8572,33 @@
     if (command === "presenter-prev") return presenterMove(-1);
     if (command === "presenter-fullscreen") return togglePresenterFullscreen();
     if (command === "close-presenter") return closePresenter();
+    if (command === "set-projection-background") {
+      persistProjectionOutputSettings({ backgroundId: target.value || "black" });
+      if (state.view === "settings") render();
+      return;
+    }
+    if (command === "set-projection-background-custom") {
+      persistProjectionOutputSettings({ backgroundId: "custom" });
+      if (state.view === "settings") render();
+      return;
+    }
+    if (command === "projection-background-clear-custom") {
+      persistProjectionOutputSettings({
+        backgroundId: "black",
+        customBackgroundDataUrl: "",
+        customBackgroundName: "",
+      });
+      if (state.view === "settings") render();
+      return;
+    }
+    if (command === "church-logo-remove") {
+      if (window.CISChurchLogoSettings) {
+        window.CISChurchLogoSettings.remove(saveJson);
+        setNotice("Church logo removed.");
+        if (state.view === "settings") render();
+      }
+      return;
+    }
     if (command === "emergency-black") return setEmergency("black");
     if (command === "emergency-white") return setEmergency("white");
     if (command === "emergency-logo") return setEmergency("logo");
